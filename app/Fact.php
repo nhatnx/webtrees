@@ -431,20 +431,6 @@ class Fact
     }
 
     /**
-     * Used to convert a real fact (e.g. BIRT) into a close-relative’s fact (e.g. _BIRT_CHIL)
-     *
-     * @param string $tag
-     *
-     * @return void
-     *
-     * @deprecated since 2.0.5.  Will be removed in 2.1.0
-     */
-    public function setTag($tag): void
-    {
-        $this->tag = $tag;
-    }
-
-    /**
      * The Person/Family record where this Fact came from
      *
      * @return Individual|Family|Source|Repository|Media|Note|Submitter|Submission|Location|Header|GedcomRecord
@@ -479,7 +465,7 @@ class Fact
             }
         }
 
-        return GedcomTag::getLabel($this->record->tag() . ':' . $this->tag);
+        return Registry::elementFactory()->make($this->record->tag() . ':' . $this->tag)->label();
     }
 
     /**
@@ -815,5 +801,15 @@ class Fact
     public function __toString(): string
     {
         return $this->id . '@' . $this->record->xref();
+    }
+
+    /**
+     * Add blank lines, to allow a user to add/edit new values.
+     *
+     * @return string
+     */
+    public function insertMissingSubtags(): string
+    {
+        return $this->record()->insertMissingLevels($this->tag(), $this->gedcom());
     }
 }

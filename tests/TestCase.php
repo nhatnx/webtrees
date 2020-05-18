@@ -22,10 +22,10 @@ namespace Fisharebest\Webtrees;
 use Aura\Router\Route;
 use Aura\Router\RouterContainer;
 use Fig\Http\Message\RequestMethodInterface;
-use Fisharebest\Webtrees\Contracts\CacheFactoryInterface;
 use Fisharebest\Webtrees\Factories\CacheFactory;
 use Fisharebest\Webtrees\Factories\FamilyFactory;
 use Fisharebest\Webtrees\Factories\FilesystemFactory;
+use Fisharebest\Webtrees\Factories\ElementFactory;
 use Fisharebest\Webtrees\Factories\GedcomRecordFactory;
 use Fisharebest\Webtrees\Factories\HeaderFactory;
 use Fisharebest\Webtrees\Factories\IndividualFactory;
@@ -46,8 +46,6 @@ use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\TimeoutService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Illuminate\Database\Capsule\Manager as DB;
-use League\Flysystem\Filesystem;
-use League\Flysystem\Memory\MemoryAdapter;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ServerRequestFactoryInterface;
@@ -56,7 +54,6 @@ use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\UploadedFileFactoryInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Psr\Http\Message\UriFactoryInterface;
-use Symfony\Component\Cache\Adapter\NullAdapter;
 
 use function app;
 use function basename;
@@ -79,7 +76,7 @@ class TestCase extends \PHPUnit\Framework\TestCase
     /**
      * Things to run once, before all the tests.
      */
-    public static function setUpBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         parent::setUpBeforeClass();
 
@@ -94,6 +91,7 @@ class TestCase extends \PHPUnit\Framework\TestCase
         Registry::cache(new CacheFactory());
         Registry::familyFactory(new FamilyFactory());
         Registry::filesystem(new FilesystemFactory());
+        Registry::elementFactory(new ElementFactory());
         Registry::gedcomRecordFactory(new GedcomRecordFactory());
         Registry::headerFactory(new HeaderFactory());
         Registry::individualFactory(new IndividualFactory());
@@ -126,7 +124,7 @@ class TestCase extends \PHPUnit\Framework\TestCase
     /**
      * Things to run once, AFTER all the tests.
      */
-    public static function tearDownAfterClass()
+    public static function tearDownAfterClass(): void
     {
         if (static::$uses_database) {
             $pdo = DB::connection()->getPdo();
@@ -221,7 +219,7 @@ class TestCase extends \PHPUnit\Framework\TestCase
     /**
      * Things to run after every test
      */
-    protected function tearDown()
+    protected function tearDown(): void
     {
         if (static::$uses_database) {
             DB::connection()->rollBack();
