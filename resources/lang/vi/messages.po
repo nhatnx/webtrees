@@ -2249,7 +2249,7 @@ msgstr "Tự động mở rộng ghi chú"
 #. I18N: A configuration setting
 #: resources/views/admin/trees-preferences.phtml:535
 msgid "Automatically expand sources"
-msgstr "Tự động mở rông nguồn"
+msgstr "Tự động mở rộng nguồn"
 
 #. I18N: a month in the Jewish calendar
 #: app/Date/JewishDate.php:203
@@ -6430,7 +6430,7 @@ msgstr "Để được hỗ trợ kỹ thuật hay thắc mắc về gia phả, 
 #. I18N: Help text for the “Show list of family trees” site configuration setting
 #: resources/views/admin/site-preferences.phtml:105
 msgid "For websites with more than one family tree, this option will show the list of family trees in the main menu, the search pages, etc."
-msgstr "Đối với website có nhiều hơn một giay đình, tùy chọn này sẽ hiện ra danh sách cây gia đình ở menu chính, rang tìm kiếm v.v."
+msgstr "Đối với website có nhiều hơn một gia đình, tùy chọn này sẽ hiện ra danh sách cây gia đình ở menu chính, trang tìm kiếm v.v."
 
 #: resources/views/login-page.phtml:60
 #: resources/views/modules/login_block/sign-in.phtml:37
@@ -13690,7 +13690,7 @@ msgstr "Xe chứa đoạn chép cho phép bạn rút ra (“các đoạn chép�
 
 #: resources/views/admin/trees-preferences.phtml:363
 msgid "The date and time of the last update"
-msgstr "Ngày tháng và t hời gian của lần cập nhật sau cùng"
+msgstr "Ngày tháng và thời gian của lần cập nhật sau cùng"
 
 #: app/Http/Controllers/Admin/LocationController.php:420
 #: app/Http/RequestHandlers/AccountUpdate.php:113
@@ -14108,7 +14108,7 @@ msgstr "Tham chiếu website đã được cập nhật."
 #. I18N: Help text for the “Use GeoNames database for autocomplete on places” configuration setting
 #: resources/views/admin/map-provider.phtml:44
 msgid "The website www.geonames.org provides a large database of place names. This can be searched when entering new places. To use this feature, you must register for a free account at www.geonames.org and provide the username."
-msgstr "Website www.geonames.org cung cấp một CSDL lớn địa danh. Nó có thể tìm khi nhập địa danh mới vào. Để dùng tính chất nhày, bạn phải đăng ký một tài khoản miễn phí tại www.geonames.org và nhập tên người dùng vào."
+msgstr "Website www.geonames.org cung cấp một CSDL lớn địa danh. Nó có thể tìm khi nhập địa danh mới vào. Để dùng tính chất này, bạn phải đăng ký một tài khoản miễn phí tại www.geonames.org và nhập tên người dùng vào."
 
 #: resources/views/errors/database-error.phtml:16
 #: resources/views/setup/step-6-failed.phtml:16

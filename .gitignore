@@ -15,3 +15,5 @@
 
 /tests/clover.xml
 /tests/coverage
+
+/.idea
