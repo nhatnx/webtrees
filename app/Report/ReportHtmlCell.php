@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -196,16 +196,16 @@ class ReportHtmlCell extends ReportBaseCell
         echo "</div>\n";
 
         // Where to place the next position
-        if ($this->newline == 0) {
+        if ($this->newline === 0) {
             // -> Next to this cell in the same line
             $renderer->setXy($this->left + $this->width, $this->top);
             $renderer->lastCellHeight = $this->height;
-        } elseif ($this->newline == 1) {
+        } elseif ($this->newline === 1) {
             // -> On a new line at the margin - Default
             $renderer->setXy(0, $renderer->getY() + $this->height + ($cP * 2));
             // Reset the last cell height for the next line
             $renderer->lastCellHeight = 0;
-        } elseif ($this->newline == 2) {
+        } elseif ($this->newline === 2) {
             // -> On a new line at the end of this cell
             $renderer->setXy($renderer->getX() + $this->width, $renderer->getY() + $this->height + ($cP * 2));
             // Reset the last cell height for the next line

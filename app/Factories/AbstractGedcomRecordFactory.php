@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,14 +12,13 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Factories;
 
-use Fisharebest\Webtrees\Cache;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
@@ -32,19 +31,6 @@ use stdClass;
  */
 abstract class AbstractGedcomRecordFactory
 {
-    /** @var Cache  */
-    protected $cache;
-
-    /**
-     * GedcomRecordFactory constructor.
-     *
-     * @deprecated since 2.0.8 - will be removed in 2.1.0
-     */
-    public function __construct()
-    {
-        $this->cache = Registry::cache()->array();
-    }
-
     /**
      * @param Tree $tree
      *
@@ -68,9 +54,9 @@ abstract class AbstractGedcomRecordFactory
      * @param string $gedcom
      * @param string $xref
      *
-     * @return mixed|string
+     * @return string
      */
-    protected function extractXref(string $gedcom, string $xref)
+    protected function extractXref(string $gedcom, string $xref): string
     {
         if (preg_match('/^0 @(' . Gedcom::REGEX_XREF . ')@/', $gedcom, $match)) {
             return $match[1];

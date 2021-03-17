@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -20,6 +20,7 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Report\HtmlRenderer;
 use Fisharebest\Webtrees\Report\ReportParserGenerate;
 use Fisharebest\Webtrees\Report\ReportParserSetup;
@@ -27,9 +28,8 @@ use Fisharebest\Webtrees\Report\PdfRenderer;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\TestCase;
-use Fisharebest\Webtrees\User;
-use League\Flysystem\Adapter\NullAdapter;
 use League\Flysystem\Filesystem;
+use League\Flysystem\InMemory\InMemoryFilesystemAdapter;
 
 /**
  * Test harness for the class OccupationReportModule
@@ -73,11 +73,11 @@ class OccupationReportModuleTest extends TestCase
      */
     public function testReportRunsWithoutError(): void
     {
-        $data_filesystem = new Filesystem(new NullAdapter());
+        $data_filesystem = new Filesystem(new InMemoryFilesystemAdapter());
         $module_service  = new ModuleService();
 
         $user = (new UserService())->create('user', 'User', 'user@example.com', 'secret');
-        $user->setPreference(User::PREF_IS_ADMINISTRATOR, '1');
+        $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $tree   = $this->importTree('demo.ged');
@@ -90,18 +90,18 @@ class OccupationReportModuleTest extends TestCase
         ];
 
         $report = new ReportParserSetup($xml);
-        $this->assertIsArray($report->reportProperties());
+        self::assertIsArray($report->reportProperties());
 
         ob_start();
         new ReportParserGenerate($xml, new HtmlRenderer(), $vars, $tree, $data_filesystem);
         $html = ob_get_clean();
-        $this->assertStringStartsWith('<', $html);
-        $this->assertStringEndsWith('>', $html);
+        self::assertStringStartsWith('<', $html);
+        self::assertStringEndsWith('>', $html);
 
         ob_start();
         new ReportParserGenerate($xml, new PdfRenderer(), $vars, $tree, $data_filesystem);
         $pdf = ob_get_clean();
-        $this->assertStringStartsWith('%PDF', $pdf);
-        $this->assertStringEndsWith("%%EOF\n", $pdf);
+        self::assertStringStartsWith('%PDF', $pdf);
+        self::assertStringEndsWith("%%EOF\n", $pdf);
     }
 }

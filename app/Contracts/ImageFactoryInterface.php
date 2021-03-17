@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -21,7 +21,7 @@ namespace Fisharebest\Webtrees\Contracts;
 
 use Fisharebest\Webtrees\MediaFile;
 use Intervention\Image\Image;
-use League\Flysystem\FilesystemInterface;
+use League\Flysystem\FilesystemOperator;
 use Psr\Http\Message\ResponseInterface;
 
 /**
@@ -32,27 +32,27 @@ interface ImageFactoryInterface
     /**
      * Send the original file - either inline or as a download.
      *
-     * @param FilesystemInterface $filesystem
-     * @param string              $path
-     * @param bool                $download
+     * @param FilesystemOperator $filesystem
+     * @param string             $path
+     * @param bool               $download
      *
      * @return ResponseInterface
      */
-    public function fileResponse(FilesystemInterface $filesystem, string $path, bool $download): ResponseInterface;
+    public function fileResponse(FilesystemOperator $filesystem, string $path, bool $download): ResponseInterface;
 
     /**
      * Send the original file - either inline or as a download.
      *
-     * @param FilesystemInterface $filesystem
-     * @param string              $path
-     * @param int                 $width
-     * @param int                 $height
-     * @param string              $fit
+     * @param FilesystemOperator $filesystem
+     * @param string             $path
+     * @param int                $width
+     * @param int                $height
+     * @param string             $fit
      *
      * @return ResponseInterface
      */
     public function thumbnailResponse(
-        FilesystemInterface $filesystem,
+        FilesystemOperator $filesystem,
         string $path,
         int $width,
         int $height,

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -20,7 +20,6 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\GedcomTag;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Media;
 use Fisharebest\Webtrees\Tree;
@@ -31,6 +30,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use stdClass;
 
 use function app;
+use function array_filter;
 use function assert;
 use function in_array;
 use function str_contains;
@@ -290,7 +290,7 @@ class SlideShowModule extends AbstractModule implements ModuleBlockInterface
             'video'       => $this->getBlockSetting($block_id, 'filter_video', '0'),
         ];
 
-        $formats = GedcomTag::getFileFormTypes();
+        $formats = array_filter(Registry::elementFactory()->make('OBJE:FILE:FORM:TYPE')->values());
 
         return view('modules/random_media/config', [
             'controls' => $controls,

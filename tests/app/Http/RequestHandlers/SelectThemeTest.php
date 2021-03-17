@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -34,8 +34,8 @@ class SelectThemeTest extends TestCase
      */
     public function testSelectThemeForGuest(): void
     {
-        $user = $this->createMock(GuestUser::class);
-        $user->expects($this->once())->method('setPreference')->with('theme', 'FOO');
+        $user = self::createMock(GuestUser::class);
+        $user->expects(self::once())->method('setPreference')->with('theme', 'FOO');
 
         $request = self::createRequest()
             ->withAttribute('theme', 'FOO')
@@ -52,8 +52,8 @@ class SelectThemeTest extends TestCase
      */
     public function testSelectThemeForUser(): void
     {
-        $user = $this->createMock(User::class);
-        $user->expects($this->once())->method('setPreference')->with('theme', 'FOO');
+        $user = self::createMock(User::class);
+        $user->expects(self::once())->method('setPreference')->with('theme', 'FOO');
 
         $request = self::createRequest()
             ->withAttribute('user', $user)

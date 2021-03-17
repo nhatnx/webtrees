@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -84,7 +84,7 @@ class Age
      *
      * @return string
      */
-    public function ageString(): string
+    public function __toString(): string
     {
         if (!$this->is_valid) {
             return '';
@@ -157,49 +157,5 @@ class Age
 
 
         return I18N::number($this->years);
-    }
-
-    /**
-     * @param bool $living
-     *
-     * @return string
-     */
-    public function ageAtEvent(bool $living): string
-    {
-        $age = $this->ageString();
-
-        if ($age === '') {
-            return '';
-        }
-
-        if ($living) {
-            /* I18N: The current age of a living individual */
-            return I18N::translate('(age %s)', $age);
-        }
-
-        /* I18N: The age of an individual at a given date */
-        return I18N::translate('(aged %s)', $age);
-    }
-
-    /**
-     * Similar to ageAtEvent, but for events such as burial, cremation, etc.
-     *
-     * @return string
-     */
-    public function timeAfterDeath(): string
-    {
-        if (!$this->is_valid) {
-            return '';
-        }
-
-        if ($this->years === 0 && $this->months === 0 && $this->days === 0) {
-            if ($this->is_exact) {
-                return I18N::translate('(on the date of death)');
-            }
-
-            return '';
-        }
-
-        return I18N::translate('(%s after death)', $this->ageString());
     }
 }

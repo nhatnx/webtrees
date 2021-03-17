@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -22,7 +22,7 @@ namespace Fisharebest\Webtrees\Http\Middleware;
 use Fig\Http\Message\RequestMethodInterface;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\HousekeepingService;
-use League\Flysystem\FilesystemInterface;
+use League\Flysystem\FilesystemOperator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -84,12 +84,12 @@ class DoHousekeeping implements MiddlewareInterface
     /**
      * Run the various housekeeping services.
      *
-     * @param FilesystemInterface $data_filesystem
-     * @param FilesystemInterface $root_filesystem
+     * @param FilesystemOperator $data_filesystem
+     * @param FilesystemOperator $root_filesystem
      *
      * @return void
      */
-    private function runHousekeeping(FilesystemInterface $data_filesystem, FilesystemInterface $root_filesystem): void
+    private function runHousekeeping(FilesystemOperator $data_filesystem, FilesystemOperator $root_filesystem): void
     {
         // Clear old thumbnails
         $this->housekeeping_service->deleteOldFiles($data_filesystem, self::THUMBNAIL_DIR, self::MAX_THUMBNAIL_AGE);

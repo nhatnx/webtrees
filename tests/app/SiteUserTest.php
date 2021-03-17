@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -39,11 +39,11 @@ class SiteUserTest extends TestCase
     {
         $user = new SiteUser();
 
-        $this->assertInstanceOf(UserInterface::class, $user);
-        $this->assertSame(0, $user->id());
-        $this->assertSame('', $user->email());
-        $this->assertSame('webtrees', $user->realName());
-        $this->assertSame('', $user->userName());
+        self::assertInstanceOf(UserInterface::class, $user);
+        self::assertSame(0, $user->id());
+        self::assertSame('', $user->email());
+        self::assertSame('webtrees', $user->realName());
+        self::assertSame('', $user->userName());
     }
 
     /**
@@ -55,13 +55,13 @@ class SiteUserTest extends TestCase
     {
         $user = new SiteUser();
 
-        $this->assertSame('', $user->getPreference('foo'));
-        $this->assertSame('', $user->getPreference('foo', ''));
-        $this->assertSame('bar', $user->getPreference('foo', 'bar'));
+        self::assertSame('', $user->getPreference('foo'));
+        self::assertSame('', $user->getPreference('foo'));
+        self::assertSame('bar', $user->getPreference('foo', 'bar'));
 
         // Site users do not have preferences
         $user->setPreference('foo', 'bar');
 
-        $this->assertSame('', $user->getPreference('foo'));
+        self::assertSame('', $user->getPreference('foo'));
     }
 }

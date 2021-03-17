@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -21,7 +21,7 @@ namespace Fisharebest\Webtrees\Report;
 
 use Fisharebest\Webtrees\MediaFile;
 use Fisharebest\Webtrees\Webtrees;
-use League\Flysystem\FilesystemInterface;
+use League\Flysystem\FilesystemOperator;
 
 use function count;
 
@@ -540,7 +540,7 @@ class PdfRenderer extends AbstractRenderer
      *
      * @return ReportBaseCell
      */
-    public function createCell($width, $height, $border, $align, $bgcolor, $style, $ln, $top, $left, $fill, $stretch, $bocolor, $tcolor, $reseth): ReportBaseCell
+    public function createCell(int $width, int $height, $border, string $align, string $bgcolor, string $style, int $ln, $top, $left, int $fill, int $stretch, string $bocolor, string $tcolor, bool $reseth): ReportBaseCell
     {
         return new ReportPdfCell($width, $height, $border, $align, $bgcolor, $style, $ln, $top, $left, $fill, $stretch, $bocolor, $tcolor, $reseth);
     }
@@ -600,7 +600,7 @@ class PdfRenderer extends AbstractRenderer
      *
      * @return ReportBaseFootnote
      */
-    public function createFootnote($style): ReportBaseFootnote
+    public function createFootnote(string $style): ReportBaseFootnote
     {
         return new ReportPdfFootnote($style);
     }
@@ -626,14 +626,14 @@ class PdfRenderer extends AbstractRenderer
     /**
      * Create a new image object from Media Object.
      *
-     * @param MediaFile           $media_file
-     * @param float               $x
-     * @param float               $y
-     * @param float               $w     Image width
-     * @param float               $h     Image height
-     * @param string              $align L:left, C:center, R:right or empty to use x/y
-     * @param string              $ln    T:same line, N:next line
-     * @param FilesystemInterface $data_filesystem
+     * @param MediaFile          $media_file
+     * @param float              $x
+     * @param float              $y
+     * @param float              $w     Image width
+     * @param float              $h     Image height
+     * @param string             $align L:left, C:center, R:right or empty to use x/y
+     * @param string             $ln    T:same line, N:next line
+     * @param FilesystemOperator $data_filesystem
      *
      * @return ReportBaseImage
      */
@@ -645,7 +645,7 @@ class PdfRenderer extends AbstractRenderer
         float $h,
         string $align,
         string $ln,
-        FilesystemInterface $data_filesystem
+        FilesystemOperator $data_filesystem
     ): ReportBaseImage {
         return new ReportPdfImage('@' . $media_file->fileContents($data_filesystem), $x, $y, $w, $h, $align, $ln);
     }

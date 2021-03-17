@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -34,9 +34,9 @@ class PingTest extends TestCase
      */
     public function testPingOK(): void
     {
-        $server_check_service = $this->createMock(ServerCheckService::class);
-        $server_check_service->expects($this->once())->method('serverErrors')->willReturn(new Collection());
-        $server_check_service->expects($this->once())->method('serverWarnings')->willReturn(new Collection());
+        $server_check_service = self::createMock(ServerCheckService::class);
+        $server_check_service->expects(self::once())->method('serverErrors')->willReturn(new Collection());
+        $server_check_service->expects(self::once())->method('serverWarnings')->willReturn(new Collection());
 
         $request  = self::createRequest();
         $handler  = new Ping($server_check_service);
@@ -51,9 +51,9 @@ class PingTest extends TestCase
      */
     public function testPingWarnings(): void
     {
-        $server_check_service = $this->createMock(ServerCheckService::class);
-        $server_check_service->expects($this->once())->method('serverErrors')->willReturn(new Collection());
-        $server_check_service->expects($this->once())->method('serverWarnings')->willReturn(new Collection('warning'));
+        $server_check_service = self::createMock(ServerCheckService::class);
+        $server_check_service->expects(self::once())->method('serverErrors')->willReturn(new Collection());
+        $server_check_service->expects(self::once())->method('serverWarnings')->willReturn(new Collection('warning'));
 
         $request  = self::createRequest();
         $handler  = new Ping($server_check_service);
@@ -68,8 +68,8 @@ class PingTest extends TestCase
      */
     public function testPingErrors(): void
     {
-        $server_check_service = $this->createMock(ServerCheckService::class);
-        $server_check_service->expects($this->once())->method('serverErrors')->willReturn(new Collection('error'));
+        $server_check_service = self::createMock(ServerCheckService::class);
+        $server_check_service->expects(self::once())->method('serverErrors')->willReturn(new Collection('error'));
 
         $request  = self::createRequest();
         $handler  = new Ping($server_check_service);

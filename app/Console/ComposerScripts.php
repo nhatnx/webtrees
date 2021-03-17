@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -22,8 +22,9 @@ namespace Fisharebest\Webtrees\Console;
 use Composer\Script\Event;
 use Fisharebest\Localization\Translation;
 use Illuminate\Support\Collection;
-use League\Flysystem\Adapter\Local;
 use League\Flysystem\Filesystem;
+use League\Flysystem\FilesystemException;
+use League\Flysystem\Local\LocalFilesystemAdapter;
 
 use function basename;
 use function dirname;
@@ -71,6 +72,8 @@ class ComposerScripts
      * Ensure every class has a corresponding test script.
      *
      * @param Event $event
+     *
+     * @throws FilesystemException
      */
     public static function missingTests(Event $event): void
     {
@@ -78,9 +81,9 @@ class ComposerScripts
 
         $io = $event->getIO();
 
-        $filesystem = new Filesystem(new Local(self::ROOT_DIR));
+        $filesystem = new Filesystem(new LocalFilesystemAdapter(self::ROOT_DIR));
 
-        $scripts = Collection::make($filesystem->listContents('/app/', true))
+        $scripts = Collection::make($filesystem->listContents('app', Filesystem::LIST_DEEP))
             ->filter(static function (array $file): bool {
                 return $file['type'] !== 'dir';
             })
@@ -96,7 +99,7 @@ class ComposerScripts
             $class = strtr($script, ['app/' => '', '.php' => '', '/' => '\\']);
             $test  = strtr($script, ['app/' => 'tests/app/', '.php' => 'Test.php']);
 
-            if (!$filesystem->has($test)) {
+            if (!$filesystem->fileExists($test)) {
                 $io->write('Creating test script for: ' . $class);
                 $filesystem->write($test, self::testStub($class));
             }
@@ -137,7 +140,7 @@ class ComposerScripts
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);

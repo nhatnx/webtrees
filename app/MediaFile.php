@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -21,13 +21,14 @@ namespace Fisharebest\Webtrees;
 
 use Fisharebest\Webtrees\Http\RequestHandlers\MediaFileDownload;
 use Fisharebest\Webtrees\Http\RequestHandlers\MediaFileThumbnail;
-use League\Flysystem\Adapter\Local;
-use League\Flysystem\FileNotFoundException;
-use League\Flysystem\Filesystem;
-use League\Flysystem\FilesystemInterface;
+use League\Flysystem\FilesystemException;
+use League\Flysystem\FilesystemOperator;
+use League\Flysystem\UnableToCheckFileExistence;
+use League\Flysystem\UnableToReadFile;
+use League\Flysystem\UnableToRetrieveMetadata;
 
 use function bin2hex;
-use function getimagesize;
+use function getimagesizefromstring;
 use function http_build_query;
 use function intdiv;
 use function ksort;
@@ -50,6 +51,7 @@ class MediaFile
         'image/gif',
         'image/jpeg',
         'image/png',
+        'image/webp',
     ];
 
     /** @var string The filename */
@@ -77,7 +79,7 @@ class MediaFile
      * @param string $gedcom
      * @param Media  $media
      */
-    public function __construct($gedcom, Media $media)
+    public function __construct(string $gedcom, Media $media)
     {
         $this->media   = $media;
         $this->fact_id = md5($gedcom);
@@ -171,14 +173,14 @@ class MediaFile
     /**
      * Display an image-thumbnail or a media-icon, and add markup for image viewers such as colorbox.
      *
-     * @param int      $width            Pixels
-     * @param int      $height           Pixels
-     * @param string   $fit              "crop" or "contain"
-     * @param string[] $image_attributes Additional HTML attributes
+     * @param int                  $width            Pixels
+     * @param int                  $height           Pixels
+     * @param string               $fit              "crop" or "contain"
+     * @param array<string,string> $image_attributes Additional HTML attributes
      *
      * @return string
      */
-    public function displayImage($width, $height, $fit, $image_attributes = []): string
+    public function displayImage(int $width, int $height, string $fit, array $image_attributes = []): string
     {
         if ($this->isExternal()) {
             $src    = $this->multimedia_file_refn;
@@ -235,7 +237,7 @@ class MediaFile
      *
      * @return string
      */
-    public function imageUrl($width, $height, $fit): string
+    public function imageUrl(int $width, int $height, string $fit): string
     {
         // Sign the URL, to protect against mass-resize attacks.
         $glide_key = Site::getPreference('glide-key');
@@ -304,33 +306,30 @@ class MediaFile
     /**
      * A list of image attributes
      *
-     * @param FilesystemInterface $data_filesystem
+     * @param FilesystemOperator $data_filesystem
      *
-     * @return string[]
+     * @return array<string>
      */
-    public function attributes(FilesystemInterface $data_filesystem): array
+    public function attributes(FilesystemOperator $data_filesystem): array
     {
         $attributes = [];
 
         if (!$this->isExternal() || $this->fileExists($data_filesystem)) {
             try {
-                $bytes                       = $this->media()->tree()->mediaFilesystem($data_filesystem)->getSize($this->filename());
+                $bytes                       = $this->media()->tree()->mediaFilesystem($data_filesystem)->fileSize($this->filename());
                 $kb                          = intdiv($bytes + 1023, 1024);
                 $attributes['__FILE_SIZE__'] = I18N::translate('%s KB', I18N::number($kb));
-            } catch (FileNotFoundException $ex) {
+            } catch (FilesystemException | UnableToRetrieveMetadata $ex) {
                 // External/missing files have no size.
             }
 
-            // Note: getAdapter() is defined on Filesystem, but not on FilesystemInterface.
             $filesystem = $this->media()->tree()->mediaFilesystem($data_filesystem);
-            if ($filesystem instanceof Filesystem) {
-                $adapter = $filesystem->getAdapter();
-                // Only works for local filesystems.
-                if ($adapter instanceof Local) {
-                    $file = $adapter->applyPathPrefix($this->filename());
-                    [$width, $height] = getimagesize($file);
-                    $attributes['__IMAGE_SIZE__'] = I18N::translate('%1$s × %2$s pixels', I18N::number($width), I18N::number($height));
-                }
+            try {
+                $data                         = $filesystem->read($this->filename());
+                [$width, $height]             = getimagesizefromstring($data);
+                $attributes['__IMAGE_SIZE__'] = I18N::translate('%1$s × %2$s pixels', I18N::number($width), I18N::number($height));
+            } catch (FilesystemException | UnableToReadFile $ex) {
+                // Cannot read the file.
             }
         }
 
@@ -340,25 +339,33 @@ class MediaFile
     /**
      * Read the contents of a media file.
      *
-     * @param FilesystemInterface $data_filesystem
+     * @param FilesystemOperator $data_filesystem
      *
      * @return string
      */
-    public function fileContents(FilesystemInterface $data_filesystem): string
+    public function fileContents(FilesystemOperator $data_filesystem): string
     {
-        return $this->media->tree()->mediaFilesystem($data_filesystem)->read($this->multimedia_file_refn);
+        try {
+            return $this->media->tree()->mediaFilesystem($data_filesystem)->read($this->multimedia_file_refn);
+        } catch (FilesystemException | UnableToReadFile $ex) {
+            return '';
+        }
     }
 
     /**
      * Check if the file exists on this server
      *
-     * @param FilesystemInterface $data_filesystem
+     * @param FilesystemOperator $data_filesystem
      *
      * @return bool
      */
-    public function fileExists(FilesystemInterface $data_filesystem): bool
+    public function fileExists(FilesystemOperator $data_filesystem): bool
     {
-        return $this->media->tree()->mediaFilesystem($data_filesystem)->has($this->multimedia_file_refn);
+        try {
+            return $this->media->tree()->mediaFilesystem($data_filesystem)->fileExists($this->multimedia_file_refn);
+        } catch (FilesystemException | UnableToCheckFileExistence $ex) {
+            return false;
+        }
     }
 
     /**
@@ -377,18 +384,6 @@ class MediaFile
     public function filename(): string
     {
         return $this->multimedia_file_refn;
-    }
-
-    /**
-     * What file extension is used by this file?
-     *
-     * @return string
-     *
-     * @deprecated since 2.0.4.  Will be removed in 2.1.0
-     */
-    public function extension(): string
-    {
-        return pathinfo($this->multimedia_file_refn, PATHINFO_EXTENSION);
     }
 
     /**

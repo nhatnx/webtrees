@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -26,6 +26,9 @@ use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\AdminService;
 use Fisharebest\Webtrees\Services\TimeoutService;
 use Fisharebest\Webtrees\Services\TreeService;
+use League\Flysystem\FilesystemException;
+use League\Flysystem\UnableToReadFile;
+use League\Flysystem\UnableToRetrieveMetadata;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
@@ -79,22 +82,26 @@ class SynchronizeTrees implements RequestHandlerInterface
 
         foreach ($gedcom_files as $gedcom_file) {
             // Only import files that have changed
-            $filemtime = (string) $data_filesystem->getTimestamp($gedcom_file);
+            try {
+                $filemtime = (string) $data_filesystem->lastModified($gedcom_file);
 
-            $tree = $this->tree_service->all()->get($gedcom_file) ?? $this->tree_service->create($gedcom_file, $gedcom_file);
+                $tree = $this->tree_service->all()->get($gedcom_file) ?? $this->tree_service->create($gedcom_file, $gedcom_file);
 
-            if ($tree->getPreference('filemtime') !== $filemtime) {
-                $resource = $data_filesystem->readStream($gedcom_file);
-                $stream   = app(StreamFactoryInterface::class)->createStreamFromResource($resource);
-                $tree->importGedcomFile($stream, $gedcom_file);
-                $stream->close();
-                $tree->setPreference('filemtime', $filemtime);
+                if ($tree->getPreference('filemtime') !== $filemtime) {
+                    $resource = $data_filesystem->readStream($gedcom_file);
+                    $stream   = app(StreamFactoryInterface::class)->createStreamFromResource($resource);
+                    $this->tree_service->importGedcomFile($tree, $stream, $gedcom_file);
+                    $stream->close();
+                    $tree->setPreference('filemtime', $filemtime);
 
-                FlashMessages::addMessage(I18N::translate('The GEDCOM file “%s” has been imported.', e($gedcom_file)), 'success');
+                    FlashMessages::addMessage(I18N::translate('The GEDCOM file “%s” has been imported.', e($gedcom_file)), 'success');
 
-                if ($this->timeout_service->isTimeNearlyUp(10.0)) {
-                    return redirect(route(__CLASS__), StatusCodeInterface::STATUS_TEMPORARY_REDIRECT);
+                    if ($this->timeout_service->isTimeNearlyUp(10.0)) {
+                        return redirect(route(__CLASS__), StatusCodeInterface::STATUS_TEMPORARY_REDIRECT);
+                    }
                 }
+            } catch (FilesystemException | UnableToRetrieveMetadata | UnableToReadFile $ex) {
+                // Can't read the file - skip it.
             }
         }
 

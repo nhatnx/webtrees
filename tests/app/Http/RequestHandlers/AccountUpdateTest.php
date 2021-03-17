@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -20,6 +20,7 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\Controllers\Admin;
 
 use Fig\Http\Message\StatusCodeInterface;
+use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Http\RequestHandlers\AccountUpdate;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\TestCase;
@@ -38,20 +39,24 @@ class AccountUpdateTest extends TestCase
      */
     public function testHandler(): void
     {
-        $user_service = $this->createMock(UserService::class);
+        $user_service = self::createMock(UserService::class);
 
-        $user = $this->createMock(User::class);
-        $user->expects($this->once())->method('setEmail')->with('b');
-        $user->expects($this->once())->method('setPassword')->with('e');
-        $user->expects($this->once())->method('setRealName')->with('d');
-        $user->expects($this->once())->method('setUserName')->with('h');
-        $user->expects($this->at(6))->method('setPreference')->with(User::PREF_CONTACT_METHOD, 'a');
-        $user->expects($this->at(7))->method('setPreference')->with(User::PREF_LANGUAGE, 'c');
-        $user->expects($this->at(8))->method('setPreference')->with(User::PREF_TIME_ZONE, 'g');
-        $user->expects($this->at(9))->method('setPreference')->with(User::PREF_IS_VISIBLE_ONLINE, 'i');
+        $user = self::createMock(User::class);
+        $user->expects(self::once())->method('setEmail')->with('b');
+        $user->expects(self::once())->method('setPassword')->with('e');
+        $user->expects(self::once())->method('setRealName')->with('d');
+        $user->expects(self::once())->method('setUserName')->with('h');
+        $user->expects(self::exactly(4))
+            ->method('setPreference')
+            ->withConsecutive(
+                [UserInterface::PREF_CONTACT_METHOD, 'a'],
+                [UserInterface::PREF_LANGUAGE, 'c'],
+                [UserInterface::PREF_TIME_ZONE, 'g'],
+                [UserInterface::PREF_IS_VISIBLE_ONLINE, 'i']
+            );
 
-        $tree = $this->createMock(Tree::class);
-        $tree->expects($this->once())->method('setUserPreference')->with($user, User::PREF_TREE_DEFAULT_XREF, 'f');
+        $tree = self::createMock(Tree::class);
+        $tree->expects(self::once())->method('setUserPreference')->with($user, UserInterface::PREF_TREE_DEFAULT_XREF, 'f');
 
         $handler  = new AccountUpdate($user_service);
         $request  = self::createRequest()
@@ -70,6 +75,6 @@ class AccountUpdateTest extends TestCase
             ]);
         $response = $handler->handle($request);
 
-        $this->assertSame(StatusCodeInterface::STATUS_FOUND, $response->getStatusCode());
+        self::assertSame(StatusCodeInterface::STATUS_FOUND, $response->getStatusCode());
     }
 }

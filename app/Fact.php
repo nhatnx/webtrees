@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -179,7 +179,7 @@ class Fact
      *
      * @throws InvalidArgumentException
      */
-    public function __construct($gedcom, GedcomRecord $parent, $id)
+    public function __construct(string $gedcom, GedcomRecord $parent, string $id)
     {
         if (preg_match('/^1 (' . Gedcom::REGEX_TAG . ')/', $gedcom, $match)) {
             $this->gedcom = $gedcom;
@@ -187,7 +187,7 @@ class Fact
             $this->id     = $id;
             $this->tag    = $match[1];
         } else {
-            throw new InvalidArgumentException('Invalid GEDCOM data passed to Fact::_construct(' . $gedcom . ')');
+            throw new InvalidArgumentException('Invalid GEDCOM data passed to Fact::_construct(' . $gedcom . ',' . $parent->xref() . ')');
         }
     }
 
@@ -261,7 +261,7 @@ class Fact
      *
      * @return string
      */
-    public function attribute($tag): string
+    public function attribute(string $tag): string
     {
         if (preg_match('/\n2 (?:' . $tag . ') ?(.*(?:(?:\n3 CONT ?.*)*)*)/', $this->gedcom, $match)) {
             return preg_replace("/\n3 CONT ?/", "\n", $match[1]);
@@ -273,9 +273,9 @@ class Fact
     /**
      * Get the PLAC:MAP:LATI for the fact.
      *
-     * @return float
+     * @return float|null
      */
-    public function latitude(): float
+    public function latitude(): ?float
     {
         if (preg_match('/\n4 LATI (.+)/', $this->gedcom, $match)) {
             $gedcom_service = new GedcomService();
@@ -283,15 +283,15 @@ class Fact
             return $gedcom_service->readLatitude($match[1]);
         }
 
-        return 0.0;
+        return null;
     }
 
     /**
      * Get the PLAC:MAP:LONG for the fact.
      *
-     * @return float
+     * @return float|null
      */
-    public function longitude(): float
+    public function longitude(): ?float
     {
         if (preg_match('/\n4 LONG (.+)/', $this->gedcom, $match)) {
             $gedcom_service = new GedcomService();
@@ -299,7 +299,7 @@ class Fact
             return $gedcom_service->readLongitude($match[1]);
         }
 
-        return 0.0;
+        return null;
     }
 
     /**
@@ -431,20 +431,6 @@ class Fact
     }
 
     /**
-     * Used to convert a real fact (e.g. BIRT) into a close-relative’s fact (e.g. _BIRT_CHIL)
-     *
-     * @param string $tag
-     *
-     * @return void
-     *
-     * @deprecated since 2.0.5.  Will be removed in 2.1.0
-     */
-    public function setTag($tag): void
-    {
-        $this->tag = $tag;
-    }
-
-    /**
      * The Person/Family record where this Fact came from
      *
      * @return Individual|Family|Source|Repository|Media|Note|Submitter|Submission|Location|Header|GedcomRecord
@@ -461,6 +447,16 @@ class Fact
      */
     public function label(): string
     {
+        // Marriages
+        if ($this->tag() === 'FAM:MARR') {
+            $element = Registry::elementFactory()->make('FAM:MARR:TYPE');
+            $type = $this->attribute('TYPE');
+
+            if ($type !== '') {
+                return $element->value($type, $this->record->tree());
+            }
+        }
+
         // Custom FACT/EVEN - with a TYPE
         if ($this->tag === 'FACT' || $this->tag === 'EVEN') {
             $type = $this->attribute('TYPE');
@@ -479,7 +475,7 @@ class Fact
             }
         }
 
-        return GedcomTag::getLabel($this->record->tag() . ':' . $this->tag);
+        return Registry::elementFactory()->make($this->tag())->label();
     }
 
     /**
@@ -527,7 +523,7 @@ class Fact
     /**
      * Source citations linked to this fact
      *
-     * @return string[]
+     * @return array<string>
      */
     public function getCitations(): array
     {

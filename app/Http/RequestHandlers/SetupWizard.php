@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -24,7 +24,7 @@ use Fisharebest\Localization\Locale;
 use Fisharebest\Localization\Locale\LocaleEnUs;
 use Fisharebest\Localization\Locale\LocaleInterface;
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Cache;
+use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Factories\CacheFactory;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
@@ -35,13 +35,11 @@ use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\ServerCheckService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Session;
-use Fisharebest\Webtrees\User;
 use Fisharebest\Webtrees\Webtrees;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Symfony\Component\Cache\Adapter\NullAdapter;
 use Throwable;
 
 use function app;
@@ -80,6 +78,13 @@ class SetupWizard implements RequestHandlerInterface
         'wtuser'  => '',
         'wtpass'  => '',
         'wtemail' => '',
+    ];
+
+    private const DEFAULT_PORTS = [
+        'mysql'  => '3306',
+        'pgsql'  => '5432',
+        'sqlite' => '',
+        'sqlsvr' => '1433',
     ];
 
     /** @var MigrationService */
@@ -133,7 +138,6 @@ class SetupWizard implements RequestHandlerInterface
         $request     = $request->withAttribute('client-ip', $ip_address);
 
         app()->instance(ServerRequestInterface::class, $request);
-        app()->instance('cache.array', new Cache(new NullAdapter()));
 
         $data = $this->userData($request);
 
@@ -157,7 +161,7 @@ class SetupWizard implements RequestHandlerInterface
         I18N::init($data['lang'], true);
 
         $data['cpu_limit']    = $this->maxExecutionTime();
-        $data['locales']      = $locales->all();
+        $data['locales']      = $locales;
         $data['memory_limit'] = $this->memoryLimit();
 
         // Only show database errors after the user has chosen a driver.
@@ -325,6 +329,9 @@ class SetupWizard implements RequestHandlerInterface
      */
     private function step5Administrator(array $data): ResponseInterface
     {
+        // Use default port, if none specified.
+        $data['dbport'] = $data['dbport'] ?: self::DEFAULT_PORTS[$data['dbtype']];
+
         try {
             $this->connectToDatabase($data);
         } catch (Throwable $ex) {
@@ -370,7 +377,7 @@ class SetupWizard implements RequestHandlerInterface
      *
      * @return string
      */
-    private function checkAdminUser($wtname, $wtuser, $wtpass, $wtemail): string
+    private function checkAdminUser(string $wtname, string $wtuser, string $wtpass, string $wtemail): string
     {
         if ($wtname === '' || $wtuser === '' || $wtpass === '' || $wtemail === '') {
             return I18N::translate('You must enter all the administrator account fields.');
@@ -405,15 +412,15 @@ class SetupWizard implements RequestHandlerInterface
         // Create the user
         if ($admin === null) {
             $admin = $this->user_service->create($data['wtuser'], $data['wtname'], $data['wtemail'], $data['wtpass']);
-            $admin->setPreference(User::PREF_LANGUAGE, $data['lang']);
-            $admin->setPreference(User::PREF_IS_VISIBLE_ONLINE, '1');
+            $admin->setPreference(UserInterface::PREF_LANGUAGE, $data['lang']);
+            $admin->setPreference(UserInterface::PREF_IS_VISIBLE_ONLINE, '1');
         } else {
             $admin->setPassword($_POST['wtpass']);
         }
         // Make the user an administrator
-        $admin->setPreference(User::PREF_IS_ADMINISTRATOR, '1');
-        $admin->setPreference(User::PREF_IS_EMAIL_VERIFIED, '1');
-        $admin->setPreference(User::PREF_IS_ACCOUNT_APPROVED, '1');
+        $admin->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
+        $admin->setPreference(UserInterface::PREF_IS_EMAIL_VERIFIED, '1');
+        $admin->setPreference(UserInterface::PREF_IS_ACCOUNT_APPROVED, '1');
 
         // Write the config file. We already checked that this would work.
         $config_ini_php = view('setup/config.ini', $data);

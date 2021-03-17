@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -34,7 +34,9 @@ use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
-use League\Flysystem\FilesystemInterface;
+use League\Flysystem\FilesystemException;
+use League\Flysystem\FilesystemOperator;
+use League\Flysystem\StorageAttributes;
 
 use function array_map;
 use function explode;
@@ -106,7 +108,7 @@ class AdminService
     /**
      * @param Tree $tree
      *
-     * @return array<string,array<GedcomRecord>>
+     * @return array<string,array<int,array<int,GedcomRecord>>>
      */
     public function duplicateRecords(Tree $tree): array
     {
@@ -189,7 +191,7 @@ class AdminService
      *
      * @param Tree $tree
      *
-     * @return string[]
+     * @return array<string>
      */
     public function duplicateXrefs(Tree $tree): array
     {
@@ -240,29 +242,35 @@ class AdminService
     /**
      * A list of GEDCOM files in the data folder.
      *
-     * @param FilesystemInterface $filesystem
+     * @param FilesystemOperator $filesystem
      *
      * @return Collection<string>
      */
-    public function gedcomFiles(FilesystemInterface $filesystem): Collection
+    public function gedcomFiles(FilesystemOperator $filesystem): Collection
     {
-        return Collection::make($filesystem->listContents())
-            ->filter(static function (array $path) use ($filesystem): bool {
-                if ($path['type'] !== 'file') {
-                    return false;
-                }
+        try {
+            $files = $filesystem->listContents('')
+                ->filter(static function (StorageAttributes $attributes) use ($filesystem) {
+                    if (!$attributes->isFile()) {
+                        return false;
+                    }
 
-                $stream = $filesystem->readStream($path['path']);
+                    $stream = $filesystem->readStream($attributes->path());
 
-                $header = fread($stream, 10);
-                fclose($stream);
+                    $header = fread($stream, 10);
+                    fclose($stream);
 
-                return preg_match('/^(' . Gedcom::UTF8_BOM . ')?0 HEAD/', $header) > 0;
-            })
-            ->map(static function (array $path): string {
-                return $path['path'];
-            })
-            ->sort();
+                    return preg_match('/^(' . Gedcom::UTF8_BOM . ')?0 HEAD/', $header) > 0;
+                })
+                ->map(function (StorageAttributes $attributes) {
+                    return $attributes->path();
+                })
+                ->toArray();
+        } catch (FilesystemException $ex) {
+            $files = [];
+        }
+
+        return Collection::make($files)->sort();
     }
 
     /**

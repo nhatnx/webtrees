@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -22,7 +22,7 @@ namespace Fisharebest\Webtrees\Report;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\MediaFile;
 use Fisharebest\Webtrees\Webtrees;
-use League\Flysystem\FilesystemInterface;
+use League\Flysystem\FilesystemOperator;
 
 use function current;
 
@@ -157,7 +157,22 @@ abstract class AbstractRenderer
      *
      * @return ReportBaseCell
      */
-    abstract public function createCell($width, $height, $border, $align, $bgcolor, $style, $ln, $top, $left, $fill, $stretch, $bocolor, $tcolor, $reseth): ReportBaseCell;
+    abstract public function createCell(
+        int $width,
+        int $height,
+        $border,
+        string $align,
+        string $bgcolor,
+        string $style,
+        int $ln,
+        $top,
+        $left,
+        int $fill,
+        int $stretch,
+        string $bocolor,
+        string $tcolor,
+        bool $reseth
+    ): ReportBaseCell;
 
     /**
      * Create a new TextBox object.
@@ -232,14 +247,14 @@ abstract class AbstractRenderer
     /**
      * Create a new image object from Media Object.
      *
-     * @param MediaFile           $media_file
-     * @param float               $x
-     * @param float               $y
-     * @param float               $w     Image width
-     * @param float               $h     Image height
-     * @param string              $align L:left, C:center, R:right or empty to use x/y
-     * @param string              $ln    T:same line, N:next line
-     * @param FilesystemInterface $data_filesystem
+     * @param MediaFile          $media_file
+     * @param float              $x
+     * @param float              $y
+     * @param float              $w     Image width
+     * @param float              $h     Image height
+     * @param string             $align L:left, C:center, R:right or empty to use x/y
+     * @param string             $ln    T:same line, N:next line
+     * @param FilesystemOperator $data_filesystem
      *
      * @return ReportBaseImage
      */
@@ -251,7 +266,7 @@ abstract class AbstractRenderer
         float $h,
         string $align,
         string $ln,
-        FilesystemInterface $data_filesystem
+        FilesystemOperator $data_filesystem
     ): ReportBaseImage;
 
     /**
@@ -261,7 +276,7 @@ abstract class AbstractRenderer
      *
      * @return ReportBaseFootnote
      */
-    abstract public function createFootnote($style): ReportBaseFootnote;
+    abstract public function createFootnote(string $style): ReportBaseFootnote;
 
     /**
      * Initial Setup
@@ -340,10 +355,6 @@ abstract class AbstractRenderer
      */
     public function getStyle(string $s): array
     {
-        if (!isset($this->styles[$s])) {
-            return current($this->styles);
-        }
-
-        return $this->styles[$s];
+        return $this->styles[$s] ?? current($this->styles);
     }
 }

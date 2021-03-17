@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -23,7 +23,7 @@ use Fisharebest\Webtrees\Functions\FunctionsRtl;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\MediaFile;
 use Fisharebest\Webtrees\Webtrees;
-use League\Flysystem\FilesystemInterface;
+use League\Flysystem\FilesystemOperator;
 
 use function ceil;
 use function count;
@@ -305,14 +305,14 @@ class HtmlRenderer extends AbstractRenderer
      * @param mixed  $top     Y-position
      * @param mixed  $left    X-position
      * @param int    $fill    Indicates if the cell background must be painted (1) or transparent (0). Default value: 1
-     * @param int    $stretch Stretch carachter mode
+     * @param int    $stretch Stretch character mode
      * @param string $bocolor Border color
      * @param string $tcolor  Text color
      * @param bool   $reseth
      *
      * @return ReportBaseCell
      */
-    public function createCell($width, $height, $border, $align, $bgcolor, $style, $ln, $top, $left, $fill, $stretch, $bocolor, $tcolor, $reseth): ReportBaseCell
+    public function createCell(int $width, int $height, $border, string $align, string $bgcolor, string $style, int $ln, $top, $left, int $fill, int $stretch, string $bocolor, string $tcolor, bool $reseth): ReportBaseCell
     {
         return new ReportHtmlCell($width, $height, $border, $align, $bgcolor, $style, $ln, $top, $left, $fill, $stretch, $bocolor, $tcolor, $reseth);
     }
@@ -372,7 +372,7 @@ class HtmlRenderer extends AbstractRenderer
      *
      * @return ReportBaseFootnote
      */
-    public function createFootnote($style): ReportBaseFootnote
+    public function createFootnote(string $style): ReportBaseFootnote
     {
         return new ReportHtmlFootnote($style);
     }
@@ -398,14 +398,14 @@ class HtmlRenderer extends AbstractRenderer
     /**
      * Create a new image object from Media Object.
      *
-     * @param MediaFile           $media_file
-     * @param float               $x
-     * @param float               $y
-     * @param float               $w     Image width
-     * @param float               $h     Image height
-     * @param string              $align L:left, C:center, R:right or empty to use x/y
-     * @param string              $ln    T:same line, N:next line
-     * @param FilesystemInterface $data_filesystem
+     * @param MediaFile          $media_file
+     * @param float              $x
+     * @param float              $y
+     * @param float              $w     Image width
+     * @param float              $h     Image height
+     * @param string             $align L:left, C:center, R:right or empty to use x/y
+     * @param string             $ln    T:same line, N:next line
+     * @param FilesystemOperator $data_filesystem
      *
      * @return ReportBaseImage
      */
@@ -417,7 +417,7 @@ class HtmlRenderer extends AbstractRenderer
         float $h,
         string $align,
         string $ln,
-        FilesystemInterface $data_filesystem
+        FilesystemOperator $data_filesystem
     ): ReportBaseImage {
         return new ReportHtmlImage($media_file->imageUrl((int) $w, (int) $h, 'crop'), $x, $y, $w, $h, $align, $ln);
     }
@@ -670,7 +670,7 @@ class HtmlRenderer extends AbstractRenderer
      *
      * @return void
      */
-    public function setX($x): void
+    public function setX(float $x): void
     {
         $this->X = $x;
     }
@@ -684,7 +684,7 @@ class HtmlRenderer extends AbstractRenderer
      *
      * @return void
      */
-    public function setY($y): void
+    public function setY(float $y): void
     {
         $this->Y = $y;
         if ($this->maxY < $y) {
@@ -702,7 +702,7 @@ class HtmlRenderer extends AbstractRenderer
      *
      * @return void
      */
-    public function setXy($x, $y): void
+    public function setXy(float $x, float $y): void
     {
         $this->setX($x);
         $this->setY($y);
@@ -747,7 +747,7 @@ class HtmlRenderer extends AbstractRenderer
      *
      * @return void
      */
-    public function write($text, $color = '', $useclass = true): void
+    public function write(string $text, string $color = '', bool $useclass = true): void
     {
         $style    = $this->getStyle($this->getCurrentStyle());
         $htmlcode = '<span dir="' . I18N::direction() . '"';

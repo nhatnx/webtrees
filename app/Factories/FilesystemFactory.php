@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -24,11 +24,9 @@ use Fisharebest\Webtrees\Contracts\FilesystemFactoryInterface;
 use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\Webtrees;
-use League\Flysystem\Adapter\Local;
-use League\Flysystem\Cached\CachedAdapter;
-use League\Flysystem\Cached\Storage\Memory;
 use League\Flysystem\Filesystem;
-use League\Flysystem\FilesystemInterface;
+use League\Flysystem\FilesystemOperator;
+use League\Flysystem\Local\LocalFilesystemAdapter;
 
 use function realpath;
 
@@ -42,13 +40,13 @@ class FilesystemFactory implements FilesystemFactoryInterface
     /**
      * Create a filesystem for the user's data folder.
      *
-     * @return FilesystemInterface
+     * @return FilesystemOperator
      */
-    public function data(): FilesystemInterface
+    public function data(): FilesystemOperator
     {
         $data_dir = Site::getPreference('INDEX_DIRECTORY', Webtrees::DATA_DIR);
 
-        return new Filesystem(new CachedAdapter(new Local($data_dir), new Memory()));
+        return new Filesystem(new LocalFilesystemAdapter($data_dir));
     }
 
     /**
@@ -66,9 +64,9 @@ class FilesystemFactory implements FilesystemFactoryInterface
      *
      * @param Tree $tree
      *
-     * @return FilesystemInterface
+     * @return FilesystemOperator
      */
-    public function media(Tree $tree): FilesystemInterface
+    public function media(Tree $tree): FilesystemOperator
     {
         $media_dir = $tree->getPreference('MEDIA_DIRECTORY', 'media/');
         $adapter   = new ChrootAdapter($this->data(), $media_dir);
@@ -79,11 +77,11 @@ class FilesystemFactory implements FilesystemFactoryInterface
     /**
      * Create a filesystem for the application's root folder.
      *
-     * @return FilesystemInterface
+     * @return FilesystemOperator
      */
-    public function root(): FilesystemInterface
+    public function root(): FilesystemOperator
     {
-        return new Filesystem(new CachedAdapter(new Local(self::ROOT_DIR), new Memory()));
+        return new Filesystem(new LocalFilesystemAdapter(self::ROOT_DIR));
     }
 
     /**

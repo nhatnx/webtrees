@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -32,6 +32,8 @@ use function assert;
 use function is_array;
 use function json_decode;
 use function rawurlencode;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Autocomplete handler for places
@@ -74,7 +76,7 @@ class AutoCompletePlace extends AbstractAutocompleteHandler
             $client = new Client();
             try {
                 $json   = $client->get($url, self::GUZZLE_OPTIONS)->getBody()->__toString();
-                $places = json_decode($json, true);
+                $places = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
                 if (isset($places['geonames']) && is_array($places['geonames'])) {
                     foreach ($places['geonames'] as $k => $place) {
                         $data->add($place['name'] . ', ' . $place['adminName2'] . ', ' . $place['adminName1'] . ', ' . $place['countryName']);

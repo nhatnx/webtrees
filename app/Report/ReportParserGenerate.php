@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -42,7 +42,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Str;
-use League\Flysystem\FilesystemInterface;
+use League\Flysystem\FilesystemOperator;
 use LogicException;
 use stdClass;
 use Symfony\Component\Cache\Adapter\NullAdapter;
@@ -184,24 +184,24 @@ class ReportParserGenerate extends ReportParserBase
     /** @var Tree The current tree */
     private $tree;
 
-    /** @var FilesystemInterface */
+    /** @var FilesystemOperator */
     private $data_filesystem;
 
     /**
      * Create a parser for a report
      *
-     * @param string              $report The XML filename
-     * @param AbstractRenderer    $report_root
-     * @param string[][]          $vars
-     * @param Tree                $tree
-     * @param FilesystemInterface $data_filesystem
+     * @param string             $report The XML filename
+     * @param AbstractRenderer   $report_root
+     * @param string[][]         $vars
+     * @param Tree               $tree
+     * @param FilesystemOperator $data_filesystem
      */
     public function __construct(
         string $report,
         AbstractRenderer $report_root,
         array $vars,
         Tree $tree,
-        FilesystemInterface $data_filesystem
+        FilesystemOperator $data_filesystem
     ) {
         $this->report          = $report;
         $this->report_root     = $report_root;
@@ -276,7 +276,7 @@ class ReportParserGenerate extends ReportParserBase
      *
      * @return void
      */
-    protected function characterData($parser, $data): void
+    protected function characterData($parser, string $data): void
     {
         if ($this->print_data && $this->process_gedcoms === 0 && $this->process_ifs === 0 && $this->process_repeats === 0) {
             $this->current_element->addText($data);
@@ -603,8 +603,8 @@ class ReportParserGenerate extends ReportParserBase
         $this->print_data         = true;
 
         $this->current_element = $this->report_root->createCell(
-            $width,
-            $height,
+            (int) $width,
+            (int) $height,
             $border,
             $align,
             $bgcolor,
@@ -967,37 +967,11 @@ class ReportParserGenerate extends ReportParserBase
                 $this->current_element->addText(I18N::translate('Private'));
             } else {
                 $name = $record->fullName();
-                $name = preg_replace(
-                    [
-                        '/<span class="starredname">/',
-                        '/<\/span><\/span>/',
-                        '/<\/span>/',
-                    ],
-                    [
-                        '«',
-                        '',
-                        '»',
-                    ],
-                    $name
-                );
                 $name = strip_tags($name);
                 if (!empty($attrs['truncate'])) {
                     $name = Str::limit($name, (int) $attrs['truncate'], I18N::translate('…'));
                 } else {
                     $addname = (string) $record->alternateName();
-                    $addname = preg_replace(
-                        [
-                            '/<span class="starredname">/',
-                            '/<\/span><\/span>/',
-                            '/<\/span>/',
-                        ],
-                        [
-                            '«',
-                            '',
-                            '»',
-                        ],
-                        $addname
-                    );
                     $addname = strip_tags($addname);
                     if (!empty($addname)) {
                         $name .= ' ' . $addname;
@@ -1976,7 +1950,7 @@ class ReportParserGenerate extends ReportParserBase
                             $match[3] = strtr($match[3], ['\\' => '\\\\', '%'  => '\\%', '_'  => '\\_', ' ' => '%']);
                             $like = "%\n1 " . $match[1] . "%\n2 " . $match[2] . '%' . $match[3] . '%';
                             $query->where('i_gedcom', 'LIKE', $like);
-                        } elseif (preg_match('/^(\w+) CONTAINS (.+)$/', $value, $match)) {
+                        } elseif (preg_match('/^(\w+) CONTAINS (.*)$/', $value, $match)) {
                             // Don't unset this filter. This is just initial filtering for performance
                             $match[2] = strtr($match[2], ['\\' => '\\\\', '%'  => '\\%', '_'  => '\\_', ' ' => '%']);
                             $like = "%\n1 " . $match[1] . '%' . $match[2] . '%';

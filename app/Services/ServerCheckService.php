@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -51,10 +51,9 @@ class ServerCheckService
     private const PHP_SUPPORT_URL   = 'https://www.php.net/supported-versions.php';
     private const PHP_MINOR_VERSION = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
     private const PHP_SUPPORT_DATES = [
-        '7.1' => '2019-12-01',
-        '7.2' => '2020-11-30',
         '7.3' => '2021-12-06',
         '7.4' => '2022-11-28',
+        '8.0' => '2023-11-26',
     ];
 
     // As required by illuminate/database 5.8

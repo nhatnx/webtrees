@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -20,6 +20,7 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees;
 
 use Fisharebest\Webtrees\Contracts\CacheFactoryInterface;
+use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Functions\FunctionsImport;
 use Fisharebest\Webtrees\Services\GedcomExportService;
 use Fisharebest\Webtrees\Services\TreeService;
@@ -40,7 +41,7 @@ class TreeTest extends TestCase
     {
         parent::setUp();
 
-        $cache_factory = $this->createMock(CacheFactoryInterface::class);
+        $cache_factory = self::createMock(CacheFactoryInterface::class);
         $cache_factory->method('array')->willReturn(new Cache(new NullAdapter()));
         Registry::cache($cache_factory);
     }
@@ -57,8 +58,8 @@ class TreeTest extends TestCase
         $tree_service = new TreeService();
         $tree         = $tree_service->create('name', 'title');
 
-        $this->assertSame('name', $tree->name());
-        $this->assertSame('title', $tree->title());
+        self::assertSame('name', $tree->name());
+        self::assertSame('title', $tree->title());
     }
 
     /**
@@ -72,11 +73,11 @@ class TreeTest extends TestCase
         $tree         = $tree_service->create('name', 'title');
 
         $pref = $tree->getPreference('foo', 'default');
-        $this->assertSame('default', $pref);
+        self::assertSame('default', $pref);
 
         $tree->setPreference('foo', 'bar');
         $pref = $tree->getPreference('foo', 'default');
-        $this->assertSame('bar', $pref);
+        self::assertSame('bar', $pref);
     }
 
     /**
@@ -92,27 +93,11 @@ class TreeTest extends TestCase
         $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
 
         $pref = $tree->getUserPreference($user, 'foo', 'default');
-        $this->assertSame('default', $pref);
+        self::assertSame('default', $pref);
 
         $tree->setUserPreference($user, 'foo', 'bar');
         $pref = $tree->getUserPreference($user, 'foo', 'default');
-        $this->assertSame('bar', $pref);
-    }
-
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::getNewXref
-     * @return void
-     */
-    public function testGetNewXref(): void
-    {
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('tree-name', 'Tree title');
-
-        // New trees have an individual X1.
-        $this->assertSame('X2', $tree->getNewXref());
-        $this->assertSame('X3', $tree->getNewXref());
-        $this->assertSame('X4', $tree->getNewXref());
-        $this->assertSame('X5', $tree->getNewXref());
+        self::assertSame('bar', $pref);
     }
 
     /**
@@ -127,7 +112,7 @@ class TreeTest extends TestCase
         $tree_service = new TreeService();
         $tree         = $tree_service->create('name', 'title');
         $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
-        $user->setPreference(User::PREF_IS_ADMINISTRATOR, '1');
+        $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $tree->createIndividual("0 @@ FOO\n1 SEX U");
@@ -143,15 +128,15 @@ class TreeTest extends TestCase
         $tree_service = new TreeService();
         $tree         = $tree_service->create('name', 'title');
         $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
-        $user->setPreference(User::PREF_IS_ADMINISTRATOR, '1');
+        $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $record = $tree->createIndividual("0 @@ INDI\n1 SEX F\n1 NAME Foo /Bar/");
-        $this->assertTrue($record->isPendingAddition());
+        self::assertTrue($record->isPendingAddition());
 
-        $user->setPreference(User::PREF_AUTO_ACCEPT_EDITS, '1');
+        $user->setPreference(UserInterface::PREF_AUTO_ACCEPT_EDITS, '1');
         $record = $tree->createIndividual("0 @@ INDI\n1 SEX F\n1 NAME Foo /Bar/");
-        $this->assertFalse($record->isPendingAddition());
+        self::assertFalse($record->isPendingAddition());
     }
 
     /**
@@ -166,7 +151,7 @@ class TreeTest extends TestCase
         $tree_service = new TreeService();
         $tree         = $tree_service->create('name', 'title');
         $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
-        $user->setPreference(User::PREF_IS_ADMINISTRATOR, '1');
+        $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $tree->createFamily("0 @@ FOO\n1 MARR Y");
@@ -182,15 +167,15 @@ class TreeTest extends TestCase
         $tree_service = new TreeService();
         $tree         = $tree_service->create('name', 'title');
         $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
-        $user->setPreference(User::PREF_IS_ADMINISTRATOR, '1');
+        $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $record = $tree->createFamily("0 @@ FAM\n1 MARR Y");
-        $this->assertTrue($record->isPendingAddition());
+        self::assertTrue($record->isPendingAddition());
 
-        $user->setPreference(User::PREF_AUTO_ACCEPT_EDITS, '1');
+        $user->setPreference(UserInterface::PREF_AUTO_ACCEPT_EDITS, '1');
         $record = $tree->createFamily("0 @@ FAM\n1 MARR Y");
-        $this->assertFalse($record->isPendingAddition());
+        self::assertFalse($record->isPendingAddition());
     }
 
     /**
@@ -205,7 +190,7 @@ class TreeTest extends TestCase
         $tree_service = new TreeService();
         $tree         = $tree_service->create('name', 'title');
         $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
-        $user->setPreference(User::PREF_IS_ADMINISTRATOR, '1');
+        $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $tree->createMediaObject("0 @@ FOO\n1 MARR Y");
@@ -221,15 +206,15 @@ class TreeTest extends TestCase
         $tree_service = new TreeService();
         $tree         = $tree_service->create('name', 'title');
         $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
-        $user->setPreference(User::PREF_IS_ADMINISTRATOR, '1');
+        $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $record = $tree->createMediaObject("0 @@ OBJE\n1 FILE foo.jpeg");
-        $this->assertTrue($record->isPendingAddition());
+        self::assertTrue($record->isPendingAddition());
 
-        $user->setPreference(User::PREF_AUTO_ACCEPT_EDITS, '1');
+        $user->setPreference(UserInterface::PREF_AUTO_ACCEPT_EDITS, '1');
         $record = $tree->createMediaObject("0 @@ OBJE\n1 FILE foo.jpeg");
-        $this->assertFalse($record->isPendingAddition());
+        self::assertFalse($record->isPendingAddition());
     }
 
     /**
@@ -244,7 +229,7 @@ class TreeTest extends TestCase
         $tree_service = new TreeService();
         $tree         = $tree_service->create('name', 'title');
         $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
-        $user->setPreference(User::PREF_IS_ADMINISTRATOR, '1');
+        $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $tree->createRecord("0 @@FOO\n1 NOTE noted");
@@ -260,15 +245,15 @@ class TreeTest extends TestCase
         $tree_service = new TreeService();
         $tree         = $tree_service->create('name', 'title');
         $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
-        $user->setPreference(User::PREF_IS_ADMINISTRATOR, '1');
+        $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $record = $tree->createRecord("0 @@ FOO\n1 NOTE noted");
-        $this->assertTrue($record->isPendingAddition());
+        self::assertTrue($record->isPendingAddition());
 
-        $user->setPreference(User::PREF_AUTO_ACCEPT_EDITS, '1');
+        $user->setPreference(UserInterface::PREF_AUTO_ACCEPT_EDITS, '1');
         $record = $tree->createRecord("0 @@ FOO\n1 NOTE noted");
-        $this->assertFalse($record->isPendingAddition());
+        self::assertFalse($record->isPendingAddition());
     }
 
     /**
@@ -281,14 +266,14 @@ class TreeTest extends TestCase
         $tree_service = new TreeService();
         $tree         = $tree_service->create('name', 'title');
         $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
-        $user->setPreference(User::PREF_AUTO_ACCEPT_EDITS, '1');
+        $user->setPreference(UserInterface::PREF_AUTO_ACCEPT_EDITS, '1');
         Auth::login($user);
 
         // Delete the tree's default individual.
         FunctionsImport::updateRecord('0 @X1@ INDI', $tree, true);
 
         // No individuals in tree?  Fake individual
-        $this->assertSame('I', $tree->significantIndividual($user)->xref());
+        self::assertSame('I', $tree->significantIndividual($user)->xref());
 
         $record1 = $tree->createIndividual("0 @@ INDI\n1 SEX F\n1 NAME Foo /Bar/");
         $record2 = $tree->createIndividual("0 @@ INDI\n1 SEX F\n1 NAME Foo /Bar/");
@@ -296,37 +281,37 @@ class TreeTest extends TestCase
         $record4 = $tree->createIndividual("0 @@ INDI\n1 SEX F\n1 NAME Foo /Bar/");
 
         // Individuals exist?  First one (lowest XREF).
-        $this->assertSame($record1->xref(), $tree->significantIndividual($user)->xref());
+        self::assertSame($record1->xref(), $tree->significantIndividual($user)->xref());
 
         // Preference for tree?
         $tree->setPreference('PEDIGREE_ROOT_ID', $record2->xref());
-        $this->assertSame($record2->xref(), $tree->significantIndividual($user)->xref());
+        self::assertSame($record2->xref(), $tree->significantIndividual($user)->xref());
 
         // User preference
-        $tree->setUserPreference($user, User::PREF_TREE_ACCOUNT_XREF, $record3->xref());
-        $this->assertSame($record3->xref(), $tree->significantIndividual($user)->xref());
+        $tree->setUserPreference($user, UserInterface::PREF_TREE_ACCOUNT_XREF, $record3->xref());
+        self::assertSame($record3->xref(), $tree->significantIndividual($user)->xref());
 
         // User record
-        $tree->setUserPreference($user, User::PREF_TREE_DEFAULT_XREF, $record4->xref());
-        $this->assertSame($record4->xref(), $tree->significantIndividual($user)->xref());
+        $tree->setUserPreference($user, UserInterface::PREF_TREE_DEFAULT_XREF, $record4->xref());
+        self::assertSame($record4->xref(), $tree->significantIndividual($user)->xref());
     }
 
     /**
-     * @covers \Fisharebest\Webtrees\Tree::importGedcomFile
-     * @covers \Fisharebest\Webtrees\Tree::deleteGenealogyData
+     * @covers \Fisharebest\Webtrees\Services\TreeService::importGedcomFile
+     * @covers \Fisharebest\Webtrees\Services\TreeService::deleteGenealogyData
      * @return void
      */
     public function testImportAndDeleteGedcomFile(): void
     {
         $tree_service = new TreeService();
         $tree = $this->importTree('demo.ged');
-        $this->assertNotNull($tree_service->all()->get('demo.ged'));
+        self::assertNotNull($tree_service->all()->get('demo.ged'));
         Site::setPreference('DEFAULT_GEDCOM', $tree->name());
 
         $tree_service->delete($tree);
 
-        $this->assertNull($tree_service->all()->get('demo.ged'));
-        $this->assertSame('', Site::getPreference('DEFAULT_GEDCOM'));
+        self::assertNull($tree_service->all()->get('demo.ged'));
+        self::assertSame('', Site::getPreference('DEFAULT_GEDCOM'));
     }
 
     /**
@@ -338,16 +323,16 @@ class TreeTest extends TestCase
         $user_service = new UserService();
         $tree         = $this->importTree('demo.ged');
         $user         = $user_service->create('admin', 'Administrator', 'admin@example.com', 'secret');
-        $user->setPreference(User::PREF_IS_ADMINISTRATOR, '1');
+        $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
-        $user->setPreference(User::PREF_AUTO_ACCEPT_EDITS, '1');
+        $user->setPreference(UserInterface::PREF_AUTO_ACCEPT_EDITS, '1');
         $tree->createIndividual("0 @@ INDI\n1 SEX F\n1 NAME Foo /Bar/");
-        $this->assertFalse($tree->hasPendingEdit());
+        self::assertFalse($tree->hasPendingEdit());
 
-        $user->setPreference(User::PREF_AUTO_ACCEPT_EDITS, '');
+        $user->setPreference(UserInterface::PREF_AUTO_ACCEPT_EDITS, '');
         $tree->createIndividual("0 @@ INDI\n1 SEX F\n1 NAME Foo /Bar/");
-        $this->assertTrue($tree->hasPendingEdit());
+        self::assertTrue($tree->hasPendingEdit());
     }
 
     /**
@@ -376,6 +361,6 @@ class TreeTest extends TestCase
         $original = preg_replace('/\n2 TIME ..:..:../', '', $original, 1);
         $export   = preg_replace('/\n2 TIME ..:..:../', '', $export, 1);
 
-        $this->assertSame($original, $export);
+        self::assertSame($original, $export);
     }
 }

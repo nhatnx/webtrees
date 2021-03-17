@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -35,13 +35,15 @@ use function assert;
 use function json_encode;
 use function response;
 
+use const JSON_THROW_ON_ERROR;
+
 /**
  * Run a data-fix.
  */
 class DataFixUpdateAll implements RequestHandlerInterface
 {
     // Process this number of records in each HTTP request
-    private const CHUNK_SIZE = 100;
+    private const CHUNK_SIZE = 250;
 
     /** @var DataFixService */
     private $data_fix_service;
@@ -92,9 +94,7 @@ class DataFixUpdateAll implements RequestHandlerInterface
         }
 
         /** @var Collection<GedcomRecord> $records */
-        $records = $rows->filter(static function (stdClass $row) use ($start, $end): bool {
-            return $row->xref >= $start && $row->xref <= $end;
-        })->map(function (stdClass $row) use ($tree): ?GedcomRecord {
+        $records = $rows->map(function (stdClass $row) use ($tree): ?GedcomRecord {
             return $this->data_fix_service->getRecordByType($row->xref, $tree, $row->type);
         })->filter(static function (?GedcomRecord $record) use ($module, $params): bool {
             return $record instanceof GedcomRecord && !$record->isPendingDeletion() && $module->doesRecordNeedUpdate($record, $params);
@@ -147,6 +147,6 @@ class DataFixUpdateAll implements RequestHandlerInterface
             })
             ->all();
 
-        return response(json_encode($updates));
+        return response(json_encode($updates, JSON_THROW_ON_ERROR));
     }
 }

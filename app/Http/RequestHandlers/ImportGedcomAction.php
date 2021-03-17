@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2021 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 declare(strict_types=1);
@@ -23,7 +23,10 @@ use Fisharebest\Webtrees\FlashMessages;
 use Fisharebest\Webtrees\Functions\Functions;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Tree;
+use League\Flysystem\FilesystemException;
+use League\Flysystem\UnableToReadFile;
 use Nyholm\Psr7\UploadedFile;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -43,10 +46,20 @@ use const UPLOAD_ERR_OK;
  */
 class ImportGedcomAction implements RequestHandlerInterface
 {
+    /** @var TreeService */
+    private $tree_service;
+
+    public function __construct(TreeService $tree_service)
+    {
+        $this->tree_service = $tree_service;
+    }
+
     /**
      * @param ServerRequestInterface $request
      *
      * @return ResponseInterface
+     * @throws FilesystemException
+     * @throws UnableToReadFile
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -71,7 +84,7 @@ class ImportGedcomAction implements RequestHandlerInterface
 
             if ($upload instanceof UploadedFile) {
                 if ($upload->getError() === UPLOAD_ERR_OK) {
-                    $tree->importGedcomFile($upload->getStream(), basename($upload->getClientFilename()));
+                    $this->tree_service->importGedcomFile($tree, $upload->getStream(), basename($upload->getClientFilename()));
                 } else {
                     FlashMessages::addMessage(Functions::fileUploadErrorText($upload->getError()), 'danger');
                 }
@@ -86,7 +99,7 @@ class ImportGedcomAction implements RequestHandlerInterface
             if ($basename) {
                 $resource = $data_filesystem->readStream($basename);
                 $stream   = app(StreamFactoryInterface::class)->createStreamFromResource($resource);
-                $tree->importGedcomFile($stream, $basename);
+                $this->tree_service->importGedcomFile($tree, $stream, $basename);
             } else {
                 FlashMessages::addMessage(I18N::translate('No GEDCOM file was received.'), 'danger');
             }
