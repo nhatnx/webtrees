@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -36,7 +36,7 @@ class ReportHtmlFootnote extends ReportBaseFootnote
      *
      * @return void
      */
-    public function render($renderer)
+    public function render($renderer): void
     {
         $renderer->setCurrentStyle('footnotenum');
         echo '<a href="#footnote', $this->num, '"><sup>';
@@ -77,26 +77,26 @@ class ReportHtmlFootnote extends ReportBaseFootnote
     /**
      * Calculates the Footnotes height
      *
-     * @param HtmlRenderer $html
-     * @param float        $cellWidth The width of the cell to use it for text wraping
+     * @param HtmlRenderer $renderer
+     * @param float        $cellWidth The width of the cell to use it for text wrapping
      *
      * @return float     Footnote height in points
      */
-    public function getFootnoteHeight($html, float $cellWidth = 0): float
+    public function getFootnoteHeight(HtmlRenderer $renderer, float $cellWidth = 0): float
     {
-        if ($html->getCurrentStyle() !== $this->styleName) {
-            $html->setCurrentStyle($this->styleName);
+        if ($renderer->getCurrentStyle() !== $this->styleName) {
+            $renderer->setCurrentStyle($this->styleName);
         }
 
         if ($cellWidth > 0) {
-            $this->text = $html->textWrap($this->text, $cellWidth);
+            $this->text = $renderer->textWrap($this->text, $cellWidth);
         }
 
         $this->text .= "\n\n";
         $ct         = substr_count($this->text, "\n");
-        $fsize      = $html->getCurrentStyleHeight();
+        $fsize      = $renderer->getCurrentStyleHeight();
 
-        return ($fsize * $ct) * $html->cellHeightRatio;
+        return $fsize * $ct * $renderer->cellHeightRatio;
     }
 
     /**
@@ -105,9 +105,9 @@ class ReportHtmlFootnote extends ReportBaseFootnote
      *
      * @param HtmlRenderer $renderer
      *
-     * @return float|array
+     * @return array{0:float,1:int,2:float}
      */
-    public function getWidth($renderer)
+    public function getWidth($renderer): array
     {
         // Setup the style name
         $renderer->setCurrentStyle('footnotenum');
@@ -134,11 +134,11 @@ class ReportHtmlFootnote extends ReportBaseFootnote
                 $newtext            = '';
                 $wrapWidthRemaining = $this->wrapWidthRemaining;
                 $lines              = explode("\n", $this->numText);
-                // Go throught the text line by line
+                // Go through the text line by line
                 foreach ($lines as $line) {
                     // Line width in points + a little margin
                     $lw = $renderer->getStringWidth($line);
-                    // If the line has to be wraped
+                    // If the line has to be wrapped
                     if ($lw > $wrapWidthRemaining) {
                         $words    = explode(' ', $line);
                         $addspace = count($words);

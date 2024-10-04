@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -32,8 +32,7 @@ class FrenchDate extends AbstractCalendarDate
     public const ESCAPE = '@#DFRENCH R@';
 
     // Convert GEDCOM month names to month numbers
-    protected const MONTH_ABBREVIATIONS = [
-        ''     => 0,
+    protected const MONTH_TO_NUMBER = [
         'VEND' => 1,
         'BRUM' => 2,
         'FRIM' => 3,
@@ -49,8 +48,23 @@ class FrenchDate extends AbstractCalendarDate
         'COMP' => 13,
     ];
 
-    /** @var RomanNumeralsService */
-    private $roman_numerals_service;
+    protected const NUMBER_TO_MONTH = [
+        1 => 'VEND',
+        2 => 'BRUM',
+        3 => 'FRIM',
+        4 => 'NIVO',
+        5 => 'PLUV',
+        6 => 'VENT',
+        7 => 'GERM',
+        8 => 'FLOR',
+        9 => 'PRAI',
+        10 => 'MESS',
+        11 => 'THER',
+        12 => 'FRUC',
+        13 => 'COMP',
+    ];
+
+    private RomanNumeralsService $roman_numerals_service;
 
     /**
      * Create a date from either:
@@ -328,6 +342,6 @@ class FrenchDate extends AbstractCalendarDate
      */
     protected function formatLongYear(): string
     {
-        return $this->roman_numerals_service->numberToRomanNumerals($this->year);
+        return 'An ' . $this->roman_numerals_service->numberToRomanNumerals($this->year);
     }
 }

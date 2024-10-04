@@ -1,18 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\I18N;
 
 /**
- * @var string   $icon
- * @var string[] $siblings
- * @var string[] $spouses
- * @var string[] $children
+ * @var string        $icon
+ * @var array<string> $siblings
+ * @var array<string> $spouses
+ * @var array<string> $children
  */
 
 ?>
 
 <div class="dropdown px-2">
-    <a href="#" role="button" id="pedigree-previous-link" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    <a href="#" role="button" id="pedigree-previous-link" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
         <?= $icon ?>
     </a>
     <div class="dropdown-menu" aria-labelledby="pedigree-previous-link">

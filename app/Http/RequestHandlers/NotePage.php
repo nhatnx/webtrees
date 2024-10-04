@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,20 +21,15 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Fact;
-use Fisharebest\Webtrees\Filter;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
-use Fisharebest\Webtrees\Note;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ClipboardService;
-use Fisharebest\Webtrees\Tree;
-use Illuminate\Support\Collection;
+use Fisharebest\Webtrees\Services\LinkedRecordService;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
-use function is_string;
 use function redirect;
 
 /**
@@ -44,17 +39,18 @@ class NotePage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var ClipboardService */
-    private $clipboard_service;
+    private ClipboardService $clipboard_service;
+
+    private LinkedRecordService $linked_record_service;
 
     /**
-     * NotePage constructor.
-     *
      * @param ClipboardService $clipboard_service
+     * @param LinkedRecordService $linked_record_service
      */
-    public function __construct(ClipboardService $clipboard_service)
+    public function __construct(ClipboardService $clipboard_service, LinkedRecordService $linked_record_service)
     {
-        $this->clipboard_service = $clipboard_service;
+        $this->clipboard_service     = $clipboard_service;
+        $this->linked_record_service = $linked_record_service;
     }
 
     /**
@@ -64,46 +60,39 @@ class NotePage implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getAttribute('xref');
-        assert(is_string($xref));
-
-        $note = Registry::noteFactory()->make($xref, $tree);
-        $note = Auth::checkNoteAccess($note, false);
+        $tree   = Validator::attributes($request)->tree();
+        $xref   = Validator::attributes($request)->isXref()->string('xref');
+        $slug   = Validator::attributes($request)->string('slug', '');
+        $record = Registry::noteFactory()->make($xref, $tree);
+        $record = Auth::checkNoteAccess($record, false);
 
         // Redirect to correct xref/slug
-        if ($note->xref() !== $xref || $request->getAttribute('slug') !== $note->slug()) {
-            return redirect($note->url(), StatusCodeInterface::STATUS_MOVED_PERMANENTLY);
+        if ($record->xref() !== $xref || Registry::slugFactory()->make($record) !== $slug) {
+            return redirect($record->url(), StatusCodeInterface::STATUS_MOVED_PERMANENTLY);
         }
 
-        return $this->viewResponse('note-page', [
-            'clipboard_facts'  => $this->clipboard_service->pastableFacts($note, new Collection()),
-            'facts'            => $this->facts($note),
-            'families'         => $note->linkedFamilies('NOTE'),
-            'individuals'      => $note->linkedIndividuals('NOTE'),
-            'note'             => $note,
-            'media_objects'    => $note->linkedMedia('NOTE'),
-            'meta_description' => '',
-            'meta_robots'      => 'index,follow',
-            'sources'          => $note->linkedSources('NOTE'),
-            'text'             => Filter::formatText($note->getNote(), $tree),
-            'title'            => $note->fullName(),
-            'tree'             => $tree,
-        ]);
-    }
+        $linked_families     = $this->linked_record_service->linkedFamilies($record);
+        $linked_individuals  = $this->linked_record_service->linkedIndividuals($record);
+        $linked_locations    = $this->linked_record_service->linkedLocations($record);
+        $linked_media        = $this->linked_record_service->linkedMedia($record);
+        $linked_repositories = $this->linked_record_service->linkedRepositories($record);
+        $linked_sources      = $this->linked_record_service->linkedSources($record);
+        $linked_submitters   = $this->linked_record_service->linkedSubmitters($record);
 
-    /**
-     * @param Note $record
-     *
-     * @return Collection<Fact>
-     */
-    private function facts(Note $record): Collection
-    {
-        return $record->facts()
-            ->filter(static function (Fact $fact): bool {
-                return $fact->tag() !== 'NOTE:CONT';
-            });
+        return $this->viewResponse('note-page', [
+            'clipboard_facts'      => $this->clipboard_service->pastableFacts($record),
+            'linked_families'      => $linked_families,
+            'linked_individuals'   => $linked_individuals,
+            'linked_locations'     => $linked_locations->isEmpty() ? null : $linked_locations,
+            'linked_media_objects' => $linked_media,
+            'linked_repositories'  => $linked_repositories,
+            'linked_sources'       => $linked_sources,
+            'linked_submitters'    => $linked_submitters,
+            'meta_description'     => '',
+            'meta_robots'          => 'index,follow',
+            'record'               => $record,
+            'title'                => $record->fullName(),
+            'tree'                 => $tree,
+        ])->withHeader('Link', '<' . $record->url() . '>; rel="canonical"');
     }
 }

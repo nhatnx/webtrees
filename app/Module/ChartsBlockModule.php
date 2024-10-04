@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -27,6 +27,7 @@ use Fisharebest\Webtrees\Module\InteractiveTree\TreeView;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Str;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -43,14 +44,9 @@ class ChartsBlockModule extends AbstractModule implements ModuleBlockInterface
 {
     use ModuleBlockTrait;
 
-    /**
-     * @var ModuleService
-     */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * ChartsBlockModule constructor.
-     *
      * @param ModuleService $module_service
      */
     public function __construct(ModuleService $module_service)
@@ -83,10 +79,10 @@ class ChartsBlockModule extends AbstractModule implements ModuleBlockInterface
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
@@ -149,7 +145,7 @@ class ChartsBlockModule extends AbstractModule implements ModuleBlockInterface
                     break;
 
                 case 'hourglass':
-                    $module    = $this->module_service->findByInterface(HourglassChartModule::class)->first();
+                    $module = $this->module_service->findByInterface(HourglassChartModule::class)->first();
 
                     if ($module instanceof HourglassChartModule) {
                         $title     = $module->chartTitle($individual);
@@ -212,16 +208,6 @@ class ChartsBlockModule extends AbstractModule implements ModuleBlockInterface
     }
 
     /**
-     * Can this block be shown on the user’s home page?
-     *
-     * @return bool
-     */
-    public function isUserBlock(): bool
-    {
-        return true;
-    }
-
-    /**
      * Can this block be shown on the tree’s home page?
      *
      * @return bool
@@ -241,10 +227,11 @@ class ChartsBlockModule extends AbstractModule implements ModuleBlockInterface
      */
     public function saveBlockConfiguration(ServerRequestInterface $request, int $block_id): void
     {
-        $params = (array) $request->getParsedBody();
+        $type = Validator::parsedBody($request)->string('type');
+        $xref = Validator::parsedBody($request)->isXref()->string('xref');
 
-        $this->setBlockSetting($block_id, 'type', $params['type'] ?? 'pedigree');
-        $this->setBlockSetting($block_id, 'pid', $params['xref'] ?? '');
+        $this->setBlockSetting($block_id, 'type', $type);
+        $this->setBlockSetting($block_id, 'pid', $xref);
     }
 
     /**
@@ -262,7 +249,7 @@ class ChartsBlockModule extends AbstractModule implements ModuleBlockInterface
         $default_xref     = $gedcomid ?: $PEDIGREE_ROOT_ID;
 
         $type = $this->getBlockSetting($block_id, 'type', 'pedigree');
-        $xref  = $this->getBlockSetting($block_id, 'pid', $default_xref);
+        $xref = $this->getBlockSetting($block_id, 'pid', $default_xref);
 
         $charts = [
             'pedigree'    => I18N::translate('Pedigree'),
@@ -270,7 +257,7 @@ class ChartsBlockModule extends AbstractModule implements ModuleBlockInterface
             'hourglass'   => I18N::translate('Hourglass chart'),
             'treenav'     => I18N::translate('Interactive tree'),
         ];
-        uasort($charts, 'Fisharebest\Webtrees\I18N::strcasecmp');
+        uasort($charts, I18N::comparator());
 
         $individual = Registry::individualFactory()->make($xref, $tree);
 

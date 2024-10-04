@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -33,12 +33,12 @@ use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\CalendarService;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function count;
 use function e;
 use function explode;
@@ -54,48 +54,34 @@ use function view;
  */
 class CalendarEvents implements RequestHandlerInterface
 {
-    /** @var CalendarService */
-    private $calendar_service;
-
-    /**
-     * CalendarPage constructor.
-     *
-     * @param CalendarService $calendar_service
-     */
-    public function __construct(CalendarService $calendar_service)
-    {
-        $this->calendar_service = $calendar_service;
+    public function __construct(
+        private readonly CalendarService $calendar_service,
+    ) {
     }
 
     /**
      * Show anniversaries that occurred on a given day/month/year.
-     *
-     * @param ServerRequestInterface $request
-     *
-     * @return ResponseInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree     = Validator::attributes($request)->tree();
+        $view     = Validator::attributes($request)->isInArray(['day', 'month', 'year'])->string('view');
+        $cal      = Validator::queryParams($request)->string('cal');
+        $day      = Validator::queryParams($request)->string('day');
+        $month    = Validator::queryParams($request)->string('month');
+        $year     = Validator::queryParams($request)->string('year');
+        $filterev = Validator::queryParams($request)->string('filterev');
+        $filterof = Validator::queryParams($request)->string('filterof');
+        $filtersx = Validator::queryParams($request)->string('filtersx');
 
-        $view            = $request->getAttribute('view');
-        $CALENDAR_FORMAT = $tree->getPreference('CALENDAR_FORMAT');
-
-        $cal      = $request->getQueryParams()['cal'] ?? '';
-        $day      = $request->getQueryParams()['day'] ?? '';
-        $month    = $request->getQueryParams()['month'] ?? '';
-        $year     = $request->getQueryParams()['year'] ?? '';
-        $filterev = $request->getQueryParams()['filterev'] ?? 'BIRT-MARR-DEAT';
-        $filterof = $request->getQueryParams()['filterof'] ?? 'all';
-        $filtersx = $request->getQueryParams()['filtersx'] ?? '';
-
-        $ged_date = new Date("{$cal} {$day} {$month} {$year}");
+        $ged_date = new Date($cal . ' ' . $day . ' ' . $month . ' ' . $year);
         $cal_date = $ged_date->minimumDate();
         $today    = $cal_date->today();
 
         $days_in_month = $cal_date->daysInMonth();
         $days_in_week  = $cal_date->daysInWeek();
+
+        $CALENDAR_FORMAT = $tree->getPreference('CALENDAR_FORMAT');
 
         // Day and year share the same layout.
         if ($view !== 'month') {
@@ -108,21 +94,27 @@ class CalendarEvents implements RequestHandlerInterface
 
             $anniversaries = Collection::make($anniversary_facts)
                 ->unique()
-                ->sort(static function (Fact $x, Fact $y): int {
-                    return $x->date()->minimumJulianDay() <=> $y->date()->minimumJulianDay();
-                });
+                ->sort(static fn (Fact $x, Fact $y): int => $x->date()->minimumJulianDay() <=> $y->date()->minimumJulianDay());
 
-            $family_anniversaries = $anniversaries->filter(static function (Fact $f): bool {
-                return $f->record() instanceof Family;
-            });
+            $family_anniversaries = $anniversaries->filter(static fn (Fact $f): bool => $f->record() instanceof Family);
 
-            $individual_anniversaries = $anniversaries->filter(static function (Fact $f): bool {
-                return $f->record() instanceof Individual;
-            });
+            $individual_anniversaries = $anniversaries->filter(static fn (Fact $f): bool => $f->record() instanceof Individual);
+
+            $family_count = $family_anniversaries
+                ->map(static fn (Fact $x): string => $x->record()->xref())
+                ->unique()
+                ->count();
+
+            $individual_count = $individual_anniversaries
+                ->map(static fn (Fact $x): string => $x->record()->xref())
+                ->unique()
+                ->count();
 
             return response(view('calendar-list', [
                 'family_anniversaries'     => $family_anniversaries,
                 'individual_anniversaries' => $individual_anniversaries,
+                'family_count'             => $family_count,
+                'individual_count'         => $individual_count,
             ]));
         }
 
@@ -157,9 +149,9 @@ class CalendarEvents implements RequestHandlerInterface
             $cal_facts[$d] = [];
             foreach ($facts as $fact) {
                 $xref = $fact->record()->xref();
-                $text = $text = $fact->label() . ' — ' . $fact->date()->display(true, null, false);
+                $text = $fact->label() . ' — ' . $fact->date()->display($tree);
                 if ($fact->anniv > 0) {
-                    $text .= ' (' . I18N::translate('%s year anniversary', $fact->anniv) . ')';
+                    $text .= ' (' . I18N::translate('%s year anniversary', I18N::number($fact->anniv)) . ')';
                 }
                 if (empty($cal_facts[$d][$xref])) {
                     $cal_facts[$d][$xref] = $text;
@@ -172,7 +164,8 @@ class CalendarEvents implements RequestHandlerInterface
         $week_start    = (I18N::locale()->territory()->firstDay() + 6) % 7;
         $weekend_start = (I18N::locale()->territory()->weekendStart() + 6) % 7;
         $weekend_end   = (I18N::locale()->territory()->weekendEnd() + 6) % 7;
-        // The french  calendar has a 10-day week, which starts on primidi
+
+        // The French calendar has a 10-day week, which starts on primidi.
         if ($days_in_week === 10) {
             $week_start    = 0;
             $weekend_start = -1;
@@ -185,9 +178,9 @@ class CalendarEvents implements RequestHandlerInterface
         for ($week_day = 0; $week_day < $days_in_week; ++$week_day) {
             $day_name = $cal_date->dayNames(($week_day + $week_start) % $days_in_week);
             if ($week_day === $weekend_start || $week_day === $weekend_end) {
-                echo '<th class="wt-page-options-label weekend" width="' . (100 / $days_in_week) . '%">', $day_name, '</th>';
+                echo '<th class="wt-page-options-label weekend" width="', 100 / $days_in_week, '%">', $day_name, '</th>';
             } else {
-                echo '<th class="wt-page-options-label" width="' . (100 / $days_in_week) . '%">', $day_name, '</th>';
+                echo '<th class="wt-page-options-label" width="', 100 / $days_in_week, '%">', $day_name, '</th>';
             }
         }
         echo '</tr>';
@@ -210,13 +203,13 @@ class CalendarEvents implements RequestHandlerInterface
                 if (count($cal_facts[0]) > 0) {
                     echo '<div class="cal_day">', I18N::translate('Day not set'), '</div>';
                     echo '<div class="small" style="height: 180px; overflow: auto;">';
-                    echo $this->calendarListText($cal_facts[0], '', '', $tree);
+                    echo $this->calendarListText($cal_facts[0], $tree);
                     echo '</div>';
                     $cal_facts[0] = [];
                 }
             } else {
                 // Format the day number using the calendar
-                $tmp   = new Date($cal_date->format("%@ {$d} %O %E"));
+                $tmp   = new Date($cal_date->format('%@ ' . $d . ' %O %E'));
                 $d_fmt = $tmp->minimumDate()->format('%j');
                 echo '<div class="d-flex d-flex justify-content-between">';
                 if ($d === $today->day && $cal_date->month === $today->month) {
@@ -226,30 +219,16 @@ class CalendarEvents implements RequestHandlerInterface
                 }
                 // Show a converted date
                 foreach (explode('_and_', $CALENDAR_FORMAT) as $convcal) {
-                    switch ($convcal) {
-                        case 'french':
-                            $alt_date = new FrenchDate($cal_date->minimumJulianDay() + $d - 1);
-                            break;
-                        case 'gregorian':
-                            $alt_date = new GregorianDate($cal_date->minimumJulianDay() + $d - 1);
-                            break;
-                        case 'jewish':
-                            $alt_date = new JewishDate($cal_date->minimumJulianDay() + $d - 1);
-                            break;
-                        case 'julian':
-                            $alt_date = new JulianDate($cal_date->minimumJulianDay() + $d - 1);
-                            break;
-                        case 'hijri':
-                            $alt_date = new HijriDate($cal_date->minimumJulianDay() + $d - 1);
-                            break;
-                        case 'jalali':
-                            $alt_date = new JalaliDate($cal_date->minimumJulianDay() + $d - 1);
-                            break;
-                        case 'none':
-                        default:
-                            $alt_date = $cal_date;
-                            break;
-                    }
+                    $alt_date = match ($convcal) {
+                        'french'    => new FrenchDate($cal_date->minimumJulianDay() + $d - 1),
+                        'gregorian' => new GregorianDate($cal_date->minimumJulianDay() + $d - 1),
+                        'jewish'    => new JewishDate($cal_date->minimumJulianDay() + $d - 1),
+                        'julian'    => new JulianDate($cal_date->minimumJulianDay() + $d - 1),
+                        'hijri'     => new HijriDate($cal_date->minimumJulianDay() + $d - 1),
+                        'jalali'    => new JalaliDate($cal_date->minimumJulianDay() + $d - 1),
+                        default     => $cal_date,
+                    };
+
                     if (get_class($alt_date) !== get_class($cal_date) && $alt_date->inValidRange()) {
                         echo '<span class="rtl_cal_day">' . $alt_date->format('%j %M') . '</span>';
                         // Just show the first conversion
@@ -258,7 +237,7 @@ class CalendarEvents implements RequestHandlerInterface
                 }
                 echo '</div>';
                 echo '<div class="small" style="height: 180px; overflow: auto;">';
-                echo $this->calendarListText($cal_facts[$d], '', '', $tree);
+                echo $this->calendarListText($cal_facts[$d], $tree);
                 echo '</div>';
             }
             echo '</td>';
@@ -275,21 +254,16 @@ class CalendarEvents implements RequestHandlerInterface
     /**
      * Format a list of facts for display
      *
-     * @param string[] $list
-     * @param string   $tag1
-     * @param string   $tag2
-     * @param Tree     $tree
-     *
-     * @return string
+     * @param array<string> $list
      */
-    private function calendarListText(array $list, string $tag1, string $tag2, Tree $tree): string
+    private function calendarListText(array $list, Tree $tree): string
     {
         $html = '';
 
         foreach ($list as $xref => $facts) {
             $tmp = Registry::gedcomRecordFactory()->make((string) $xref, $tree);
-            $html .= $tag1 . '<a href="' . e($tmp->url()) . '">' . $tmp->fullName() . '</a> ';
-            $html .= '<div class="indent">' . $facts . '</div>' . $tag2;
+            $html .= '<a href="' . e($tmp->url()) . '">' . $tmp->fullName() . '</a> ';
+            $html .= '<div class="indent">' . $facts . '</div>';
         }
 
         return $html;

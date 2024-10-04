@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -25,31 +25,25 @@ use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\TestCase;
 use Illuminate\Support\Collection;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class CensusColumnAgeMarried
- */
+#[CoversClass(CensusColumnAgeMarried::class)]
+#[CoversClass(AbstractCensusColumn::class)]
 class CensusColumnAgeMarriedTest extends TestCase
 {
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnAgeMarried
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testAgeMarried(): void
     {
-        $fact = self::createMock(Fact::class);
+        $fact = $this->createMock(Fact::class);
         $fact->method('date')->willReturn(new Date('01 DEC 1859'));
 
-        $family = self::createMock(Family::class);
+        $family = $this->createMock(Family::class);
         $family->method('facts')->with(['MARR'], true)->willReturn(new Collection([$fact]));
 
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthDate')->willReturn(new Date('15 MAR 1840'));
         $individual->method('spouseFamilies')->willReturn(new Collection([$family]));
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusDate')->willReturn('01 JUN 1860');
 
         $column = new CensusColumnAgeMarried($census, '', '');
@@ -57,19 +51,13 @@ class CensusColumnAgeMarriedTest extends TestCase
         self::assertSame('19', $column->generate($individual, $individual));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnAgeMarried
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testNoBirthDate(): void
     {
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthDate')->willReturn(new Date(''));
         $individual->method('spouseFamilies')->willReturn(new Collection());
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusDate')->willReturn('01 JUN 1860');
 
         $column = new CensusColumnAgeMarried($census, '', '');
@@ -77,22 +65,16 @@ class CensusColumnAgeMarriedTest extends TestCase
         self::assertSame('', $column->generate($individual, $individual));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnAgeMarried
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testNoMarriage(): void
     {
-        $family = self::createMock(Family::class);
+        $family = $this->createMock(Family::class);
         $family->method('facts')->with(['MARR'])->willReturn(new Collection());
 
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthDate')->willReturn(new Date(''));
         $individual->method('spouseFamilies')->willReturn(new Collection([$family]));
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusDate')->willReturn('01 JUN 1860');
 
         $column = new CensusColumnAgeMarried($census, '', '');
@@ -100,19 +82,13 @@ class CensusColumnAgeMarriedTest extends TestCase
         self::assertSame('', $column->generate($individual, $individual));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnAgeMarried
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testNoSpouseFamily(): void
     {
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthDate')->willReturn(new Date('15 MAR 1840'));
         $individual->method('spouseFamilies')->willReturn(new Collection());
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusDate')->willReturn('01 JUN 1860');
 
         $column = new CensusColumnAgeMarried($census, '', '');

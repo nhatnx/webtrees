@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,18 +20,14 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Date;
-use Fisharebest\Webtrees\GedcomCode\GedcomCodePedi;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\GedcomEditService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
-use function preg_match_all;
 use function redirect;
 
 /**
@@ -39,12 +35,9 @@ use function redirect;
  */
 class AddChildToFamilyAction implements RequestHandlerInterface
 {
-    /** @var GedcomEditService */
-    private $gedcom_edit_service;
+    private GedcomEditService $gedcom_edit_service;
 
     /**
-     * AddChildToFamilyAction constructor.
-     *
      * @param GedcomEditService $gedcom_edit_service
      */
     public function __construct(GedcomEditService $gedcom_edit_service)
@@ -59,63 +52,24 @@ class AddChildToFamilyAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getQueryParams()['xref'];
-
+        $tree   = Validator::attributes($request)->tree();
+        $xref   = Validator::attributes($request)->isXref()->string('xref');
         $family = Registry::familyFactory()->make($xref, $tree);
         $family = Auth::checkFamilyAccess($family, true);
 
-        $params = (array) $request->getParsedBody();
-
-        $PEDI      = $params['PEDI'];
-        $keep_chan = (bool) ($params['keep_chan'] ?? false);
-
-        $this->gedcom_edit_service->glevels = $params['glevels'] ?? [];
-        $this->gedcom_edit_service->tag     = $params['tag'] ?? [];
-        $this->gedcom_edit_service->text    = $params['text'] ?? [];
-        $this->gedcom_edit_service->islink  = $params['islink'] ?? [];
-
-        $this->gedcom_edit_service->splitSource();
-        $gedrec = '0 @@ INDI';
-        $gedrec .= $this->gedcom_edit_service->addNewName($request, $tree);
-        $gedrec .= $this->gedcom_edit_service->addNewSex($request);
-        if (preg_match_all('/([A-Z0-9_]+)/', $tree->getPreference('QUICK_REQUIRED_FACTS'), $matches)) {
-            foreach ($matches[1] as $match) {
-                $gedrec .= $this->gedcom_edit_service->addNewFact($request, $tree, $match);
-            }
-        }
-        $gedrec .= "\n" . GedcomCodePedi::createNewFamcPedi($PEDI, $xref);
-        if ($params['SOUR_INDI'] ?? false) {
-            $gedrec = $this->gedcom_edit_service->handleUpdates($gedrec);
-        } else {
-            $gedrec = $this->gedcom_edit_service->updateRest($gedrec);
-        }
+        $levels = Validator::parsedBody($request)->array('ilevels');
+        $tags   = Validator::parsedBody($request)->array('itags');
+        $values = Validator::parsedBody($request)->array('ivalues');
+        $gedcom = $this->gedcom_edit_service->editLinesToGedcom(Individual::RECORD_TYPE, $levels, $tags, $values);
 
         // Create the new child
-        $new_child = $tree->createIndividual($gedrec);
+        $child  = $tree->createIndividual("0 @@ INDI\n1 FAMC @" . $xref . '@' . $gedcom);
 
-        // Insert new child at the right place
-        $done = false;
-        foreach ($family->facts(['CHIL']) as $fact) {
-            $old_child = $fact->target();
-            if ($old_child instanceof Individual && Date::compare($new_child->getEstimatedBirthDate(), $old_child->getEstimatedBirthDate()) < 0) {
-                // Insert before this child
-                $family->updateFact($fact->id(), '1 CHIL @' . $new_child->xref() . "@\n" . $fact->gedcom(), !$keep_chan);
-                $done = true;
-                break;
-            }
-        }
-        if (!$done) {
-            // Append child at end
-            $family->createFact('1 CHIL @' . $new_child->xref() . '@', !$keep_chan);
-        }
+        // Link the child to the family
+        $family->createFact('1 CHIL @' . $child->xref() . '@', false);
 
-        if (($params['goto'] ?? '') === 'new') {
-            return redirect($new_child->url());
-        }
+        $url = Validator::parsedBody($request)->isLocalUrl()->string('url', $child->url());
 
-        return redirect($family->url());
+        return redirect($url);
     }
 }

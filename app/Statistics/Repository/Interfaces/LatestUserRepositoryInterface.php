@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -52,7 +52,7 @@ interface LatestUserRepositoryInterface
      *
      * @return string
      */
-    public function latestUserRegDate(string $format = null): string;
+    public function latestUserRegDate(string|null $format = null): string;
 
     /**
      * Find the timestamp of the latest user to register.
@@ -61,7 +61,7 @@ interface LatestUserRepositoryInterface
      *
      * @return string
      */
-    public function latestUserRegTime(string $format = null): string;
+    public function latestUserRegTime(string|null $format = null): string;
 
     /**
      * Is the most recently registered user logged in right now?
@@ -71,5 +71,5 @@ interface LatestUserRepositoryInterface
      *
      * @return string
      */
-    public function latestUserLoggedin(string $yes = null, string $no = null): string;
+    public function latestUserLoggedin(string|null $yes = null, string|null $no = null): string;
 }

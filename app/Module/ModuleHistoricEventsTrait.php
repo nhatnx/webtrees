@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -43,7 +43,7 @@ trait ModuleHistoricEventsTrait
     /**
      * All events provided by this module.
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public function historicEventsAll(): Collection
     {
@@ -57,7 +57,7 @@ trait ModuleHistoricEventsTrait
      *
      * @param Individual $individual
      *
-     * @return Collection<Fact>
+     * @return Collection<int,Fact>
      */
     public function historicEventsForIndividual(Individual $individual): Collection
     {
@@ -65,11 +65,7 @@ trait ModuleHistoricEventsTrait
         $max_date = $individual->getEstimatedDeathDate();
 
         return (new Collection($this->historicEventsAll()))
-            ->map(static function (string $gedcom) use ($individual): Fact {
-                return new Fact($gedcom, $individual, 'histo');
-            })
-            ->filter(static function (Fact $fact) use ($min_date, $max_date): bool {
-                return Date::compare($fact->date(), $min_date) >= 0 && Date::compare($fact->date(), $max_date) <= 0;
-            });
+            ->map(static fn (string $gedcom): Fact => new Fact($gedcom, $individual, 'histo'))
+            ->filter(static fn (Fact $fact): bool => Date::compare($fact->date(), $min_date) >= 0 && Date::compare($fact->date(), $max_date) <= 0);
     }
 }

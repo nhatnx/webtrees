@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,11 +19,13 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
-use Fisharebest\Webtrees\GedcomTag;
+use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Log;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\SearchService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -32,8 +34,11 @@ use Psr\Http\Server\RequestHandlerInterface;
 use function array_fill_keys;
 use function array_filter;
 use function array_key_exists;
-use function assert;
-use function explode;
+use function array_keys;
+use function array_map;
+use function array_merge;
+use function implode;
+use function strtr;
 
 /**
  * Search for genealogy data
@@ -43,92 +48,86 @@ class SearchAdvancedPage implements RequestHandlerInterface
     use ViewResponseTrait;
 
     private const DEFAULT_ADVANCED_FIELDS = [
-        'NAME:GIVN',
-        'NAME:SURN',
-        'BIRT:DATE',
-        'BIRT:PLAC',
-        'FAMS:MARR:DATE',
-        'FAMS:MARR:PLAC',
-        'DEAT:DATE',
-        'DEAT:PLAC',
-        'FAMC:HUSB:NAME:GIVN',
-        'FAMC:HUSB:NAME:SURN',
-        'FAMC:WIFE:NAME:GIVN',
-        'FAMC:WIFE:NAME:SURN',
+        'INDI:NAME:GIVN',
+        'INDI:NAME:SURN',
+        'INDI:BIRT:DATE',
+        'INDI:BIRT:PLAC',
+        'FAM:MARR:DATE',
+        'FAM:MARR:PLAC',
+        'INDI:DEAT:DATE',
+        'INDI:DEAT:PLAC',
+        'FATHER:NAME:GIVN',
+        'FATHER:NAME:SURN',
+        'MOTHER:NAME:GIVN',
+        'MOTHER:NAME:SURN',
     ];
 
     private const OTHER_ADVANCED_FIELDS = [
-        'ADOP:DATE',
-        'ADOP:PLAC',
-        'AFN',
-        'BAPL:DATE',
-        'BAPL:PLAC',
-        'BAPM:DATE',
-        'BAPM:PLAC',
-        'BARM:DATE',
-        'BARM:PLAC',
-        'BASM:DATE',
-        'BASM:PLAC',
-        'BLES:DATE',
-        'BLES:PLAC',
-        'BURI:DATE',
-        'BURI:PLAC',
-        'CENS:DATE',
-        'CENS:PLAC',
-        'CHAN:DATE',
-        'CHAN:_WT_USER',
-        'CHR:DATE',
-        'CHR:PLAC',
-        'CREM:DATE',
-        'CREM:PLAC',
-        'DSCR',
-        'EMIG:DATE',
-        'EMIG:PLAC',
-        'ENDL:DATE',
-        'ENDL:PLAC',
-        'EVEN',
-        'EVEN:TYPE',
-        'EVEN:DATE',
-        'EVEN:PLAC',
-        'FACT',
-        'FACT:TYPE',
-        'FAMS:CENS:DATE',
-        'FAMS:CENS:PLAC',
-        'FAMS:DIV:DATE',
-        'FAMS:NOTE',
-        'FAMS:SLGS:DATE',
-        'FAMS:SLGS:PLAC',
-        'FCOM:DATE',
-        'FCOM:PLAC',
-        'IMMI:DATE',
-        'IMMI:PLAC',
-        'NAME:NICK',
-        'NAME:_MARNM',
-        'NAME:_HEB',
-        'NAME:ROMN',
-        'NATI',
-        'NATU:DATE',
-        'NATU:PLAC',
-        'NOTE',
-        'OCCU',
-        'ORDN:DATE',
-        'ORDN:PLAC',
-        'REFN',
-        'RELI',
-        'RESI:DATE',
-        'RESI:EMAIL',
-        'RESI:PLAC',
-        'SLGC:DATE',
-        'SLGC:PLAC',
-        'TITL',
+        'INDI:ADOP:DATE',
+        'INDI:ADOP:PLAC',
+        'INDI:AFN',
+        'INDI:BAPL:DATE',
+        'INDI:BAPL:PLAC',
+        'INDI:BAPM:DATE',
+        'INDI:BAPM:PLAC',
+        'INDI:BARM:DATE',
+        'INDI:BARM:PLAC',
+        'INDI:BASM:DATE',
+        'INDI:BASM:PLAC',
+        'INDI:BLES:DATE',
+        'INDI:BLES:PLAC',
+        'INDI:BURI:DATE',
+        'INDI:BURI:PLAC',
+        'INDI:CENS:DATE',
+        'INDI:CENS:PLAC',
+        'INDI:CHAN:DATE',
+        'INDI:CHAN:_WT_USER',
+        'INDI:CHR:DATE',
+        'INDI:CHR:PLAC',
+        'INDI:CREM:DATE',
+        'INDI:CREM:PLAC',
+        'INDI:DSCR',
+        'INDI:EMIG:DATE',
+        'INDI:EMIG:PLAC',
+        'INDI:ENDL:DATE',
+        'INDI:ENDL:PLAC',
+        'INDI:EVEN',
+        'INDI:EVEN:TYPE',
+        'INDI:EVEN:DATE',
+        'INDI:EVEN:PLAC',
+        'INDI:FACT',
+        'INDI:FACT:TYPE',
+        'INDI:FCOM:DATE',
+        'INDI:FCOM:PLAC',
+        'INDI:IMMI:DATE',
+        'INDI:IMMI:PLAC',
+        'INDI:NAME:NICK',
+        'INDI:NAME:_MARNM',
+        'INDI:NAME:_HEB',
+        'INDI:NAME:ROMN',
+        'INDI:NATI',
+        'INDI:NATU:DATE',
+        'INDI:NATU:PLAC',
+        'INDI:NOTE',
+        'INDI:OCCU',
+        'INDI:ORDN:DATE',
+        'INDI:ORDN:PLAC',
+        'INDI:REFN',
+        'INDI:RELI',
+        'INDI:RESI:DATE',
+        'INDI:RESI:EMAIL',
+        'INDI:RESI:PLAC',
+        'INDI:SLGC:DATE',
+        'INDI:SLGC:PLAC',
+        'INDI:TITL',
+        'FAM:DIV:DATE',
+        'FAM:SLGS:DATE',
+        'FAM:SLGS:PLAC',
     ];
 
-    /** @var SearchService */
-    private $search_service;
+    private SearchService $search_service;
 
     /**
-     * SearchController constructor.
-     *
      * @param SearchService $search_service
      */
     public function __construct(SearchService $search_service)
@@ -137,30 +136,33 @@ class SearchAdvancedPage implements RequestHandlerInterface
     }
 
     /**
-     * A structured search.
-     *
      * @param ServerRequestInterface $request
      *
      * @return ResponseInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
+        $tree           = Validator::attributes($request)->tree();
         $default_fields = array_fill_keys(self::DEFAULT_ADVANCED_FIELDS, '');
+        $fields         = Validator::queryParams($request)->array('fields') ?: $default_fields;
+        $modifiers      = Validator::queryParams($request)->array('modifiers');
+        $other_fields   = $this->otherFields($fields);
+        $date_options   = $this->dateOptions();
+        $name_options   = $this->nameOptions();
 
-        $params = $request->getQueryParams();
+        $fields = array_map(static fn (string $x): string => preg_replace('/^\s+|\s+$/uD', '', $x), $fields);
 
-        $fields    = $params['fields'] ?? $default_fields;
-        $modifiers = $params['modifiers'] ?? [];
+        $search_fields = array_filter($fields, static fn (string $x): bool => $x !== '');
 
-        $other_fields = $this->otherFields($tree, $fields);
-        $date_options = $this->dateOptions();
-        $name_options = $this->nameOptions();
+        if ($search_fields !== []) {
+            // Log search requests for visitors
+            if (Auth::id() === null) {
+                $fn      = static fn (string $x, string $y): string => $x . '=' . $y;
+                $message = 'Advanced: ' . implode(', ', array_map($fn, array_keys($search_fields), $search_fields));
+                Log::addSearchLog($message, [$tree]);
+            }
 
-        if (array_filter($fields) !== []) {
-            $individuals = $this->search_service->searchIndividualsAdvanced([$tree], $fields, $modifiers);
+            $individuals = $this->search_service->searchIndividualsAdvanced($tree, $search_fields, $modifiers);
         } else {
             $individuals = new Collection();
         }
@@ -170,7 +172,7 @@ class SearchAdvancedPage implements RequestHandlerInterface
         return $this->viewResponse('search-advanced-page', [
             'date_options' => $date_options,
             'fields'       => $fields,
-            'field_labels' => $this->customFieldLabels(),
+            'field_labels' => $this->fieldLabels(),
             'individuals'  => $individuals,
             'modifiers'    => $modifiers,
             'name_options' => $name_options,
@@ -183,53 +185,45 @@ class SearchAdvancedPage implements RequestHandlerInterface
     /**
      * Extra search fields to add to the advanced search
      *
-     * @param Tree     $tree
-     * @param string[] $fields
+     * @param array<string> $fields
      *
      * @return array<string,string>
      */
-    private function otherFields(Tree $tree, array $fields): array
+    private function otherFields(array $fields): array
     {
-        $default_facts     = new Collection(self::OTHER_ADVANCED_FIELDS);
-        $indi_facts_add    = new Collection(explode(',', $tree->getPreference('INDI_FACTS_ADD')));
-        $indi_facts_unique = new Collection(explode(',', $tree->getPreference('INDI_FACTS_UNIQUE')));
+        $default_facts = new Collection(self::OTHER_ADVANCED_FIELDS);
+
+        $comparator = static function (string $x, string $y): int {
+            $element_factory = Registry::elementFactory();
+
+            $label1 = $element_factory->make(strtr($x, [':DATE' => '', ':PLAC' => '', ':TYPE' => '']))->label();
+            $label2 = $element_factory->make(strtr($y, [':DATE' => '', ':PLAC' => '', ':TYPE' => '']))->label();
+
+            return I18N::comparator()($label1, $label2) ?: strcmp($x, $y);
+        };
 
         return $default_facts
-            ->merge($indi_facts_add)
-            ->merge($indi_facts_unique)
-            ->unique()
-            ->reject(static function (string $field) use ($fields): bool {
-                return
-                    array_key_exists($field, $fields) ||
-                    array_key_exists($field . ':DATE', $fields) ||
-                    array_key_exists($field . ':PLAC', $fields);
-            })
-            ->mapWithKeys(static function (string $fact): array {
-                return [$fact => GedcomTag::getLabel($fact)];
-            })
+            ->reject(fn (string $field): bool => array_key_exists($field, $fields))
+            ->sort($comparator)
+            ->mapWithKeys(fn (string $fact): array => [$fact => Registry::elementFactory()->make($fact)->label()])
             ->all();
     }
-
 
     /**
      * We use some pseudo-GEDCOM tags for some of our fields.
      *
      * @return array<string,string>
      */
-    private function customFieldLabels(): array
+    private function fieldLabels(): array
     {
-        return [
-            'FAMS:DIV:DATE'       => I18N::translate('Date of divorce'),
-            'FAMS:NOTE'           => I18N::translate('Spouse note'),
-            'FAMS:SLGS:DATE'      => I18N::translate('Date of LDS spouse sealing'),
-            'FAMS:SLGS:PLAC'      => I18N::translate('Place of LDS spouse sealing'),
-            'FAMS:MARR:DATE'      => I18N::translate('Date of marriage'),
-            'FAMS:MARR:PLAC'      => I18N::translate('Place of marriage'),
-            'FAMC:HUSB:NAME:GIVN' => I18N::translate('Given names'),
-            'FAMC:HUSB:NAME:SURN' => I18N::translate('Surname'),
-            'FAMC:WIFE:NAME:GIVN' => I18N::translate('Given names'),
-            'FAMC:WIFE:NAME:SURN' => I18N::translate('Surname'),
-        ];
+        $return = [];
+
+        foreach (array_merge(self::OTHER_ADVANCED_FIELDS, self::DEFAULT_ADVANCED_FIELDS) as $field) {
+            $tmp = strtr($field, ['MOTHER:' => 'INDI:', 'FATHER:' => 'INDI:']);
+            $return[$field] = Registry::elementFactory()->make($tmp)->label();
+        }
+
+        return $return;
     }
 
     /**

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,6 +19,7 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees;
 
+use Closure;
 use Collator;
 use Exception;
 use Fisharebest\Localization\Locale;
@@ -29,7 +30,6 @@ use Fisharebest\Localization\Translator;
 use Fisharebest\Webtrees\Module\ModuleCustomInterface;
 use Fisharebest\Webtrees\Module\ModuleLanguageInterface;
 use Fisharebest\Webtrees\Services\ModuleService;
-use Illuminate\Support\Collection;
 
 use function array_merge;
 use function class_exists;
@@ -56,23 +56,27 @@ class I18N
     // MO files use special characters for plurals and context.
     public const PLURAL  = "\x00";
     public const CONTEXT = "\x04";
+
+    // Digits are always rendered LTR, even in RTL text.
     private const DIGITS = '0123456789٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹';
+
+    // These locales need special handling for the dotless letter I.
     private const DOTLESS_I_LOCALES = [
         'az',
         'tr',
     ];
+
     private const DOTLESS_I_TOLOWER = [
         'I' => 'ı',
         'İ' => 'i',
     ];
 
-    // Digits are always rendered LTR, even in RTL text.
     private const DOTLESS_I_TOUPPER = [
         'ı' => 'I',
         'i' => 'İ',
     ];
 
-    // These locales need special handling for the dotless letter I.
+    // The ranges of characters used by each script.
     private const SCRIPT_CHARACTER_RANGES = [
         [
             'Latn',
@@ -173,6 +177,8 @@ class I18N
         ],
         // Mixed CJK, not just Hans
     ];
+
+    // Characters that are displayed in mirror form in RTL text.
     private const MIRROR_CHARACTERS = [
         '('  => ')',
         ')'  => '(',
@@ -193,32 +199,28 @@ class I18N
         '‘ ' => '’',
         '’ ' => '‘',
     ];
-    /** @var string Punctuation used to separate list items, typically a comma */
-    public static $list_separator;
 
-    // The ranges of characters used by each script.
-    /** @var LocaleInterface The current locale (e.g. LocaleEnGb) */
-    private static $locale;
+    // Punctuation used to separate list items, typically a comma
+    public static string $list_separator;
 
-    // Characters that are displayed in mirror form in RTL text.
-    /** @var Translator An object that performs translation */
-    private static $translator;
-    /** @var  Collator|null From the php-intl library */
-    private static $collator;
+    private static ModuleLanguageInterface $language;
+
+    private static LocaleInterface $locale;
+
+    private static Translator $translator;
+
+    private static Collator|null $collator = null;
 
     /**
      * The preferred locales for this site, or a default list if no preference.
      *
-     * @return LocaleInterface[]
+     * @return array<LocaleInterface>
      */
     public static function activeLocales(): array
     {
-        /** @var Collection $locales */
-        $locales = app(ModuleService::class)
+        $locales = Registry::container()->get(ModuleService::class)
             ->findByInterface(ModuleLanguageInterface::class, false, true)
-            ->map(static function (ModuleLanguageInterface $module): LocaleInterface {
-                return $module->locale();
-            });
+            ->map(static fn (ModuleLanguageInterface $module): LocaleInterface => $module->locale());
 
         if ($locales->isEmpty()) {
             return [new LocaleEnUs()];
@@ -228,32 +230,13 @@ class I18N
     }
 
     /**
-     * Which MySQL collation should be used for this locale?
-     *
-     * @return string
-     */
-    public static function collation(): string
-    {
-        $collation = self::$locale->collation();
-        switch ($collation) {
-            case 'croatian_ci':
-            case 'german2_ci':
-            case 'vietnamese_ci':
-                // Only available in MySQL 5.6
-                return 'utf8_unicode_ci';
-            default:
-                return 'utf8_' . $collation;
-        }
-    }
-
-    /**
      * What format is used to display dates in the current locale?
      *
      * @return string
      */
     public static function dateFormat(): string
     {
-        /* I18N: This is the format string for full dates. See http://php.net/date for codes */
+        /* I18N: This is the format string for full dates. See https://php.net/date for codes */
         return self::$translator->translate('%j %F %Y');
     }
 
@@ -265,7 +248,7 @@ class I18N
      *
      * @return string
      */
-    public static function digits($n): string
+    public static function digits(string|int $n): string
     {
         return self::$locale->digits((string) $n);
     }
@@ -298,7 +281,7 @@ class I18N
         try {
             $translation  = new Translation($translation_file);
             $translations = $translation->asArray();
-        } catch (Exception $ex) {
+        } catch (Exception) {
             // The translations files are created during the build process, and are
             // not included in the source code.
             // Assuming we are using dev code, and build (or rebuild) the files.
@@ -310,11 +293,15 @@ class I18N
 
         // Add translations from custom modules (but not during setup, as we have no database/modules)
         if (!$setup) {
-            $translations = app(ModuleService::class)
+            $module_service = Registry::container()->get(ModuleService::class);
+
+            $translations = $module_service
                 ->findByInterface(ModuleCustomInterface::class)
-                ->reduce(static function (array $carry, ModuleCustomInterface $item): array {
-                    return array_merge($carry, $item->customTranslations(self::$locale->languageTag()));
-                }, $translations);
+                ->reduce(static fn (array $carry, ModuleCustomInterface $item): array => array_merge($carry, $item->customTranslations(self::$locale->languageTag())), $translations);
+
+            self::$language = $module_service
+                ->findByInterface(ModuleLanguageInterface::class, true)
+                ->first(fn (ModuleLanguageInterface $module): bool => $module->locale()->languageTag() === $code);
         }
 
         // Create a translator
@@ -325,15 +312,19 @@ class I18N
 
         // Create a collator
         try {
+            // Symfony provides a very incomplete polyfill - which cannot be used.
             if (class_exists('Collator')) {
-                // Symfony provides a very incomplete polyfill - which cannot be used.
-                self::$collator = new Collator(self::$locale->code());
+                // Need phonebook collation rules for German Ä, Ö and Ü.
+                if (str_contains(self::$locale->code(), '@')) {
+                    self::$collator = new Collator(self::$locale->code() . ';collation=phonebook');
+                } else {
+                    self::$collator = new Collator(self::$locale->code() . '@collation=phonebook');
+                }
                 // Ignore upper/lower case differences
                 self::$collator->setStrength(Collator::SECONDARY);
             }
-        } catch (Exception $ex) {
+        } catch (Exception) {
             // PHP-INTL is not installed?  We'll use a fallback later.
-            self::$collator = null;
         }
     }
 
@@ -368,6 +359,14 @@ class I18N
     public static function locale(): LocaleInterface
     {
         return self::$locale;
+    }
+
+    /**
+     * @return ModuleLanguageInterface
+     */
+    public static function language(): ModuleLanguageInterface
+    {
+        return self::$language;
     }
 
     /**
@@ -541,20 +540,19 @@ class I18N
     }
 
     /**
-     * Perform a case-insensitive comparison of two strings.
+     * A closure which will compare strings using local collation rules.
      *
-     * @param string $string1
-     * @param string $string2
-     *
-     * @return int
+     * @return Closure(string,string):int
      */
-    public static function strcasecmp(string $string1, string $string2): int
+    public static function comparator(): Closure
     {
-        if (self::$collator instanceof Collator) {
-            return self::$collator->compare($string1, $string2);
+        $collator = self::$collator;
+
+        if ($collator instanceof Collator) {
+            return static fn (string $x, string $y): int => (int) $collator->compare($x, $y);
         }
 
-        return strcmp(self::strtolower($string1), self::strtolower($string2));
+        return static fn (string $x, string $y): int => strcmp(self::strtolower($x), self::strtolower($y));
     }
 
     /**
@@ -596,7 +594,7 @@ class I18N
      */
     public static function timeFormat(): string
     {
-        /* I18N: This is the format string for the time-of-day. See http://php.net/date for codes */
+        /* I18N: This is the format string for the time-of-day. See https://php.net/date for codes */
         return self::$translator->translate('%H:%i:%s');
     }
 

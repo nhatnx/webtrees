@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,6 +19,8 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\SurnameTradition;
 
+use Fisharebest\Webtrees\Individual;
+
 /**
  * Various cultures have different traditions for the use of surnames within families.
  * By providing defaults for new individuals, we can speed up data entry and reduce errors.
@@ -26,47 +28,54 @@ namespace Fisharebest\Webtrees\SurnameTradition;
 interface SurnameTraditionInterface
 {
     /**
-     * Does this surname tradition change surname at marriage?
+     * The name of this surname tradition
      *
-     * @return bool
+     * @return string
      */
-    public function hasMarriedNames(): bool;
+    public function name(): string;
 
     /**
-     * Does this surname tradition use surnames?
+     * A short description of this surname tradition
      *
-     * @return bool
+     * @return string
      */
-    public function hasSurnames(): bool;
+    public function description(): string;
 
     /**
-     * What names are given to a new child
+     * A default/empty name
      *
-     * @param string $father_name A GEDCOM NAME
-     * @param string $mother_name A GEDCOM NAME
-     * @param string $child_sex   M, F or U
-     *
-     * @return array<string,string> Associative array of GEDCOM name parts (SURN, _MARNM, etc.)
+     * @return string
      */
-    public function newChildNames(string $father_name, string $mother_name, string $child_sex): array;
+    public function defaultName(): string;
 
     /**
-     * What names are given to a new parent
+     * What name is given to a new child
      *
-     * @param string $child_name A GEDCOM NAME
-     * @param string $parent_sex M, F or U
+     * @param Individual|null $father
+     * @param Individual|null $mother
+     * @param string          $sex
      *
-     * @return array<string,string> Associative array of GEDCOM name parts (SURN, _MARNM, etc.)
+     * @return array<int,string>
      */
-    public function newParentNames(string $child_name, string $parent_sex): array;
+    public function newChildNames(Individual|null $father, Individual|null $mother, string $sex): array;
+
+    /**
+     * What name is given to a new parent
+     *
+     * @param Individual $child
+     * @param string     $sex
+     *
+     * @return array<int,string>
+     */
+    public function newParentNames(Individual $child, string $sex): array;
 
     /**
      * What names are given to a new spouse
      *
-     * @param string $spouse_name A GEDCOM NAME
-     * @param string $spouse_sex  M, F or U
+     * @param Individual $spouse
+     * @param string     $sex
      *
-     * @return array<string,string> Associative array of GEDCOM name parts (SURN, _MARNM, etc.)
+     * @return array<int,string>
      */
-    public function newSpouseNames(string $spouse_name, string $spouse_sex): array;
+    public function newSpouseNames(Individual $spouse, string $sex): array;
 }

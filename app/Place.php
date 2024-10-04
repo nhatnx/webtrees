@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,11 +23,12 @@ use Fisharebest\Webtrees\Module\ModuleInterface;
 use Fisharebest\Webtrees\Module\ModuleListInterface;
 use Fisharebest\Webtrees\Module\PlaceHierarchyListModule;
 use Fisharebest\Webtrees\Services\ModuleService;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Collection;
-use stdClass;
 
+use function e;
+use function is_object;
+use function preg_split;
+use function strip_tags;
 use function trim;
 
 use const PREG_SPLIT_NO_EMPTY;
@@ -37,14 +38,13 @@ use const PREG_SPLIT_NO_EMPTY;
  */
 class Place
 {
-    /** @var string e.g. "Westminster, London, England" */
-    private $place_name;
+    // "Westminster, London, England"
+    private string $place_name;
 
-    /** @var Collection<string> The parts of a place name, e.g. ["Westminster", "London", "England"] */
-    private $parts;
+    /** @var Collection<int,string> The parts of a place name, e.g. ["Westminster", "London", "England"] */
+    private Collection $parts;
 
-    /** @var Tree We may have the same place name in different trees. */
-    private $tree;
+    private Tree $tree;
 
     /**
      * Create a place.
@@ -82,7 +82,7 @@ class Place
                 ->where('p_id', '=', $id)
                 ->first();
 
-            if ($row instanceof stdClass) {
+            if (is_object($row)) {
                 $id = (int) $row->p_parent_id;
                 $parts->add($row->p_place);
             } else {
@@ -138,7 +138,7 @@ class Place
                     'p_dm_soundex'  => Soundex::daitchMokotoff($place),
                 ]);
 
-                $place_id = (int) DB::connection()->getPdo()->lastInsertId();
+                $place_id = DB::lastInsertId();
             }
 
             return $place_id;
@@ -158,7 +158,7 @@ class Place
      *
      * @param int $n
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public function firstParts(int $n): Collection
     {
@@ -170,7 +170,7 @@ class Place
      *
      * @param int $n
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public function lastParts(int $n): Collection
     {
@@ -193,11 +193,9 @@ class Place
         return DB::table('places')
             ->where('p_file', '=', $this->tree->id())
             ->where('p_parent_id', '=', $this->id())
-            ->orderBy(new Expression('p_place /*! COLLATE ' . I18N::collation() . ' */'))
             ->pluck('p_place')
-            ->map(function (string $place) use ($parent_text): Place {
-                return new self($place . $parent_text, $this->tree);
-            })
+            ->sort(I18N::comparator())
+            ->map(fn (string $place): Place => new self($place . $parent_text, $this->tree))
             ->all();
     }
 
@@ -209,11 +207,9 @@ class Place
     public function url(): string
     {
         //find a module providing the place hierarchy
-        $module = app(ModuleService::class)
+        $module = Registry::container()->get(ModuleService::class)
             ->findByComponent(ModuleListInterface::class, $this->tree, Auth::user())
-            ->first(static function (ModuleInterface $module): bool {
-                return $module instanceof PlaceHierarchyListModule;
-            });
+            ->first(static fn (ModuleInterface $module): bool => $module instanceof PlaceHierarchyListModule);
 
         if ($module instanceof PlaceHierarchyListModule) {
             return $module->listUrl($this->tree, [
@@ -245,7 +241,7 @@ class Place
     {
         $place_name = $this->parts->first() ?? I18N::translate('unknown');
 
-        return '<span dir="auto">' . e($place_name) . '</span>';
+        return '<bdi>' . e($place_name) . '</bdi>';
     }
 
     /**
@@ -267,7 +263,7 @@ class Place
             return '<a dir="auto" href="' . e($this->url()) . '">' . e($full_name) . '</a>';
         }
 
-        return '<span dir="auto">' . e($full_name) . '</span>';
+        return '<bdi>' . e($full_name) . '</bdi>';
     }
 
     /**
@@ -282,7 +278,7 @@ class Place
         $SHOW_PEDIGREE_PLACES = (int) $this->tree->getPreference('SHOW_PEDIGREE_PLACES');
 
         // Abbreviate the place name, for lists
-        if ($this->tree->getPreference('SHOW_PEDIGREE_PLACES_SUFFIX')) {
+        if ($this->tree->getPreference('SHOW_PEDIGREE_PLACES_SUFFIX') === '1') {
             $parts = $this->lastParts($SHOW_PEDIGREE_PLACES);
         } else {
             $parts = $this->firstParts($SHOW_PEDIGREE_PLACES);
@@ -297,6 +293,6 @@ class Place
             return '<a dir="auto" href="' . e($this->url()) . '" title="' . $title . '">' . e($short_name) . '</a>';
         }
 
-        return '<span dir="auto">' . e($short_name) . '</span>';
+        return '<bdi>' . e($short_name) . '</bdi>';
     }
 }

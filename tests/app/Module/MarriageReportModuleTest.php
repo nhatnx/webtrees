@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,69 +21,83 @@ namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\Report\AbstractRenderer;
 use Fisharebest\Webtrees\Report\HtmlRenderer;
+use Fisharebest\Webtrees\Report\PdfRenderer;
+use Fisharebest\Webtrees\Report\ReportBaseCell;
+use Fisharebest\Webtrees\Report\ReportBaseElement;
+use Fisharebest\Webtrees\Report\ReportBaseFootnote;
+use Fisharebest\Webtrees\Report\ReportBaseImage;
+use Fisharebest\Webtrees\Report\ReportBaseLine;
+use Fisharebest\Webtrees\Report\ReportBaseText;
+use Fisharebest\Webtrees\Report\ReportBaseTextbox;
+use Fisharebest\Webtrees\Report\ReportExpressionLanguageProvider;
+use Fisharebest\Webtrees\Report\ReportHtmlCell;
+use Fisharebest\Webtrees\Report\ReportHtmlFootnote;
+use Fisharebest\Webtrees\Report\ReportHtmlImage;
+use Fisharebest\Webtrees\Report\ReportHtmlLine;
+use Fisharebest\Webtrees\Report\ReportHtmlText;
+use Fisharebest\Webtrees\Report\ReportHtmlTextbox;
+use Fisharebest\Webtrees\Report\ReportParserBase;
 use Fisharebest\Webtrees\Report\ReportParserGenerate;
 use Fisharebest\Webtrees\Report\ReportParserSetup;
-use Fisharebest\Webtrees\Report\PdfRenderer;
-use Fisharebest\Webtrees\Services\ModuleService;
+use Fisharebest\Webtrees\Report\ReportPdfCell;
+use Fisharebest\Webtrees\Report\ReportPdfFootnote;
+use Fisharebest\Webtrees\Report\ReportPdfImage;
+use Fisharebest\Webtrees\Report\ReportPdfLine;
+use Fisharebest\Webtrees\Report\ReportPdfText;
+use Fisharebest\Webtrees\Report\ReportPdfTextBox;
+use Fisharebest\Webtrees\Report\TcpdfWrapper;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\TestCase;
-use League\Flysystem\Filesystem;
-use League\Flysystem\InMemory\InMemoryFilesystemAdapter;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 
-/**
- * Test harness for the class MarriageReportModule
- */
+#[CoversTrait(ModuleReportTrait::class)]
+#[CoversClass(PedigreeReportModule::class)]
+#[CoversClass(AbstractRenderer::class)]
+#[CoversClass(HtmlRenderer::class)]
+#[CoversClass(PdfRenderer::class)]
+#[CoversClass(ReportBaseCell::class)]
+#[CoversClass(ReportBaseElement::class)]
+#[CoversClass(ReportBaseFootnote::class)]
+#[CoversClass(ReportBaseImage::class)]
+#[CoversClass(ReportBaseLine::class)]
+#[CoversClass(ReportBaseText::class)]
+#[CoversClass(ReportBaseTextbox::class)]
+#[CoversClass(ReportExpressionLanguageProvider::class)]
+#[CoversClass(ReportHtmlCell::class)]
+#[CoversClass(ReportHtmlFootnote::class)]
+#[CoversClass(ReportHtmlImage::class)]
+#[CoversClass(ReportHtmlLine::class)]
+#[CoversClass(ReportHtmlText::class)]
+#[CoversClass(ReportHtmlTextbox::class)]
+#[CoversClass(ReportParserBase::class)]
+#[CoversClass(ReportParserGenerate::class)]
+#[CoversClass(ReportParserSetup::class)]
+#[CoversClass(ReportPdfCell::class)]
+#[CoversClass(ReportPdfFootnote::class)]
+#[CoversClass(ReportPdfImage::class)]
+#[CoversClass(ReportPdfLine::class)]
+#[CoversClass(ReportPdfText::class)]
+#[CoversClass(ReportPdfTextBox::class)]
+#[CoversClass(TcpdfWrapper::class)]
 class MarriageReportModuleTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @covers \Fisharebest\Webtrees\Module\ModuleReportTrait
-     * @covers \Fisharebest\Webtrees\Module\PedigreeReportModule
-     * @covers \Fisharebest\Webtrees\Report\AbstractRenderer
-     * @covers \Fisharebest\Webtrees\Report\HtmlRenderer
-     * @covers \Fisharebest\Webtrees\Report\PdfRenderer
-     * @covers \Fisharebest\Webtrees\Report\ReportBaseCell
-     * @covers \Fisharebest\Webtrees\Report\ReportBaseElement
-     * @covers \Fisharebest\Webtrees\Report\ReportBaseFootnote
-     * @covers \Fisharebest\Webtrees\Report\ReportBaseImage
-     * @covers \Fisharebest\Webtrees\Report\ReportBaseLine
-     * @covers \Fisharebest\Webtrees\Report\ReportBaseText
-     * @covers \Fisharebest\Webtrees\Report\ReportBaseTextbox
-     * @covers \Fisharebest\Webtrees\Report\ReportExpressionLanguageProvider
-     * @covers \Fisharebest\Webtrees\Report\ReportHtmlCell
-     * @covers \Fisharebest\Webtrees\Report\ReportHtmlFootnote
-     * @covers \Fisharebest\Webtrees\Report\ReportHtmlImage
-     * @covers \Fisharebest\Webtrees\Report\ReportHtmlLine
-     * @covers \Fisharebest\Webtrees\Report\ReportHtmlText
-     * @covers \Fisharebest\Webtrees\Report\ReportHtmlTextbox
-     * @covers \Fisharebest\Webtrees\Report\ReportParserBase
-     * @covers \Fisharebest\Webtrees\Report\ReportParserGenerate
-     * @covers \Fisharebest\Webtrees\Report\ReportParserSetup
-     * @covers \Fisharebest\Webtrees\Report\ReportPdfCell
-     * @covers \Fisharebest\Webtrees\Report\ReportPdfFootnote
-     * @covers \Fisharebest\Webtrees\Report\ReportPdfImage
-     * @covers \Fisharebest\Webtrees\Report\ReportPdfLine
-     * @covers \Fisharebest\Webtrees\Report\ReportPdfText
-     * @covers \Fisharebest\Webtrees\Report\ReportPdfTextBox
-     * @covers \Fisharebest\Webtrees\Report\TcpdfWrapper
-     *
-     * @return void
-     */
     public function testReportRunsWithoutError(): void
     {
-        $data_filesystem = new Filesystem(new InMemoryFilesystemAdapter());
-        $module_service  = new ModuleService();
-
         $user = (new UserService())->create('user', 'User', 'user@example.com', 'secret');
         $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $tree   = $this->importTree('demo.ged');
-        $module = $module_service->findByInterface(MarriageReportModule::class)->first();
-        $xml    = 'resources/' . $module->xmlFilename();
-        $vars   = [
+        $module = new MarriageReportModule();
+        $module->setName('marriage_report');
+
+        $xml  = 'resources/' . $module->xmlFilename();
+        $vars = [
             'name'      => ['id' => ''],
             'marrplace' => ['id' => ''],
             'marrdate1' => ['id' => ''],
@@ -92,18 +106,19 @@ class MarriageReportModuleTest extends TestCase
             'pageSize'  => ['id' => 'A4'],
         ];
 
-        $report = new ReportParserSetup($xml);
-        self::assertIsArray($report->reportProperties());
+        new ReportParserSetup($xml);
 
         ob_start();
-        new ReportParserGenerate($xml, new HtmlRenderer(), $vars, $tree, $data_filesystem);
+        new ReportParserGenerate($xml, new HtmlRenderer(), $vars, $tree);
         $html = ob_get_clean();
+        self::assertIsString($html);
         self::assertStringStartsWith('<', $html);
         self::assertStringEndsWith('>', $html);
 
         ob_start();
-        new ReportParserGenerate($xml, new PdfRenderer(), $vars, $tree, $data_filesystem);
+        new ReportParserGenerate($xml, new PdfRenderer(), $vars, $tree);
         $pdf = ob_get_clean();
+        self::assertIsString($pdf);
         self::assertStringStartsWith('%PDF', $pdf);
         self::assertStringEndsWith("%%EOF\n", $pdf);
     }

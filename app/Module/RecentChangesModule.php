@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,16 +19,16 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
-use Fisharebest\Webtrees\Carbon;
-use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\User;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
@@ -64,12 +64,9 @@ class RecentChangesModule extends AbstractModule implements ModuleBlockInterface
     private const LIMIT_LOW  = 10;
     private const LIMIT_HIGH = 20;
 
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
     /**
-     * RecentChangesModule constructor.
-     *
      * @param UserService $user_service
      */
     public function __construct(UserService $user_service)
@@ -100,10 +97,10 @@ class RecentChangesModule extends AbstractModule implements ModuleBlockInterface
     }
 
     /**
-     * @param Tree   $tree
-     * @param int    $block_id
-     * @param string $context
-     * @param array  $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
@@ -126,24 +123,18 @@ class RecentChangesModule extends AbstractModule implements ModuleBlockInterface
 
         switch ($sortStyle) {
             case 'name':
-                $rows  = $rows->sort(static function (stdClass $x, stdClass $y): int {
-                    return GedcomRecord::nameComparator()($x->record, $y->record);
-                });
+                $rows  = $rows->sort(static fn (stdClass $x, stdClass $y): int => GedcomRecord::nameComparator()($x->record, $y->record));
                 $order = [[1, 'asc']];
                 break;
 
             case 'date_asc':
-                $rows  = $rows->sort(static function (stdClass $x, stdClass $y): int {
-                    return $x->time <=> $y->time;
-                });
+                $rows  = $rows->sort(static fn (stdClass $x, stdClass $y): int => $x->time <=> $y->time);
                 $order = [[2, 'asc']];
                 break;
 
             default:
             case 'date_desc':
-                $rows  = $rows->sort(static function (stdClass $x, stdClass $y): int {
-                    return $y->time <=> $x->time;
-                });
+                $rows  = $rows->sort(static fn (stdClass $x, stdClass $y): int => $y->time <=> $x->time);
                 $order = [[2, 'desc']];
                 break;
         }
@@ -225,14 +216,19 @@ class RecentChangesModule extends AbstractModule implements ModuleBlockInterface
      */
     public function saveBlockConfiguration(ServerRequestInterface $request, int $block_id): void
     {
-        $params = (array) $request->getParsedBody();
+        $days       = Validator::parsedBody($request)->integer('days');
+        $info_style = Validator::parsedBody($request)->string('infoStyle');
+        $sort_style = Validator::parsedBody($request)->string('sortStyle');
+        $show_date  = Validator::parsedBody($request)->boolean('show_date');
+        $show_user  = Validator::parsedBody($request)->boolean('show_user');
+        $source     = Validator::parsedBody($request)->string('source');
 
-        $this->setBlockSetting($block_id, 'days', $params['days']);
-        $this->setBlockSetting($block_id, 'infoStyle', $params['infoStyle']);
-        $this->setBlockSetting($block_id, 'sortStyle', $params['sortStyle']);
-        $this->setBlockSetting($block_id, 'show_date', $params['show_date']);
-        $this->setBlockSetting($block_id, 'show_user', $params['show_user']);
-        $this->setBlockSetting($block_id, 'source', $params['source']);
+        $this->setBlockSetting($block_id, 'days', (string) $days);
+        $this->setBlockSetting($block_id, 'infoStyle', $info_style);
+        $this->setBlockSetting($block_id, 'sortStyle', $sort_style);
+        $this->setBlockSetting($block_id, 'show_date', (string) $show_date);
+        $this->setBlockSetting($block_id, 'show_user', (string) $show_user);
+        $this->setBlockSetting($block_id, 'source', $source);
     }
 
     /**
@@ -295,7 +291,7 @@ class RecentChangesModule extends AbstractModule implements ModuleBlockInterface
      * @param Tree $tree Changes for which tree
      * @param int  $days Number of days
      *
-     * @return Collection<stdClass> List of records with changes
+     * @return Collection<array-key,stdClass> List of records with changes
      */
     private function getRecentChangesFromDatabase(Tree $tree, int $days): Collection
     {
@@ -303,9 +299,9 @@ class RecentChangesModule extends AbstractModule implements ModuleBlockInterface
             ->where('gedcom_id', '=', $tree->id())
             ->where('status', '=', 'accepted')
             ->where('new_gedcom', '<>', '')
-            ->where('change_time', '>', Carbon::now()->subDays($days))
+            ->where('change_time', '>', Registry::timestampFactory()->now()->subtractDays($days)->toDateTimeString())
             ->groupBy(['xref'])
-            ->select(new Expression('MAX(change_id) AS recent_change_id'));
+            ->select([new Expression('MAX(change_id) AS recent_change_id')]);
 
         $query = DB::table('change')
             ->joinSub($subquery, 'recent', 'recent_change_id', '=', 'change_id')
@@ -313,16 +309,12 @@ class RecentChangesModule extends AbstractModule implements ModuleBlockInterface
 
         return $query
             ->get()
-            ->map(function (stdClass $row) use ($tree): stdClass {
-                return (object) [
-                    'record' => Registry::gedcomRecordFactory()->make($row->xref, $tree, $row->new_gedcom),
-                    'time'   => Carbon::create($row->change_time)->local(),
-                    'user'   => $this->user_service->find((int) $row->user_id),
-                ];
-            })
-            ->filter(static function (stdClass $row): bool {
-                return $row->record instanceof GedcomRecord && $row->record->canShow();
-            });
+            ->map(fn (object $row): object => (object) [
+                'record' => Registry::gedcomRecordFactory()->make($row->xref, $tree, $row->new_gedcom),
+                'time'   => Registry::timestampFactory()->fromString($row->change_time),
+                'user'   => $this->user_service->find((int) $row->user_id),
+            ])
+            ->filter(static fn (object $row): bool => $row->record instanceof GedcomRecord && $row->record->canShow());
     }
 
     /**
@@ -331,11 +323,11 @@ class RecentChangesModule extends AbstractModule implements ModuleBlockInterface
      * @param Tree $tree Changes for which tree
      * @param int  $days Number of days
      *
-     * @return Collection<stdClass> List of records with changes
+     * @return Collection<array-key,stdClass> List of records with changes
      */
     private function getRecentChangesFromGenealogy(Tree $tree, int $days): Collection
     {
-        $julian_day = Carbon::now()->julianDay() - $days;
+        $julian_day = Registry::timestampFactory()->now()->subtractDays($days)->julianDay();
 
         $individuals = DB::table('dates')
             ->where('d_file', '=', $tree->id())
@@ -366,7 +358,7 @@ class RecentChangesModule extends AbstractModule implements ModuleBlockInterface
             ->filter(Family::accessFilter());
 
         return $individuals->merge($families)
-            ->map(function (GedcomRecord $record): stdClass {
+            ->map(function (GedcomRecord $record): object {
                 $user = $this->user_service->findByUserName($record->lastChangeUser());
 
                 return (object) [

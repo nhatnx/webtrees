@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,29 +19,25 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
-use Aura\Router\RouterContainer;
 use Fig\Http\Message\RequestMethodInterface;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Fact;
-use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Functions\Functions;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
-use Fisharebest\Webtrees\PlaceLocation;
 use Fisharebest\Webtrees\Menu;
+use Fisharebest\Webtrees\PlaceLocation;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ChartService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Services\LeafletJsService;
+use Fisharebest\Webtrees\Services\RelationshipService;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function app;
 use function array_key_exists;
-use function assert;
-use function count;
 use function intdiv;
-use function is_string;
 use function redirect;
 use function route;
 use function ucfirst;
@@ -54,7 +50,7 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
 {
     use ModuleChartTrait;
 
-    protected const ROUTE_URL  = '/tree/{tree}/pedigree-map-{generations}/{xref}';
+    protected const ROUTE_URL = '/tree/{tree}/pedigree-map-{generations}/{xref}';
 
     // Defaults
     public const DEFAULT_GENERATIONS = '4';
@@ -63,35 +59,31 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
     ];
 
     // Limits
+    public const MINIMUM_GENERATIONS = 1;
     public const MAXIMUM_GENERATIONS = 10;
 
     // CSS colors for each generation
-    private const COLORS = [
-        'Red',
-        'Green',
-        'Blue',
-        'Gold',
-        'Cyan',
-        'Orange',
-        'DarkBlue',
-        'LightGreen',
-        'Magenta',
-        'Brown',
-    ];
+    protected const COUNT_CSS_COLORS = 12;
 
-    private const DEFAULT_ZOOM = 2;
+    protected ChartService $chart_service;
 
-    /** @var ChartService */
-    private $chart_service;
+    protected LeafletJsService $leaflet_js_service;
+
+    protected RelationshipService $relationship_service;
 
     /**
-     * PedigreeMapModule constructor.
-     *
-     * @param ChartService $chart_service
+     * @param ChartService        $chart_service
+     * @param LeafletJsService    $leaflet_js_service
+     * @param RelationshipService $relationship_service
      */
-    public function __construct(ChartService $chart_service)
-    {
-        $this->chart_service = $chart_service;
+    public function __construct(
+        ChartService $chart_service,
+        LeafletJsService $leaflet_js_service,
+        RelationshipService $relationship_service
+    ) {
+        $this->chart_service      = $chart_service;
+        $this->leaflet_js_service = $leaflet_js_service;
+        $this->relationship_service = $relationship_service;
     }
 
     /**
@@ -101,15 +93,9 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
      */
     public function boot(): void
     {
-        $router_container = app(RouterContainer::class);
-        assert($router_container instanceof RouterContainer);
-
-        $router_container->getMap()
+        Registry::routeFactory()->routeMap()
             ->get(static::class, static::ROUTE_URL, $this)
-            ->allows(RequestMethodInterface::METHOD_POST)
-            ->tokens([
-                'generations' => '\d+',
-            ]);
+            ->allows(RequestMethodInterface::METHOD_POST);
     }
 
     /**
@@ -151,7 +137,7 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
      *
      * @return Menu|null
      */
-    public function chartBoxMenu(Individual $individual): ?Menu
+    public function chartBoxMenu(Individual $individual): Menu|null
     {
         return $this->chartMenu($individual);
     }
@@ -172,8 +158,8 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
     /**
      * The URL for a page showing chart options.
      *
-     * @param Individual $individual
-     * @param mixed[]    $parameters
+     * @param Individual                                $individual
+     * @param array<bool|int|string|array<string>|null> $parameters
      *
      * @return string
      */
@@ -192,39 +178,28 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree        = Validator::attributes($request)->tree();
+        $user        = Validator::attributes($request)->user();
+        $generations = Validator::attributes($request)->isBetween(self::MINIMUM_GENERATIONS, self::MAXIMUM_GENERATIONS)->integer('generations');
+        $xref        = Validator::attributes($request)->isXref()->string('xref');
 
-        $xref = $request->getAttribute('xref');
-        assert(is_string($xref));
+        // Convert POST requests into GET requests for pretty URLs.
+        if ($request->getMethod() === RequestMethodInterface::METHOD_POST) {
+            return redirect(route(static::class, [
+                'tree'        => $tree->name(),
+                'xref'        => Validator::parsedBody($request)->isXref()->string('xref'),
+                'generations' => Validator::parsedBody($request)->isBetween(self::MINIMUM_GENERATIONS, self::MAXIMUM_GENERATIONS)->integer('generations'),
+            ]));
+        }
+
+        Auth::checkComponentAccess($this, ModuleChartInterface::class, $tree, $user);
 
         $individual  = Registry::individualFactory()->make($xref, $tree);
         $individual  = Auth::checkIndividualAccess($individual, false, true);
 
-        $user        = $request->getAttribute('user');
-        $generations = (int) $request->getAttribute('generations');
-        Auth::checkComponentAccess($this, ModuleChartInterface::class, $tree, $user);
-
-        // Convert POST requests into GET requests for pretty URLs.
-        if ($request->getMethod() === RequestMethodInterface::METHOD_POST) {
-            $params = (array) $request->getParsedBody();
-
-            return redirect(route(static::class, [
-                'tree'        => $tree->name(),
-                'xref'        => $params['xref'],
-                'generations' => $params['generations'],
-            ]));
-        }
-
         $map = view('modules/pedigree-map/chart', [
-            'data'     => $this->getMapData($request),
-            'provider' => [
-                'url'    => 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                'options' => [
-                    'attribution' => '<a href="https://www.openstreetmap.org/copyright">&copy; OpenStreetMap</a> contributors',
-                    'max_zoom'    => 19
-                ]
-            ]
+            'data'           => $this->getMapData($request),
+            'leaflet_config' => $this->leaflet_js_service->config(),
         ]);
 
         return $this->viewResponse('modules/pedigree-map/page', [
@@ -244,13 +219,8 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
      *
      * @return array<mixed> $geojson
      */
-    private function getMapData(ServerRequestInterface $request): array
+    protected function getMapData(ServerRequestInterface $request): array
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $color_count = count(self::COLORS);
-
         $facts = $this->getPedigreeMapFacts($request, $this->chart_service);
 
         $geojson = [
@@ -277,7 +247,9 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
                 $polyline           = null;
                 $sosa_points[$sosa] = [$latitude, $longitude];
                 $sosa_child         = intdiv($sosa, 2);
-                $color              = self::COLORS[$sosa_child % $color_count];
+                $generation         = (int) log($sosa, 2);
+                $color              = 'var(--wt-pedigree-map-gen-' . $generation % self::COUNT_CSS_COLORS . ')';
+                $class              = 'wt-pedigree-map-gen-' . $generation % self::COUNT_CSS_COLORS;
 
                 if (array_key_exists($sosa_child, $sosa_points)) {
                     // Would like to use a GeometryCollection to hold LineStrings
@@ -303,13 +275,13 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
                     'properties' => [
                         'polyline'  => $polyline,
                         'iconcolor' => $color,
-                        'tooltip'   => $fact->place()->gedcomName(),
+                        'tooltip'   => null,
                         'summary'   => view('modules/pedigree-map/events', [
+                            'class'        => $class,
                             'fact'         => $fact,
-                            'relationship' => ucfirst($this->getSosaName($sosa)),
+                            'relationship' => $this->getSosaName($sosa),
                             'sosa'         => $sosa,
                         ]),
-                        'zoom'      => self::DEFAULT_ZOOM,
                     ],
                 ];
             }
@@ -324,22 +296,20 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
      *
      * @return array<Fact>
      */
-    private function getPedigreeMapFacts(ServerRequestInterface $request, ChartService $chart_service): array
+    protected function getPedigreeMapFacts(ServerRequestInterface $request, ChartService $chart_service): array
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $generations = (int) $request->getAttribute('generations');
-        $xref        = $request->getAttribute('xref');
+        $tree        = Validator::attributes($request)->tree();
+        $generations = Validator::attributes($request)->isBetween(self::MINIMUM_GENERATIONS, self::MAXIMUM_GENERATIONS)->integer('generations');
+        $xref        = Validator::attributes($request)->isXref()->string('xref');
         $individual  = Registry::individualFactory()->make($xref, $tree);
+        $individual  = Auth::checkIndividualAccess($individual, false, true);
         $ancestors   = $chart_service->sosaStradonitzAncestors($individual, $generations);
         $facts       = [];
+
         foreach ($ancestors as $sosa => $person) {
             if ($person->canShow()) {
                 $birth = $person->facts(Gedcom::BIRTH_EVENTS, true)
-                    ->first(static function (Fact $fact): bool {
-                        return $fact->place()->gedcomName() !== '';
-                    });
+                    ->first(static fn (Fact $fact): bool => $fact->place()->gedcomName() !== '');
 
                 if ($birth instanceof Fact) {
                     $facts[$sosa] = $birth;
@@ -357,7 +327,7 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
      *
      * @return string
      */
-    private function getSosaName(int $sosa): string
+    protected function getSosaName(int $sosa): string
     {
         $path = '';
 
@@ -370,6 +340,6 @@ class PedigreeMapModule extends AbstractModule implements ModuleChartInterface, 
             $sosa = intdiv($sosa, 2);
         }
 
-        return Functions::getRelationshipNameFromPath($path);
+        return ucfirst($this->relationship_service->legacyNameAlgorithm($path));
     }
 }

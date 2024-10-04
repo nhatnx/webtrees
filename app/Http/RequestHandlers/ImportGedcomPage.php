@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,12 +23,11 @@ use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\AdminService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function e;
 
 /**
@@ -38,8 +37,7 @@ class ImportGedcomPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var AdminService */
-    private $admin_service;
+    private AdminService $admin_service;
 
     /**
      * @param AdminService $admin_service
@@ -58,8 +56,7 @@ class ImportGedcomPage implements RequestHandlerInterface
     {
         $this->layout = 'layouts/administration';
 
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree = Validator::attributes($request)->tree();
 
         $data_filesystem = Registry::filesystem()->data();
         $data_folder     = Registry::filesystem()->dataName();

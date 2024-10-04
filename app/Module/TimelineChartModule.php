@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,23 +19,22 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
-use Aura\Router\RouterContainer;
 use Fig\Http\Message\RequestMethodInterface;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Date\GregorianDate;
 use Fisharebest\Webtrees\Fact;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function app;
-use function assert;
+use function in_array;
 use function redirect;
 use function route;
 
@@ -46,7 +45,7 @@ class TimelineChartModule extends AbstractModule implements ModuleChartInterface
 {
     use ModuleChartTrait;
 
-    protected const ROUTE_URL  = '/tree/{tree}/timeline-{scale}';
+    protected const ROUTE_URL = '/tree/{tree}/timeline-{scale}';
 
     // Defaults
     protected const DEFAULT_SCALE      = 10;
@@ -69,8 +68,7 @@ class TimelineChartModule extends AbstractModule implements ModuleChartInterface
         'INDI:_TODO',
     ];
 
-    // Box height
-    protected const BHEIGHT = 30;
+    protected const BOX_HEIGHT = 30;
 
     /**
      * Initialization.
@@ -79,10 +77,7 @@ class TimelineChartModule extends AbstractModule implements ModuleChartInterface
      */
     public function boot(): void
     {
-        $router_container = app(RouterContainer::class);
-        assert($router_container instanceof RouterContainer);
-
-        $router_container->getMap()
+        Registry::routeFactory()->routeMap()
             ->get(static::class, static::ROUTE_URL, $this)
             ->allows(RequestMethodInterface::METHOD_POST);
     }
@@ -122,8 +117,8 @@ class TimelineChartModule extends AbstractModule implements ModuleChartInterface
     /**
      * The URL for this chart.
      *
-     * @param Individual $individual
-     * @param mixed[]    $parameters
+     * @param Individual                                $individual
+     * @param array<bool|int|string|array<string>|null> $parameters
      *
      * @return string
      */
@@ -142,42 +137,30 @@ class TimelineChartModule extends AbstractModule implements ModuleChartInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $user  = $request->getAttribute('user');
-        $scale = (int) $request->getAttribute('scale');
-        $xrefs = $request->getQueryParams()['xrefs'] ?? [];
-        $ajax  = $request->getQueryParams()['ajax'] ?? '';
-
-
-        $params = (array) $request->getParsedBody();
-
-        $add  = $params['add'] ?? '';
-
-        Auth::checkComponentAccess($this, ModuleChartInterface::class, $tree, $user);
-
-        $scale = min($scale, self::MAXIMUM_SCALE);
-        $scale = max($scale, self::MINIMUM_SCALE);
-
-        $xrefs[] = $add;
+        $tree  = Validator::attributes($request)->tree();
+        $user  = Validator::attributes($request)->user();
+        $scale = Validator::attributes($request)->isBetween(self::MINIMUM_SCALE, self::MAXIMUM_SCALE)->integer('scale');
+        $xrefs = Validator::queryParams($request)->array('xrefs');
+        $ajax  = Validator::queryParams($request)->boolean('ajax', false);
         $xrefs = array_filter(array_unique($xrefs));
 
         // Convert POST requests into GET requests for pretty URLs.
         if ($request->getMethod() === RequestMethodInterface::METHOD_POST) {
+            $xrefs[] = Validator::parsedBody($request)->isXref()->string('add', '');
+
             return redirect(route(static::class, [
-                'scale' => $scale,
                 'tree'  => $tree->name(),
+                'scale' => $scale,
                 'xrefs' => $xrefs,
             ]));
         }
 
+        Auth::checkComponentAccess($this, ModuleChartInterface::class, $tree, $user);
+
         // Find the requested individuals.
         $individuals = (new Collection($xrefs))
             ->uniqueStrict()
-            ->map(static function (string $xref) use ($tree): ?Individual {
-                return Registry::individualFactory()->make($xref, $tree);
-            })
+            ->map(static fn (string $xref): Individual|null => Registry::individualFactory()->make($xref, $tree))
             ->filter()
             ->filter(GedcomRecord::accessFilter());
 
@@ -186,12 +169,8 @@ class TimelineChartModule extends AbstractModule implements ModuleChartInterface
 
         foreach ($individuals as $exclude) {
             $xrefs_1 = $individuals
-                ->filter(static function (Individual $individual) use ($exclude): bool {
-                    return $individual->xref() !== $exclude->xref();
-                })
-                ->map(static function (Individual $individual): string {
-                    return $individual->xref();
-                });
+                ->filter(static fn (Individual $individual): bool => $individual->xref() !== $exclude->xref())
+                ->map(static fn (Individual $individual): string => $individual->xref());
 
             $remove_urls[$exclude->xref()] = route(static::class, [
                 'tree'  => $tree->name(),
@@ -200,17 +179,11 @@ class TimelineChartModule extends AbstractModule implements ModuleChartInterface
             ]);
         }
 
-        $individuals = array_map(static function (string $xref) use ($tree): ?Individual {
-            return Registry::individualFactory()->make($xref, $tree);
-        }, $xrefs);
+        $individuals = array_map(static fn (string $xref): Individual|null => Registry::individualFactory()->make($xref, $tree), $xrefs);
 
-        $individuals = array_filter($individuals, static function (?Individual $individual): bool {
-            return $individual instanceof Individual && $individual->canShow();
-        });
+        $individuals = array_filter($individuals, static fn (Individual|null $individual): bool => $individual instanceof Individual && $individual->canShow());
 
-        Auth::checkComponentAccess($this, ModuleChartInterface::class, $tree, $user);
-
-        if ($ajax === '1') {
+        if ($ajax) {
             $this->layout = 'layouts/ajax';
 
             return $this->chart($tree, $xrefs, $scale);
@@ -222,13 +195,13 @@ class TimelineChartModule extends AbstractModule implements ModuleChartInterface
         ]);
 
         $zoom_in_url = route(static::class, [
-            'scale' => min(self::MAXIMUM_SCALE, $scale + (int) ($scale * 0.2 + 1)),
+            'scale' => min(self::MAXIMUM_SCALE, $scale + (int) ($scale * 0.4 + 1)),
             'tree'  => $tree->name(),
             'xrefs' => $xrefs,
         ]);
 
         $zoom_out_url = route(static::class, [
-            'scale' => max(self::MINIMUM_SCALE, $scale - (int) ($scale * 0.2 + 1)),
+            'scale' => max(self::MINIMUM_SCALE, $scale - (int) ($scale * 0.4 + 1)),
             'tree'  => $tree->name(),
             'xrefs' => $xrefs,
         ]);
@@ -255,22 +228,18 @@ class TimelineChartModule extends AbstractModule implements ModuleChartInterface
     }
 
     /**
-     * @param Tree  $tree
-     * @param array $xrefs
-     * @param int   $scale
+     * @param Tree          $tree
+     * @param array<string> $xrefs
+     * @param int           $scale
      *
      * @return ResponseInterface
      */
     protected function chart(Tree $tree, array $xrefs, int $scale): ResponseInterface
     {
         /** @var Individual[] $individuals */
-        $individuals = array_map(static function (string $xref) use ($tree): ?Individual {
-            return Registry::individualFactory()->make($xref, $tree);
-        }, $xrefs);
+        $individuals = array_map(static fn (string $xref): Individual|null => Registry::individualFactory()->make($xref, $tree), $xrefs);
 
-        $individuals = array_filter($individuals, static function (?Individual $individual): bool {
-            return $individual instanceof Individual && $individual->canShow();
-        });
+        $individuals = array_filter($individuals, static fn (Individual|null $individual): bool => $individual instanceof Individual && $individual->canShow());
 
         $baseyear    = (int) date('Y');
         $topyear     = 0;
@@ -316,9 +285,7 @@ class TimelineChartModule extends AbstractModule implements ModuleChartInterface
         }
 
         // do not add the same fact twice (prevents marriages from being added multiple times)
-        $indifacts = $indifacts->uniqueStrict(static function (Fact $fact): string {
-            return $fact->id();
-        });
+        $indifacts = $indifacts->uniqueStrict(static fn (Fact $fact): string => $fact->id());
 
         if ($scale === 0) {
             $scale = (int) (($topyear - $baseyear) / 20 * $indifacts->count() / 4);
@@ -336,7 +303,7 @@ class TimelineChartModule extends AbstractModule implements ModuleChartInterface
 
         $html = view('modules/timeline-chart/chart', [
             'baseyear'    => $baseyear,
-            'bheight'     => self::BHEIGHT,
+            'bheight'     => self::BOX_HEIGHT,
             'birthdays'   => $birthdays,
             'birthmonths' => $birthmonths,
             'birthyears'  => $birthyears,

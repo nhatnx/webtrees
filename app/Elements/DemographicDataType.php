@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -42,7 +42,6 @@ class DemographicDataType extends AbstractElement
         return strtoupper(parent::canonical($value));
     }
 
-
     /**
      * A list of controlled values for this element
      *
@@ -56,7 +55,7 @@ class DemographicDataType extends AbstractElement
             'CITI' => /* I18N: Type of demographic data */ I18N::translate('citizen'),
         ];
 
-        uasort($values, [I18N::class, 'strcasecmp']);
+        uasort($values, I18N::comparator());
 
         return $values;
     }

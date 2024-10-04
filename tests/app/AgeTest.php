@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,22 +19,13 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+
 use function view;
 
-/**
- * Test the Age functions
- */
+#[CoversClass(Age::class)]
 class AgeTest extends TestCase
 {
-    /**
-     * @covers \Fisharebest\Webtrees\Age::__construct
-     * @covers \Fisharebest\Webtrees\Age::ageDays
-     * @covers \Fisharebest\Webtrees\Age::ageYears
-     * @covers \Fisharebest\Webtrees\Age::ageYearsString
-     * @covers \Fisharebest\Webtrees\Age::__toString
-     *
-     * @return void
-     */
     public function testSameDayMonthYear(): void
     {
         $x = new Date('27 APR 2019');
@@ -47,15 +38,6 @@ class AgeTest extends TestCase
         self::assertSame('0 days', (string) $age);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Age::__construct
-     * @covers \Fisharebest\Webtrees\Age::ageDays
-     * @covers \Fisharebest\Webtrees\Age::ageYears
-     * @covers \Fisharebest\Webtrees\Age::ageYearsString
-     * @covers \Fisharebest\Webtrees\Age::__toString
-     *
-     * @return void
-     */
     public function testSameMonthYear(): void
     {
         $x = new Date('APR 2019');
@@ -68,15 +50,6 @@ class AgeTest extends TestCase
         self::assertSame('0', (string) $age);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Age::__construct
-     * @covers \Fisharebest\Webtrees\Age::ageDays
-     * @covers \Fisharebest\Webtrees\Age::ageYears
-     * @covers \Fisharebest\Webtrees\Age::ageYearsString
-     * @covers \Fisharebest\Webtrees\Age::__toString
-     *
-     * @return void
-     */
     public function testSameYear(): void
     {
         $x = new Date('2019');
@@ -89,15 +62,6 @@ class AgeTest extends TestCase
         self::assertSame('0', (string) $age);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Age::__construct
-     * @covers \Fisharebest\Webtrees\Age::ageDays
-     * @covers \Fisharebest\Webtrees\Age::ageYears
-     * @covers \Fisharebest\Webtrees\Age::ageYearsString
-     * @covers \Fisharebest\Webtrees\Age::__toString
-     *
-     * @return void
-     */
     public function testReversed(): void
     {
         $x = new Date('13 FEB 2019');
@@ -110,15 +74,6 @@ class AgeTest extends TestCase
         self::assertSame(view('icons/warning'), (string) $age);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Age::__construct
-     * @covers \Fisharebest\Webtrees\Age::ageDays
-     * @covers \Fisharebest\Webtrees\Age::ageYears
-     * @covers \Fisharebest\Webtrees\Age::ageYearsString
-     * @covers \Fisharebest\Webtrees\Age::__toString
-     *
-     * @return void
-     */
     public function testStartDateInvalid(): void
     {
         $x = new Date('');
@@ -131,15 +86,6 @@ class AgeTest extends TestCase
         self::assertSame('', (string) $age);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Age::__construct
-     * @covers \Fisharebest\Webtrees\Age::ageDays
-     * @covers \Fisharebest\Webtrees\Age::ageYears
-     * @covers \Fisharebest\Webtrees\Age::ageYearsString
-     * @covers \Fisharebest\Webtrees\Age::__toString
-     *
-     * @return void
-     */
     public function testEndDateInvalid(): void
     {
         $x = new Date('07 JAN 2019');
@@ -152,15 +98,6 @@ class AgeTest extends TestCase
         self::assertSame('', (string) $age);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Age::__construct
-     * @covers \Fisharebest\Webtrees\Age::ageDays
-     * @covers \Fisharebest\Webtrees\Age::ageYears
-     * @covers \Fisharebest\Webtrees\Age::ageYearsString
-     * @covers \Fisharebest\Webtrees\Age::__toString
-     *
-     * @return void
-     */
     public function testOverlappingDates1(): void
     {
         $x = new Date('07 JAN 2019');
@@ -173,15 +110,6 @@ class AgeTest extends TestCase
         self::assertSame('0', (string) $age);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Age::__construct
-     * @covers \Fisharebest\Webtrees\Age::ageDays
-     * @covers \Fisharebest\Webtrees\Age::ageYears
-     * @covers \Fisharebest\Webtrees\Age::ageYearsString
-     * @covers \Fisharebest\Webtrees\Age::__toString
-     *
-     * @return void
-     */
     public function testOverlappingDates2(): void
     {
         $x = new Date('JAN 2019');
@@ -194,15 +122,6 @@ class AgeTest extends TestCase
         self::assertSame('0', (string) $age);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Age::__construct
-     * @covers \Fisharebest\Webtrees\Age::ageDays
-     * @covers \Fisharebest\Webtrees\Age::ageYears
-     * @covers \Fisharebest\Webtrees\Age::ageYearsString
-     * @covers \Fisharebest\Webtrees\Age::__toString
-     *
-     * @return void
-     */
     public function testDifferentDay(): void
     {
         $x = new Date('13 APR 2019');
@@ -215,15 +134,6 @@ class AgeTest extends TestCase
         self::assertSame('14 days', (string) $age);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Age::__construct
-     * @covers \Fisharebest\Webtrees\Age::ageDays
-     * @covers \Fisharebest\Webtrees\Age::ageYears
-     * @covers \Fisharebest\Webtrees\Age::ageYearsString
-     * @covers \Fisharebest\Webtrees\Age::__toString
-     *
-     * @return void
-     */
     public function testDifferentMonth(): void
     {
         $x = new Date('13 APR 2019');
@@ -236,15 +146,6 @@ class AgeTest extends TestCase
         self::assertSame('2 months', (string) $age);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Age::__construct
-     * @covers \Fisharebest\Webtrees\Age::ageDays
-     * @covers \Fisharebest\Webtrees\Age::ageYears
-     * @covers \Fisharebest\Webtrees\Age::ageYearsString
-     * @covers \Fisharebest\Webtrees\Age::__toString
-     *
-     * @return void
-     */
     public function testDifferentYear(): void
     {
         $x = new Date('13 APR 2012');

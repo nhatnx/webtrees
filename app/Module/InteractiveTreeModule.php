@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,18 +20,14 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Exceptions\IndividualAccessDeniedException;
-use Fisharebest\Webtrees\Exceptions\IndividualNotFoundException;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Menu;
 use Fisharebest\Webtrees\Module\InteractiveTree\TreeView;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-
-use function assert;
 
 /**
  * Class InteractiveTreeModule
@@ -145,7 +141,7 @@ class InteractiveTreeModule extends AbstractModule implements ModuleChartInterfa
      *
      * @return Menu|null
      */
-    public function chartBoxMenu(Individual $individual): ?Menu
+    public function chartBoxMenu(Individual $individual): Menu|null
     {
         return $this->chartMenu($individual);
     }
@@ -166,8 +162,8 @@ class InteractiveTreeModule extends AbstractModule implements ModuleChartInterfa
     /**
      * The URL for this chart.
      *
-     * @param Individual $individual
-     * @param mixed[]    $parameters
+     * @param Individual                                $individual
+     * @param array<bool|int|string|array<string>|null> $parameters
      *
      * @return string
      */
@@ -188,17 +184,14 @@ class InteractiveTreeModule extends AbstractModule implements ModuleChartInterfa
      */
     public function getChartAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+        $xref = Validator::queryParams($request)->isXref()->string('xref');
 
-        $xref = $request->getQueryParams()['xref'];
+        Auth::checkComponentAccess($this, ModuleChartInterface::class, $tree, $user);
 
         $individual = Registry::individualFactory()->make($xref, $tree);
         $individual = Auth::checkIndividualAccess($individual, false, true);
-
-        $user = $request->getAttribute('user');
-
-        Auth::checkComponentAccess($this, ModuleChartInterface::class, $tree, $user);
 
         $tv = new TreeView('tv');
 
@@ -214,7 +207,6 @@ class InteractiveTreeModule extends AbstractModule implements ModuleChartInterfa
         ]);
     }
 
-
     /**
      * @param ServerRequestInterface $request
      *
@@ -222,16 +214,11 @@ class InteractiveTreeModule extends AbstractModule implements ModuleChartInterfa
      */
     public function postChartAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $params = (array) $request->getParsedBody();
-
         return redirect(route('module', [
             'module' => $this->name(),
             'action' => 'Chart',
-            'tree'   => $tree->name(),
-            'xref'   => $params['xref'] ?? '',
+            'tree'   => Validator::attributes($request)->tree()->name(),
+            'xref'   => Validator::parsedBody($request)->isXref()->string('xref'),
         ]));
     }
 
@@ -242,22 +229,12 @@ class InteractiveTreeModule extends AbstractModule implements ModuleChartInterfa
      */
     public function getDetailsAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $pid        = $request->getQueryParams()['pid'];
+        $tree       = Validator::attributes($request)->tree();
+        $pid        = Validator::queryParams($request)->string('pid');
         $individual = Registry::individualFactory()->make($pid, $tree);
-
-        if ($individual === null) {
-            throw new IndividualNotFoundException();
-        }
-
-        if (!$individual->canShow()) {
-            throw new IndividualAccessDeniedException();
-        }
-
-        $instance = $request->getQueryParams()['instance'];
-        $treeview = new TreeView($instance);
+        $individual = Auth::checkIndividualAccess($individual);
+        $instance   = Validator::queryParams($request)->string('instance');
+        $treeview   = new TreeView($instance);
 
         return response($treeview->getDetails($individual));
     }
@@ -269,11 +246,9 @@ class InteractiveTreeModule extends AbstractModule implements ModuleChartInterfa
      */
     public function getIndividualsAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $q        = $request->getQueryParams()['q'];
-        $instance = $request->getQueryParams()['instance'];
+        $tree     = Validator::attributes($request)->tree();
+        $q        = Validator::queryParams($request)->string('q');
+        $instance = Validator::queryParams($request)->string('instance');
         $treeview = new TreeView($instance);
 
         return response($treeview->getIndividuals($tree, $q));

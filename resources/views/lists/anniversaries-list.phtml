@@ -1,17 +1,19 @@
 <?php
 
-use Fisharebest\Webtrees\Carbon;
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\Fact;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\View;
 use Illuminate\Support\Collection;
 
 /**
- * @var Collection<Fact> $facts
- * @var int              $id
- * @var int              $limit_low
- * @var int              $limit_high
+ * @var Collection<int,Fact> $facts
+ * @var int                  $id
+ * @var int                  $limit_low
+ * @var int                  $limit_high
  */
 
 ?>
@@ -34,20 +36,24 @@ use Illuminate\Support\Collection;
                 ev.target.parentNode.removeChild(ev.target);
             });
         </script>
-        <?php View::endPush() ?>
+        <?php View::endpush() ?>
     <?php endif ?>
 
     <div class="<?= $n >= $limit_low && $facts->count() > $limit_high ? 'd-none' : '' ?>">
         <?php $record = $fact->record(); ?>
-        <a href="<?= e($record->url()) ?>" class="list_item name2">
+        <a href="<?= e($record->url()) ?>" class="list_item">
             <?= $record->fullName() ?>
         </a>
         <?php if ($record instanceof Individual) : ?>
             <?= view('icons/sex', ['sex' => $record->sex()]) ?>
         <?php endif ?>
         <div class="indent">
-            <?= $fact->label() . ' — ' . $fact->date()->display(true) ?>
-            (<?= Carbon::now()->subYears($fact->anniv)->local()->diffForHumans() ?>)
+            <?= $fact->label() . ' — ' . $fact->date()->display($record->tree(), null, true) ?>
+            <?php if (PHP_INT_SIZE >= 8 || $fact->date()->gregorianYear() > 1901) : ?>
+                (<?= Registry::timestampFactory()->now()->subtractYears($fact->anniv)->diffForHumans() ?>)
+            <?php else : ?>
+                (<?= I18N::plural('%s year', '%s years', $fact->anniv, I18N::number($fact->anniv)) ?>)
+            <?php endif ?>
             <?php if ($fact->place()->gedcomName() !== '') : ?>
                 — <a href="<?= e($fact->place()->url()) ?>" title="<?= strip_tags($fact->place()->fullName()) ?>">
                     <?= $fact->place()->shortName() ?>

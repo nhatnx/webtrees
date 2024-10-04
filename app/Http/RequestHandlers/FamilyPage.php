@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -24,21 +24,23 @@ use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Fact;
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
+use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ClipboardService;
-use Fisharebest\Webtrees\Tree;
-use Illuminate\Support\Collection;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use stdClass;
 
-use function assert;
+use function array_map;
+use function e;
 use function explode;
+use function implode;
 use function in_array;
-use function is_string;
 use function redirect;
+use function strip_tags;
+use function trim;
 
 /**
  * Show a family's page.
@@ -47,12 +49,9 @@ class FamilyPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var ClipboardService */
-    private $clipboard_service;
+    private ClipboardService $clipboard_service;
 
     /**
-     * FamilyPage constructor.
-     *
      * @param ClipboardService $clipboard_service
      */
     public function __construct(ClipboardService $clipboard_service)
@@ -67,37 +66,33 @@ class FamilyPage implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getAttribute('xref');
-        assert(is_string($xref));
-
+        $tree   = Validator::attributes($request)->tree();
+        $xref   = Validator::attributes($request)->isXref()->string('xref');
+        $slug   = Validator::attributes($request)->string('slug', '');
         $family = Registry::familyFactory()->make($xref, $tree);
         $family = Auth::checkFamilyAccess($family, false);
 
         // Redirect to correct xref/slug
-        if ($family->xref() !== $xref || $request->getAttribute('slug') !== $family->slug()) {
+        if ($family->xref() !== $xref || Registry::slugFactory()->make($family) !== $slug) {
             return redirect($family->url(), StatusCodeInterface::STATUS_MOVED_PERMANENTLY);
         }
 
-        $clipboard_facts = $this->clipboard_service->pastableFacts($family, new Collection());
+        $clipboard_facts = $this->clipboard_service->pastableFacts($family);
 
         $facts = $family->facts([], true)
-            ->filter(static function (Fact $fact): bool {
-                return !in_array($fact->tag(), ['FAM:HUSB', 'FAM:WIFE', 'FAM:CHIL'], true);
-            });
+            ->filter(static fn (Fact $fact): bool => !in_array($fact->tag(), ['FAM:HUSB', 'FAM:WIFE', 'FAM:CHIL'], true));
 
         return $this->viewResponse('family-page', [
+            'can_upload_media' => Auth::canUploadMedia($tree, Auth::user()),
             'clipboard_facts'  => $clipboard_facts,
             'facts'            => $facts,
-            'meta_description' => '',
+            'meta_description' => $this->metaDescription($family),
             'meta_robots'      => 'index,follow',
             'record'           => $family,
             'significant'      => $this->significant($family),
             'title'            => $family->fullName(),
             'tree'             => $tree,
-        ]);
+        ])->withHeader('Link', '<' . $family->url() . '>; rel="canonical"');
     }
 
     /**
@@ -106,9 +101,9 @@ class FamilyPage implements RequestHandlerInterface
      *
      * @param Family $family
      *
-     * @return stdClass
+     * @return object
      */
-    private function significant(Family $family): stdClass
+    private function significant(Family $family): object
     {
         $significant = (object) [
             'family'     => $family,
@@ -124,5 +119,41 @@ class FamilyPage implements RequestHandlerInterface
         }
 
         return $significant;
+    }
+
+    /**
+     * @param Family $family
+     *
+     * @return string
+     */
+    private function metaDescription(Family $family): string
+    {
+        $meta_facts = [
+            $family->fullName()
+        ];
+
+        foreach ($family->facts(['MARR', 'DIV'], true) as $fact) {
+            if ($fact->date()->isOK()) {
+                $value = strip_tags($fact->date()->display());
+            } else {
+                $value = I18N::translate('yes');
+            }
+
+            $meta_facts[] = Registry::elementFactory()->make($fact->tag())->labelValue($value, $family->tree());
+        }
+
+        if ($family->children()->isNotEmpty()) {
+            $child_names = $family->children()
+            ->map(static fn (Individual $individual): string => e($individual->getAllNames()[0]['givn']))
+            ->filter(static fn (string $x): bool => $x !== Individual::PRAENOMEN_NESCIO)
+            ->implode(', ');
+
+            $meta_facts[] = I18N::translate('Children') . ' ' . $child_names;
+        }
+
+        $meta_facts = array_map(static fn (string $x): string => strip_tags($x), $meta_facts);
+        $meta_facts = array_map(static fn (string $x): string => trim($x), $meta_facts);
+
+        return implode(', ', $meta_facts);
     }
 }

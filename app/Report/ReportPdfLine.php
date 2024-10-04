@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -31,7 +31,7 @@ class ReportPdfLine extends ReportBaseLine
      *
      * @return void
      */
-    public function render($renderer)
+    public function render($renderer): void
     {
         if ($this->x1 === ReportBaseElement::CURRENT_POSITION) {
             $this->x1 = $renderer->tcpdf->GetX();

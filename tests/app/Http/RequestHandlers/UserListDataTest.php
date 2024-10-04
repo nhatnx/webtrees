@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -24,19 +24,13 @@ use Fisharebest\Webtrees\Services\DatatablesService;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test UserEditPageTest class.
- *
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\UserListData
- */
+#[CoversClass(UserListData::class)]
 class UserListDataTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @return void
-     */
     public function testHandler(): void
     {
         $datatables_service = new DatatablesService();

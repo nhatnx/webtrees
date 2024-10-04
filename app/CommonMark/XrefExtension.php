@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,7 +20,7 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\CommonMark;
 
 use Fisharebest\Webtrees\Tree;
-use League\CommonMark\ConfigurableEnvironmentInterface;
+use League\CommonMark\Environment\EnvironmentBuilderInterface;
 use League\CommonMark\Extension\ExtensionInterface;
 
 /**
@@ -28,23 +28,23 @@ use League\CommonMark\Extension\ExtensionInterface;
  */
 class XrefExtension implements ExtensionInterface
 {
-    /** @var Tree - match XREFs in this tree */
-    private $tree;
+    private Tree $tree;
 
     /**
-     * MarkdownXrefParser constructor.
-     *
-     * @param Tree $tree
+     * @param Tree $tree Match XREFs in this tree
      */
     public function __construct(Tree $tree)
     {
         $this->tree = $tree;
     }
 
-    public function register(ConfigurableEnvironmentInterface $environment): void
+    /**
+     * @param EnvironmentBuilderInterface $environment
+     */
+    public function register(EnvironmentBuilderInterface $environment): void
     {
         $environment
             ->addInlineParser(new XrefParser($this->tree))
-            ->addInlineRenderer(XrefNode::class, new XrefRenderer());
+            ->addRenderer(XrefNode::class, new XrefRenderer());
     }
 }

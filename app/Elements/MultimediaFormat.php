@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,6 +19,8 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
+use function strtoupper;
+
 /**
  * MULTIMEDIA_FORMAT := {Size=3:4}
  * [ bmp | gif | jpg | ole | pcx | tif | wav ]
@@ -29,7 +31,26 @@ namespace Fisharebest\Webtrees\Elements;
  */
 class MultimediaFormat extends AbstractElement
 {
+    protected const EXTENSION_TO_FORM = [
+        'JPEG' => 'JPG',
+        'TIFF' => 'TIF',
+    ];
+
     protected const SUBTAGS = [
         'TYPE' => '0:1',
     ];
+
+    /**
+     * Convert a value to a canonical form.
+     *
+     * @param string $value
+     *
+     * @return string
+     */
+    public function canonical(string $value): string
+    {
+        $value = strtoupper(parent::canonical($value));
+
+        return static::EXTENSION_TO_FORM[$value] ?? $value;
+    }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\Http\RequestHandlers\ControlPanel;
 use Fisharebest\Webtrees\Http\RequestHandlers\ModulesAllPage;
 use Fisharebest\Webtrees\I18N;
@@ -7,7 +9,7 @@ use Fisharebest\Webtrees\Tree;
 use Illuminate\Support\Collection;
 
 /**
- * @var Collection<Tree>     $all_trees
+ * @var Collection<int,Tree> $all_trees
  * @var string               $sitemap_url
  * @var array<string,string> $submit_urls
  * @var string               $title
@@ -20,7 +22,7 @@ use Illuminate\Support\Collection;
 <h1><?= $title ?></h1>
 
 <p>
-    <?= /* I18N: The www.sitemaps.org site is translated into many languages (e.g. http://www.sitemaps.org/fr/) - choose an appropriate URL. */ I18N::translate('Sitemaps are a way for webmasters to tell search engines about the pages on a website that are available for crawling. All major search engines support sitemaps. For more information, see <a href="http://www.sitemaps.org/">www.sitemaps.org</a>.') ?>
+    <?= /* I18N: The www.sitemaps.org site is translated into many languages (e.g. https://www.sitemaps.org/fr/) - choose an appropriate URL. */ I18N::translate('Sitemaps are a way for webmasters to tell search engines about the pages on a website that are available for crawling. All major search engines support sitemaps. For more information, see <a href="https://www.sitemaps.org/">www.sitemaps.org</a>.') ?>
 </p>
 
 <p>
@@ -28,16 +30,15 @@ use Illuminate\Support\Collection;
 </p>
 
 <form method="post" action="<?= e(route('module', ['module' => 'sitemap', 'action' => 'Admin'])) ?>">
-    <?= csrf_field() ?>
-
     <?php foreach ($all_trees as $tree) : ?>
-        <?= view('components/checkbox', ['label' => $tree->title(), 'name' => 'sitemap' . $tree->id(), 'checked' => (bool) $tree->getPreference('include_in_sitemap')]) ?>
+        <?= view('components/checkbox', ['label' => e($tree->title()), 'name' => 'sitemap' . $tree->id(), 'checked' => (bool) $tree->getPreference('include_in_sitemap')]) ?>
     <?php endforeach ?>
 
-<button type="submit" class="btn btn-primary">
-    <?= I18N::translate('save') ?>
-</button>
+    <button type="submit" class="btn btn-primary">
+        <?= I18N::translate('save') ?>
+    </button>
 
+    <?= csrf_field() ?>
 </form>
 
 <hr>

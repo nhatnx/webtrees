@@ -1,19 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Http\RequestHandlers\BroadcastAction;
 use Fisharebest\Webtrees\Http\RequestHandlers\ControlPanel;
-use Fisharebest\Webtrees\Http\RequestHandlers\HomePage;
 use Fisharebest\Webtrees\I18N;
 use Illuminate\Support\Collection;
 
 /**
- * @var string             $body
- * @var UserInterface      $from
- * @var string             $subject
- * @var string             $title
- * @var string             $to
- * @var Collection<string> $to_names
+ * @var UserInterface                 $from
+ * @var string                        $title
+ * @var string                        $to
+ * @var Collection<int,UserInterface> $recipients
  */
 
 ?>
@@ -22,10 +21,8 @@ use Illuminate\Support\Collection;
 
 <h1><?= $title ?></h1>
 
-<form method="post" action="<?= e(route(BroadcastAction::class)) ?>">
-    <?= csrf_field() ?>
-
-    <div class="form-group row">
+<form method="post" action="<?= e(route(BroadcastAction::class, ['to' => $to])) ?>">
+    <div class="row mb-3">
         <label class="col-sm-3 col-form-label" for="from">
             <?= I18N::translateContext('Email sender', 'From') ?>
         </label>
@@ -34,43 +31,44 @@ use Illuminate\Support\Collection;
         </div>
     </div>
 
-    <div class="form-group row">
+    <div class="row mb-3">
         <label class="col-sm-3 col-form-label" for="to">
             <?= I18N::translateContext('Email recipient', 'To') ?>
         </label>
         <div class="col-sm-9">
-            <input type="hidden" name="to" value="<?= e($to) ?>">
-            <input class="form-control" id="to" type="text" value="<?= e($to_names->implode(', ')) ?>" disabled>
+            <input class="form-control" id="to" type="text" value="<?= $recipients->map(static fn (UserInterface $user): string => e($user->realName()))->implode(', ') ?>" disabled>
         </div>
     </div>
 
-    <div class="form-group row">
+    <div class="row mb-3">
         <label class="col-sm-3 col-form-label" for="subject">
             <?= I18N::translate('Subject') ?>
         </label>
         <div class="col-sm-9">
-            <input class="form-control" id="subject" type="text" name="subject" value="<?= e($subject) ?>" required="required">
+            <input class="form-control" id="subject" type="text" name="subject" required="required">
         </div>
     </div>
 
-    <div class="form-group row">
+    <div class="row mb-3">
         <label class="col-sm-3 col-form-label" for="body">
             <?= I18N::translate('Message') ?>
         </label>
         <div class="col-sm-9">
-            <textarea class="form-control" id="body" name="body" rows="5" dir="auto" required="required"><?= e($body) ?></textarea>
+            <textarea class="form-control" id="body" name="body" rows="5" dir="auto" required="required"></textarea>
         </div>
     </div>
 
-    <div class="form-group row">
+    <div class="row mb-3">
         <div class="col-sm-3 col-form-label"></div>
         <div class="col-sm-9">
             <button type="submit" class="btn btn-primary">
                 <?= I18N::translate('Send') ?>
             </button>
-            <a class="btn btn-link" href="<?= e(route(HomePage::class)) ?>">
+            <a class="btn btn-link" href="<?= e(route(ControlPanel::class)) ?>">
                 <?= I18N::translate('cancel') ?>
             </a>
         </div>
     </div>
+
+    <?= csrf_field() ?>
 </form>

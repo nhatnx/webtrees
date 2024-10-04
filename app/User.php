@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,33 +21,26 @@ namespace Fisharebest\Webtrees;
 
 use Closure;
 use Fisharebest\Webtrees\Contracts\UserInterface;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Support\Collection;
-use stdClass;
+
+use function is_string;
 
 /**
  * Provide an interface to the wt_user table.
  */
 class User implements UserInterface
 {
-    /** @var  int The primary key of this user. */
-    private $user_id;
+    private int $user_id;
 
-    /** @var  string The login name of this user. */
-    private $user_name;
+    private string $user_name;
 
-    /** @var  string The real (display) name of this user. */
-    private $real_name;
+    private string $real_name;
 
-    /** @var  string The email address of this user. */
-    private $email;
+    private string $email;
 
-    /** @var string[] Cached copy of the wt_user_setting table. */
-    private $preferences = [];
+    /** @var array<string,string> */
+    private array $preferences;
 
     /**
-     * User constructor.
-     *
      * @param int    $user_id
      * @param string $user_name
      * @param string $real_name
@@ -59,6 +52,11 @@ class User implements UserInterface
         $this->user_name = $user_name;
         $this->real_name = $real_name;
         $this->email     = $email;
+
+        $this->preferences = DB::table('user_setting')
+            ->where('user_id', '=', $this->user_id)
+            ->pluck('setting_value', 'setting_name')
+            ->all();
     }
 
     /**
@@ -150,7 +148,7 @@ class User implements UserInterface
      *
      * @param string $user_name
      *
-     * @return $this
+     * @return self
      */
     public function setUserName(string $user_name): self
     {
@@ -169,7 +167,7 @@ class User implements UserInterface
 
     /**
      * Fetch a user option/setting from the wt_user_setting table.
-     * Since we'll fetch several settings for each user, and since there aren’t
+     * Since we'll fetch several settings for each user, and since there aren't
      * that many of them, fetch them all in one database query
      *
      * @param string $setting_name
@@ -179,17 +177,7 @@ class User implements UserInterface
      */
     public function getPreference(string $setting_name, string $default = ''): string
     {
-        $preferences = Registry::cache()->array()->remember('user-prefs-' . $this->user_id, function (): Collection {
-            if ($this->user_id) {
-                return DB::table('user_setting')
-                    ->where('user_id', '=', $this->user_id)
-                    ->pluck('setting_value', 'setting_name');
-            }
-
-            return new Collection();
-        });
-
-        return $preferences->get($setting_name, $default);
+        return $this->preferences[$setting_name] ?? $default;
     }
 
     /**
@@ -202,7 +190,7 @@ class User implements UserInterface
      */
     public function setPreference(string $setting_name, string $setting_value): void
     {
-        if ($this->user_id !== 0 && $this->getPreference($setting_name) !== $setting_value) {
+        if ($this->getPreference($setting_name) !== $setting_value) {
             DB::table('user_setting')->updateOrInsert([
                 'user_id'      => $this->user_id,
                 'setting_name' => $setting_name,
@@ -221,7 +209,7 @@ class User implements UserInterface
      *
      * @return User
      */
-    public function setPassword(string $password): User
+    public function setPassword(#[\SensitiveParameter] string $password): User
     {
         DB::table('user')
             ->where('user_id', '=', $this->user_id)
@@ -232,7 +220,6 @@ class User implements UserInterface
         return $this;
     }
 
-
     /**
      * Validate a supplied password
      *
@@ -240,13 +227,13 @@ class User implements UserInterface
      *
      * @return bool
      */
-    public function checkPassword(string $password): bool
+    public function checkPassword(#[\SensitiveParameter] string $password): bool
     {
         $password_hash = DB::table('user')
             ->where('user_id', '=', $this->id())
             ->value('password');
 
-        if ($password_hash !== null && password_verify($password, $password_hash)) {
+        if (is_string($password_hash) && password_verify($password, $password_hash)) {
             if (password_needs_rehash($password_hash, PASSWORD_DEFAULT)) {
                 $this->setPassword($password);
             }
@@ -260,12 +247,10 @@ class User implements UserInterface
     /**
      * A closure which will create an object from a database row.
      *
-     * @return Closure
+     * @return Closure(object):User
      */
     public static function rowMapper(): Closure
     {
-        return static function (stdClass $row): User {
-            return new self((int) $row->user_id, $row->user_name, $row->real_name, $row->email);
-        };
+        return static fn (object $row): User => new self((int) $row->user_id, $row->user_name, $row->real_name, $row->email);
     }
 }

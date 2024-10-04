@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,45 +20,37 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\Middleware;
 
 use Fig\Http\Message\StatusCodeInterface;
-use Fisharebest\Webtrees\Exceptions\HttpServerErrorException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpServerErrorException;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\TestCase;
 use Illuminate\Support\Collection;
+use PHPUnit\Framework\Attributes\CoversClass;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function app;
-
-/**
- * Test the HandleExceptions middleware.
- *
- * @covers \Fisharebest\Webtrees\Http\Middleware\HandleExceptions
- */
+#[CoversClass(HandleExceptions::class)]
 class HandleExceptionsTest extends TestCase
 {
-    /**
-     * @return void
-     */
+    protected static bool $uses_database = true;
+
     public function testMiddleware(): void
     {
-        $tree_service = self::createMock(TreeService::class);
+        $tree_service = $this->createMock(TreeService::class);
 
-        $handler = self::createMock(RequestHandlerInterface::class);
+        $handler = $this->createMock(RequestHandlerInterface::class);
         $handler->method('handle')->willThrowException(new HttpServerErrorException('eek'));
 
-        $module_service = self::createMock(ModuleService::class);
+        $module_service = $this->createMock(ModuleService::class);
         $module_service->method('findByInterface')->willReturn(new Collection());
         $module_service->method('findByComponent')->willReturn(new Collection());
-        app()->instance(ModuleService::class, $module_service);
+        Registry::container()->set(ModuleService::class, $module_service);
 
         $request    = self::createRequest();
         $middleware = new HandleExceptions($tree_service);
         $response   = $middleware->process($request, $handler);
 
         self::assertSame(StatusCodeInterface::STATUS_INTERNAL_SERVER_ERROR, $response->getStatusCode());
-
-        app()->forgetInstance(ModuleService::class);
-        app()->forgetInstance(UserService::class);
     }
 }

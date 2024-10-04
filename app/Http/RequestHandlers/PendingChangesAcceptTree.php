@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,24 +22,20 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 use Fisharebest\Webtrees\FlashMessages;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Services\PendingChangesService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function e;
 use function response;
-
-use const PHP_INT_MAX;
 
 /**
  * Accept pending changes for a tree.
  */
 class PendingChangesAcceptTree implements RequestHandlerInterface
 {
-    /** @var PendingChangesService */
-    private $pending_changes_service;
+    private PendingChangesService $pending_changes_service;
 
     /**
      * @param PendingChangesService $pending_changes_service
@@ -56,14 +52,13 @@ class PendingChangesAcceptTree implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $n = (int) ($request->getQueryParams()['n'] ?? PHP_INT_MAX);
+        $tree = Validator::attributes($request)->tree();
+        $n    = Validator::queryParams($request)->integer('n');
 
         $this->pending_changes_service->acceptTree($tree, $n);
 
         FlashMessages::addMessage(I18N::translate('The changes to “%s” have been accepted.', e($tree->title())));
+
         return response();
     }
 }

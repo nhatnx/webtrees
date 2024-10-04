@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -34,7 +34,6 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function app;
 use function redirect;
 use function route;
 
@@ -43,28 +42,28 @@ use function route;
  */
 class SynchronizeTrees implements RequestHandlerInterface
 {
-    /** @var AdminService */
-    private $admin_service;
+    private AdminService $admin_service;
 
-    /** @var TimeoutService */
-    private $timeout_service;
+    private StreamFactoryInterface $stream_factory;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TimeoutService $timeout_service;
+
+    private TreeService $tree_service;
 
     /**
-     * AdminTreesController constructor.
-     *
      * @param AdminService        $admin_service
+     * @param StreamFactoryInterface $stream_factory
      * @param TimeoutService      $timeout_service
      * @param TreeService         $tree_service
      */
     public function __construct(
         AdminService $admin_service,
+        StreamFactoryInterface $stream_factory,
         TimeoutService $timeout_service,
         TreeService $tree_service
     ) {
         $this->admin_service   = $admin_service;
+        $this->stream_factory  = $stream_factory;
         $this->timeout_service = $timeout_service;
         $this->tree_service    = $tree_service;
     }
@@ -89,18 +88,18 @@ class SynchronizeTrees implements RequestHandlerInterface
 
                 if ($tree->getPreference('filemtime') !== $filemtime) {
                     $resource = $data_filesystem->readStream($gedcom_file);
-                    $stream   = app(StreamFactoryInterface::class)->createStreamFromResource($resource);
-                    $this->tree_service->importGedcomFile($tree, $stream, $gedcom_file);
+                    $stream   = $this->stream_factory->createStreamFromResource($resource);
+                    $this->tree_service->importGedcomFile($tree, $stream, $gedcom_file, '');
                     $stream->close();
                     $tree->setPreference('filemtime', $filemtime);
 
                     FlashMessages::addMessage(I18N::translate('The GEDCOM file “%s” has been imported.', e($gedcom_file)), 'success');
 
                     if ($this->timeout_service->isTimeNearlyUp(10.0)) {
-                        return redirect(route(__CLASS__), StatusCodeInterface::STATUS_TEMPORARY_REDIRECT);
+                        return redirect(route(self::class), StatusCodeInterface::STATUS_TEMPORARY_REDIRECT);
                     }
                 }
-            } catch (FilesystemException | UnableToRetrieveMetadata | UnableToReadFile $ex) {
+            } catch (FilesystemException | UnableToRetrieveMetadata | UnableToReadFile) {
                 // Can't read the file - skip it.
             }
         }
@@ -111,7 +110,7 @@ class SynchronizeTrees implements RequestHandlerInterface
                 FlashMessages::addMessage(I18N::translate('The family tree “%s” has been deleted.', e($tree->title())), 'success');
 
                 if ($this->timeout_service->isTimeNearlyUp(10.0)) {
-                    return redirect(route(__CLASS__), StatusCodeInterface::STATUS_TEMPORARY_REDIRECT);
+                    return redirect(route(self::class), StatusCodeInterface::STATUS_TEMPORARY_REDIRECT);
                 }
             }
         }

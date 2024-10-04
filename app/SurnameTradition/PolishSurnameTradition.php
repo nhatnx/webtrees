@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -18,6 +18,10 @@
 declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\SurnameTradition;
+
+use Fisharebest\Webtrees\Elements\NameType;
+use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Individual;
 
 /**
  * Children take their father’s surname. Wives take their husband’s surname. Surnames are inflected to indicate an individual’s sex.
@@ -41,76 +45,97 @@ class PolishSurnameTradition extends PaternalSurnameTradition
     ];
 
     /**
-     * What names are given to a new child
+     * The name of this surname tradition
      *
-     * @param string $father_name A GEDCOM NAME
-     * @param string $mother_name A GEDCOM NAME
-     * @param string $child_sex   M, F or U
-     *
-     * @return array<string,string> Associative array of GEDCOM name parts (SURN, _MARNM, etc.)
+     * @return string
      */
-    public function newChildNames(string $father_name, string $mother_name, string $child_sex): array
+    public function name(): string
     {
-        if (preg_match(self::REGEX_SURN, $father_name, $match)) {
-            if ($child_sex === 'F') {
-                return array_filter([
-                    'NAME' => $this->inflect($match['NAME'], self::INFLECT_FEMALE),
-                    'SURN' => $this->inflect($match['SURN'], self::INFLECT_MALE),
-                ]);
-            }
-
-            return array_filter([
-                'NAME' => $this->inflect($match['NAME'], self::INFLECT_MALE),
-                'SURN' => $this->inflect($match['SURN'], self::INFLECT_MALE),
-            ]);
-        }
-
-        return [
-            'NAME' => '//',
-        ];
+        return I18N::translateContext('Surname tradition', 'Polish');
     }
 
     /**
-     * What names are given to a new parent
+     * A short description of this surname tradition
      *
-     * @param string $child_name A GEDCOM NAME
-     * @param string $parent_sex M, F or U
-     *
-     * @return array<string,string> Associative array of GEDCOM name parts (SURN, _MARNM, etc.)
+     * @return string
      */
-    public function newParentNames(string $child_name, string $parent_sex): array
+    public function description(): string
     {
-        if ($parent_sex === 'M' && preg_match(self::REGEX_SURN, $child_name, $match)) {
-            return array_filter([
-                'NAME' => $this->inflect($match['NAME'], self::INFLECT_MALE),
-                'SURN' => $this->inflect($match['SURN'], self::INFLECT_MALE),
-            ]);
+        /* I18N: In the Polish surname tradition, ... */
+        return
+            I18N::translate('Children take their father’s surname.') . ' ' .
+            I18N::translate('Wives take their husband’s surname.') . ' ' .
+            I18N::translate('Surnames are inflected to indicate an individual’s gender.');
+    }
+
+    /**
+     * What name is given to a new child
+     *
+     * @param Individual|null $father
+     * @param Individual|null $mother
+     * @param string          $sex
+     *
+     * @return array<int,string>
+     */
+    public function newChildNames(Individual|null $father, Individual|null $mother, string $sex): array
+    {
+        if (preg_match(self::REGEX_SURN, $this->extractName($father), $match) === 1) {
+            if ($sex === 'F') {
+                $name = $this->inflect($match['NAME'], self::INFLECT_FEMALE);
+            } else {
+                $name = $this->inflect($match['NAME'], self::INFLECT_MALE);
+            }
+
+            $surn = $this->inflect($match['SURN'], self::INFLECT_MALE);
+
+            return [$this->buildName($name, ['TYPE' => NameType::VALUE_BIRTH, 'SURN' => $surn])];
         }
 
-        return [
-            'NAME' => '//',
-        ];
+        return [$this->buildName('//', ['TYPE' => NameType::VALUE_BIRTH])];
+    }
+
+    /**
+     * What name is given to a new parent
+     *
+     * @param Individual $child
+     * @param string     $sex
+     *
+     * @return array<int,string>
+     */
+    public function newParentNames(Individual $child, string $sex): array
+    {
+        if ($sex === 'M' && preg_match(self::REGEX_SURN, $this->extractName($child), $match) === 1) {
+            $name = $this->inflect($match['NAME'], self::INFLECT_MALE);
+            $surn = $this->inflect($match['SURN'], self::INFLECT_MALE);
+
+            return [
+                $this->buildName($name, ['TYPE' => NameType::VALUE_BIRTH, 'SURN' => $surn]),
+            ];
+        }
+
+        return [$this->buildName('//', ['TYPE' => NameType::VALUE_BIRTH])];
     }
 
     /**
      * What names are given to a new spouse
      *
-     * @param string $spouse_name A GEDCOM NAME
-     * @param string $spouse_sex  M, F or U
+     * @param Individual $spouse
+     * @param string     $sex
      *
-     * @return array<string,string> Associative array of GEDCOM name parts (SURN, _MARNM, etc.)
+     * @return array<int,string>
      */
-    public function newSpouseNames(string $spouse_name, string $spouse_sex): array
+    public function newSpouseNames(Individual $spouse, string $sex): array
     {
-        if ($spouse_sex === 'F' && preg_match(self::REGEX_SURN, $spouse_name, $match)) {
+        if ($sex === 'F' && preg_match(self::REGEX_SURN, $this->extractName($spouse), $match) === 1) {
+            $name = $this->inflect($match['NAME'], self::INFLECT_FEMALE);
+            $surn = $this->inflect($match['SURN'], self::INFLECT_MALE);
+
             return [
-                'NAME'   => '//',
-                '_MARNM' => $this->inflect($match['NAME'], self::INFLECT_FEMALE),
+                $this->buildName('//', ['TYPE' => NameType::VALUE_BIRTH]),
+                $this->buildName($name, ['TYPE' => NameType::VALUE_MARRIED, 'SURN' => $surn]),
             ];
         }
 
-        return [
-            'NAME' => '//',
-        ];
+        return [$this->buildName('//', ['TYPE' => NameType::VALUE_BIRTH])];
     }
 }

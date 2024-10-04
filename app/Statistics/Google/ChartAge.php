@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,54 +19,48 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Statistics\Google;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Statistics\Service\CenturyService;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 use stdClass;
+
+use function round;
+use function view;
 
 /**
  * A chart showing the average age of individuals related to the death century.
  */
 class ChartAge
 {
-    /**
-     * @var Tree
-     */
-    private $tree;
+    private Tree $tree;
+
+    private CenturyService $century_service;
 
     /**
-     * @var CenturyService
+     * @param CenturyService $century_service
+     * @param Tree           $tree
      */
-    private $century_service;
-
-    /**
-     * Constructor.
-     *
-     * @param Tree $tree
-     */
-    public function __construct(Tree $tree)
+    public function __construct(CenturyService $century_service, Tree $tree)
     {
+        $this->century_service = $century_service;
         $this->tree            = $tree;
-        $this->century_service = new CenturyService();
     }
 
     /**
      * Returns the related database records.
      *
-     * @return Collection<stdClass>
+     * @return Collection<array-key,stdClass>
      */
     private function queryRecords(): Collection
     {
-        $prefix = DB::connection()->getTablePrefix();
-
         return DB::table('individuals')
             ->select([
-                new Expression('AVG(' . $prefix . 'death.d_julianday2 - ' . $prefix . 'birth.d_julianday1) / 365.25 AS age'),
-                new Expression('ROUND((' . $prefix . 'death.d_year + 49) / 100) AS century'),
+                new Expression('AVG(' . DB::prefix('death.d_julianday2') . ' - ' . DB::prefix('birth.d_julianday1') . ') / 365.25 AS age'),
+                new Expression('ROUND((' . DB::prefix('death.d_year') . ' + 49) / 100, 0) AS century'),
                 'i_sex AS sex'
             ])
             ->join('dates AS birth', static function (JoinClause $join): void {
@@ -90,13 +84,11 @@ class ChartAge
             ->orderBy('century')
             ->orderBy('sex')
             ->get()
-            ->map(static function (stdClass $row): stdClass {
-                return (object) [
-                    'age'     => (float) $row->age,
-                    'century' => (int) $row->century,
-                    'sex'     => $row->sex,
-                ];
-            });
+            ->map(static fn (object $row): object => (object) [
+                'age'     => (float) $row->age,
+                'century' => (int) $row->century,
+                'sex'     => $row->sex,
+            ]);
     }
 
     /**
@@ -141,7 +133,9 @@ class ChartAge
                 'title' => I18N::translate('Age'),
             ],
             'hAxis' => [
-                'title' => I18N::translate('Century'),
+                'showTextEvery' => 1,
+                'slantedText'   => false,
+                'title'         => I18N::translate('Century'),
             ],
             'colors' => [
                 '#84beff',

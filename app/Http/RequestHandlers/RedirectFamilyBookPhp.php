@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,65 +21,57 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Exceptions\HttpNotFoundException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpGoneException;
 use Fisharebest\Webtrees\Module\FamilyBookChartModule;
+use Fisharebest\Webtrees\Module\ModuleChartInterface;
 use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-
-use function redirect;
 
 /**
  * Redirect URLs created by webtrees 1.x (and PhpGedView).
  */
 class RedirectFamilyBookPhp implements RequestHandlerInterface
 {
-    /** @var TreeService */
-    private $tree_service;
-
-    /** @var FamilyBookChartModule */
-    private $chart;
-
-    /**
-     * @param FamilyBookChartModule $chart
-     * @param TreeService           $tree_service
-     */
-    public function __construct(FamilyBookChartModule $chart, TreeService $tree_service)
-    {
-        $this->chart        = $chart;
-        $this->tree_service = $tree_service;
+    public function __construct(
+        private readonly ModuleService $module_service,
+        private readonly TreeService $tree_service,
+    ) {
     }
 
-    /**
-     * @param ServerRequestInterface $request
-     *
-     * @return ResponseInterface
-     */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $query       = $request->getQueryParams();
-        $ged         = $query['ged'] ?? Site::getPreference('DEFAULT_GEDCOM');
-        $root_id     = $query['rootid'] ?? '';
-        $generations = $query['generations'] ?? '2';
-        $descent     = $query['descent'] ?? '5';
-
+        $ged  = Validator::queryParams($request)->string('ged', Site::getPreference('DEFAULT_GEDCOM'));
         $tree = $this->tree_service->all()->get($ged);
 
         if ($tree instanceof Tree) {
-            $individual = Registry::individualFactory()->make($root_id, $tree) ?? $tree->significantIndividual(Auth::user());
+            $module = $this->module_service
+                ->findByComponent(ModuleChartInterface::class, $tree, Auth::user())
+                ->first(static fn (ModuleChartInterface $module): bool => $module instanceof FamilyBookChartModule);
 
-            $url = $this->chart->chartUrl($individual, [
-                'book_size'   => $generations,
-                'generations' => $descent,
-            ]);
+            if ($module instanceof FamilyBookChartModule) {
+                $root_id     = Validator::queryParams($request)->string('rootid', '');
+                $generations = Validator::queryParams($request)->string('generations', FamilyBookChartModule::DEFAULT_GENERATIONS);
+                $descent     = Validator::queryParams($request)->string('descent', FamilyBookChartModule::DEFAULT_DESCENDANT_GENERATIONS);
+                $individual  = Registry::individualFactory()->make($root_id, $tree) ?? $tree->significantIndividual(Auth::user());
 
-            return redirect($url, StatusCodeInterface::STATUS_MOVED_PERMANENTLY);
+                $url = $module->chartUrl($individual, [
+                    'book_size'   => $generations,
+                    'generations' => $descent,
+                ]);
+
+                return Registry::responseFactory()
+                    ->redirectUrl($url, StatusCodeInterface::STATUS_MOVED_PERMANENTLY)
+                    ->withHeader('Link', '<' . $url . '>; rel="canonical"');
+            }
         }
 
-        throw new HttpNotFoundException();
+        throw new HttpGoneException();
     }
 }

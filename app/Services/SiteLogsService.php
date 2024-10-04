@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,10 +19,17 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Services;
 
-use Fisharebest\Webtrees\Carbon;
-use Illuminate\Database\Capsule\Manager as DB;
+use DateInterval;
+use DateTimeImmutable;
+use DateTimeZone;
+use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\DB;
+use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Expression;
+use Psr\Http\Message\ServerRequestInterface;
 
 use function addcslashes;
 
@@ -34,32 +41,43 @@ class SiteLogsService
     /**
      * Generate a query for filtering the changes log.
      *
-     * @param string[] $params
+     * @param ServerRequestInterface $request
      *
      * @return Builder
      */
-    public function logsQuery(array $params): Builder
+    public function logsQuery(ServerRequestInterface $request): Builder
     {
-        $tree     = $params['tree'];
-        $from     = $params['from'];
-        $to       = $params['to'];
-        $type     = $params['type'];
-        $text     = $params['text'];
-        $ip       = $params['ip'];
-        $username = $params['username'];
+        $tree     = Validator::queryParams($request)->string('tree');
+        $from     = Validator::queryParams($request)->string('from');
+        $to       = Validator::queryParams($request)->string('to');
+        $type     = Validator::queryParams($request)->string('type');
+        $text     = Validator::queryParams($request)->string('text');
+        $ip       = Validator::queryParams($request)->string('ip');
+        $username = Validator::queryParams($request)->string('username');
 
         $query = DB::table('log')
             ->leftJoin('user', 'user.user_id', '=', 'log.user_id')
             ->leftJoin('gedcom', 'gedcom.gedcom_id', '=', 'log.gedcom_id')
             ->select(['log.*', new Expression("COALESCE(user_name, '<none>') AS user_name"), new Expression("COALESCE(gedcom_name, '<none>') AS gedcom_name")]);
 
+        $tz  = new DateTimeZone(Auth::user()->getPreference(UserInterface::PREF_TIME_ZONE, 'UTC'));
+        $utc = new DateTimeZone('UTC');
+
         if ($from !== '') {
-            $query->where('log_time', '>=', $from);
+            $from_time = DateTimeImmutable::createFromFormat('!Y-m-d', $from, $tz)
+                ->setTimezone($utc)
+                ->format('Y-m-d H:i:s');
+
+            $query->where('log_time', '>=', $from_time);
         }
 
         if ($to !== '') {
-            // before end of the day
-            $query->where('log_time', '<', Carbon::make($to)->addDay());
+            $to_time = DateTimeImmutable::createFromFormat('!Y-m-d', $to, $tz)
+                ->add(new DateInterval('P1D'))
+                ->setTimezone($utc)
+                ->format('Y-m-d H:i:s');
+
+            $query->where('log_time', '<', $to_time);
         }
 
         if ($type !== '') {

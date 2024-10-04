@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,8 +22,10 @@ namespace Fisharebest\Webtrees\Module;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Menu;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
@@ -33,14 +35,9 @@ class ChartsMenuModule extends AbstractModule implements ModuleMenuInterface
 {
     use ModuleMenuTrait;
 
-    /**
-     * @var ModuleService
-     */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * ChartsMenuModule constructor.
-     *
      * @param ModuleService $module_service
      */
     public function __construct(ModuleService $module_service)
@@ -82,23 +79,15 @@ class ChartsMenuModule extends AbstractModule implements ModuleMenuInterface
 
     /**
      * A menu, to be added to the main application menu.
-     *
-     * @param Tree $tree
-     *
-     * @return Menu|null
      */
-    public function getMenu(Tree $tree): ?Menu
+    public function getMenu(Tree $tree): Menu|null
     {
-        $request    = app(ServerRequestInterface::class);
-        $xref       = $request->getAttribute('xref', '');
+        $request    = Registry::container()->get(ServerRequestInterface::class);
+        $xref       = Validator::attributes($request)->isXref()->string('xref', '');
         $individual = $tree->significantIndividual(Auth::user(), $xref);
         $submenus   = $this->module_service->findByComponent(ModuleChartInterface::class, $tree, Auth::user())
-            ->map(static function (ModuleChartInterface $module) use ($individual): Menu {
-                return $module->chartMenu($individual);
-            })
-            ->sort(static function (Menu $x, Menu $y): int {
-                return $x->getLabel() <=> $y->getLabel();
-            });
+            ->map(static fn (ModuleChartInterface $module): Menu => $module->chartMenu($individual))
+            ->sort(static fn (Menu $x, Menu $y): int => I18N::comparator()($x->getLabel(), $y->getLabel()));
 
         if ($submenus->isEmpty()) {
             return null;

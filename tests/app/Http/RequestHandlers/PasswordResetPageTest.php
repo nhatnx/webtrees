@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -24,22 +24,20 @@ use Fisharebest\Webtrees\Http\RequestHandlers\PasswordResetPage;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\TestCase;
 use Fisharebest\Webtrees\User;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\PasswordResetPage
- */
+#[CoversClass(PasswordResetPage::class)]
 class PasswordResetPageTest extends TestCase
 {
-    /**
-     * @return void
-     */
+    protected static bool $uses_database = true;
+
     public function testPasswordResetPageWithValidToken(): void
     {
-        $user = self::createMock(User::class);
+        $user = $this->createMock(User::class);
 
-        $user_service = self::createMock(UserService::class);
+        $user_service = $this->createMock(UserService::class);
         $user_service
-            ->expects(self::once())
+            ->expects($this->once())
             ->method('findByToken')
             ->with('1234')
             ->willReturn($user);
@@ -52,14 +50,11 @@ class PasswordResetPageTest extends TestCase
         self::assertSame(StatusCodeInterface::STATUS_OK, $response->getStatusCode());
     }
 
-    /**
-     * @return void
-     */
     public function testPasswordResetPageWithoutValidToken(): void
     {
-        $user_service = self::createMock(UserService::class);
+        $user_service = $this->createMock(UserService::class);
         $user_service
-            ->expects(self::once())
+            ->expects($this->once())
             ->method('findByToken')
             ->with('4321')
             ->willReturn(null);

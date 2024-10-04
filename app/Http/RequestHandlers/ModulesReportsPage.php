@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -40,7 +40,7 @@ class ModulesReportsPage extends AbstractModuleComponentPage
     {
         return $this->listComponents(
             ModuleReportInterface::class,
-            view('icons/report') . I18N::translate('Reports'),
+            view('icons/report') . ' ' . I18N::translate('Reports'),
             ''
         );
     }

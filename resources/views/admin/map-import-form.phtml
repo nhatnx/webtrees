@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\Http\RequestHandlers\ControlPanel;
 use Fisharebest\Webtrees\Http\RequestHandlers\MapDataImportAction;
 use Fisharebest\Webtrees\Http\RequestHandlers\MapDataList;
@@ -19,22 +21,29 @@ use Fisharebest\Webtrees\View;
 <h3><?= $title ?></h3>
 
 <form method="post" action="<?= e(route(MapDataImportAction::class)) ?>" id="upload_form" enctype="multipart/form-data">
-    <?= csrf_field() ?>
+    <div class="row mb-3">
+        <label class="col-form-label col-sm-4">
+            <input type="radio" name="source" id="import-client" value="client" checked>
+            <?= I18N::translate('A file on your computer') ?>
+        </label>
+        <div class="col-sm-8">
+            <input id="import-client-file" type="file" name="client_file" class="form-control">
+        </div>
+    </div>
 
-    <!-- Server file -->
-    <div class="row form-group">
-        <label class="col-form-label col-sm-4" for="serverfile">
+    <div class="row mb-3">
+        <label class="col-form-label col-sm-4">
+            <input type="radio" name="source" id="import-server" value="server">
             <?= I18N::translate('A file on the server') ?>
         </label>
         <div class="col-sm-8">
             <div class="input-group" dir="ltr">
-                <div class="input-group-prepend">
-                            <span class="input-group-text">
-                                <?= e($folder) ?>
-                            </span>
-                </div>
-                <select id="serverfile" name="serverfile" class="form-control">
-                    <option selected value=""></option>
+                <span class="input-group-text" dir="ltr">
+                    <?= e($folder) ?>
+                </span>
+
+                <select name="server_file" class="form-select" dir="ltr" id="import-server-file">
+                    <option selected="selected" value="">&nbsp;</option>
                     <?php foreach ($files as $file) : ?>
                         <option value="<?= e($file) ?>">
                             <?= e($file) ?>
@@ -45,42 +54,18 @@ use Fisharebest\Webtrees\View;
         </div>
     </div>
 
-    <!-- local file -->
-    <div class="row form-group">
-        <label class="col-form-label col-sm-4" for="localfile">
-            <?= I18N::translate('A file on your computer') ?>
-        </label>
-        <div class="col-sm-8">
-            <input id="localfile" type="file" name="localfile" class="form-control-file">
-        </div>
-    </div>
-
-    <!-- CLEAR DATABASE -->
-    <fieldset class="form-group">
-        <div class="row">
-            <legend class="col-form-label col-sm-4">
-                <?= I18N::translate('Delete all existing geographic data before importing the file.') ?>
-            </legend>
-            <div class="col-sm-8">
-                <?= view('components/radios-inline', ['name' => 'cleardatabase', 'options' => [I18N::translate('no'), I18N::translate('yes')], 'selected' => 0]) ?>
-            </div>
-        </div>
-    </fieldset>
-
     <!-- Import options -->
-    <fieldset class="form-group">
-        <div class="row">
-            <legend class="col-form-label col-sm-4" for="import-options">
-                <?= I18N::translate('Import') ?>
-            </legend>
-            <div class="col-sm-8">
-                <?= view('components/select', ['name' => 'import-options', 'selected' => '', 'options' => ['update' => I18N::translate('Only update existing records'), 'add' => I18N::translate('Only add new records'), 'addupdate' => I18N::translate('Add new, and update existing records')]]) ?>
-            </div>
+    <fieldset class="row mb-3">
+        <legend class="col-form-label col-sm-4">
+            <?= I18N::translate('Import') ?>
+        </legend>
+        <div class="col-sm-8">
+            <?= view('components/select', ['name' => 'options', 'selected' => '', 'options' => ['update' => I18N::translate('Only update existing records'), 'add' => I18N::translate('Only add new records'), 'addupdate' => I18N::translate('Add new, and update existing records')]]) ?>
         </div>
     </fieldset>
 
     <!-- SAVE BUTTON -->
-    <div class="row form-group">
+    <div class="row mb-3">
         <div class="offset-sm-4 col-sm-8">
             <button type="submit" class="btn btn-primary">
                 <?= view('icons/save') ?>
@@ -92,19 +77,18 @@ use Fisharebest\Webtrees\View;
             </a>
         </div>
     </div>
+
+    <?= csrf_field() ?>
 </form>
 
 <?php View::push('javascript') ?>
-    <script>
-        $('#upload_form').on('submit', function(e) {
-            let self = this;
-            e.preventDefault();
-            if($('input[name="cleardatabase"]:checked').val() === '1') {
-                if (!confirm('<?= I18N::translate('Really delete all geographic data?') ?> ')) {
-                    return false;
-                }
-            }
-            self.submit();
-        });
-    </script>
+<script>
+  document.getElementById('import-client-file').addEventListener('focus', function () {
+    document.getElementById('import-client').checked = true;
+  });
+
+  document.getElementById('import-server-file').addEventListener('focus', function () {
+    document.getElementById('import-server').checked = true;
+  });
+</script>
 <?php View::endpush() ?>

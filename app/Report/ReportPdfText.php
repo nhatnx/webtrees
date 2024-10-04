@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -18,8 +18,6 @@
 declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Report;
-
-use Fisharebest\Webtrees\Functions\FunctionsRtl;
 
 use function count;
 use function explode;
@@ -40,7 +38,7 @@ class ReportPdfText extends ReportBaseText
      *
      * @return void
      */
-    public function render($renderer)
+    public function render($renderer): void
     {
         // Set up the style
         if ($renderer->getCurrentStyle() !== $this->styleName) {
@@ -62,11 +60,11 @@ class ReportPdfText extends ReportBaseText
             $r = hexdec($match[1]);
             $g = hexdec($match[2]);
             $b = hexdec($match[3]);
-            $renderer->tcpdf->SetTextColor($r, $g, $b);
+            $renderer->tcpdf->setTextColor($r, $g, $b);
         } else {
-            $renderer->tcpdf->SetTextColor(0, 0, 0);
+            $renderer->tcpdf->setTextColor(0, 0, 0);
         }
-        $temptext = FunctionsRtl::spanLtrRtl($temptext);
+        $temptext = RightToLeftSupport::spanLtrRtl($temptext);
         $temptext = str_replace(
             [
                 '<br><span dir="rtl">',
@@ -91,7 +89,7 @@ class ReportPdfText extends ReportBaseText
             ''
         ); //change height - line break etc. - the form is mirror on rtl pages
         // Reset the text color to black or it will be inherited
-        $renderer->tcpdf->SetTextColor(0, 0, 0);
+        $renderer->tcpdf->setTextColor(0, 0, 0);
     }
 
     /**
@@ -112,9 +110,9 @@ class ReportPdfText extends ReportBaseText
      *
      * @param PdfRenderer $renderer
      *
-     * @return float|array
+     * @return array{0:float,1:int,2:float}
      */
-    public function getWidth($renderer)
+    public function getWidth($renderer): array
     {
         // Setup the style name, a font must be selected to calculate the width
         if ($renderer->getCurrentStyle() !== $this->styleName) {
@@ -138,11 +136,11 @@ class ReportPdfText extends ReportBaseText
             if ($lw >= $wrapWidthRemaining || $lfct > 1) {
                 $newtext = '';
                 $lines   = explode("\n", $this->text);
-                // Go throught the text line by line
+                // Go through the text line by line
                 foreach ($lines as $line) {
                     // Line width in points + a little margin
                     $lw = $renderer->tcpdf->GetStringWidth($line);
-                    // If the line has to be wraped
+                    // If the line has to be wrapped
                     if ($lw > $wrapWidthRemaining) {
                         $words    = explode(' ', $line);
                         $addspace = count($words);

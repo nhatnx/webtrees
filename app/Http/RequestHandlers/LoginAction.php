@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,7 +21,6 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Exception;
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Carbon;
 use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\FlashMessages;
 use Fisharebest\Webtrees\I18N;
@@ -30,26 +29,24 @@ use Fisharebest\Webtrees\Services\UpgradeService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Session;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 use function route;
+use function time;
 
 /**
  * Perform a login.
  */
 class LoginAction implements RequestHandlerInterface
 {
-    /** @var UpgradeService */
-    private $upgrade_service;
+    private UpgradeService $upgrade_service;
 
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
     /**
-     * LoginController constructor.
-     *
      * @param UpgradeService $upgrade_service
      * @param UserService    $user_service
      */
@@ -68,13 +65,11 @@ class LoginAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-
-        $params = (array) $request->getParsedBody();
-
-        $username = $params['username'];
-        $password = $params['password'];
-        $url      = $params['url'];
+        $tree        = Validator::attributes($request)->treeOptional();
+        $default_url = route(HomePage::class);
+        $username    = Validator::parsedBody($request)->string('username');
+        $password    = Validator::parsedBody($request)->string('password');
+        $url         = Validator::parsedBody($request)->isLocalUrl()->string('url', $default_url);
 
         try {
             $this->doLogin($username, $password);
@@ -84,15 +79,13 @@ class LoginAction implements RequestHandlerInterface
             }
 
             // Redirect to the target URL
-            $url = $url ?: route(HomePage::class);
-
             return redirect($url);
         } catch (Exception $ex) {
             // Failed to log in.
             FlashMessages::addMessage($ex->getMessage(), 'danger');
 
             return redirect(route(LoginPage::class, [
-                'tree'     => $tree instanceof Tree ? $tree->name() : null,
+                'tree'     => $tree?->name(),
                 'username' => $username,
                 'url'      => $url,
             ]));
@@ -108,7 +101,7 @@ class LoginAction implements RequestHandlerInterface
      * @return void
      * @throws Exception
      */
-    private function doLogin(string $username, string $password): void
+    private function doLogin(string $username, #[\SensitiveParameter] string $password): void
     {
         if ($_COOKIE === []) {
             Log::addAuthenticationLog('Login failed (no session cookies): ' . $username);
@@ -139,7 +132,7 @@ class LoginAction implements RequestHandlerInterface
 
         Auth::login($user);
         Log::addAuthenticationLog('Login: ' . Auth::user()->userName() . '/' . Auth::user()->realName());
-        Auth::user()->setPreference(UserInterface::PREF_TIMESTAMP_ACTIVE, (string) Carbon::now()->unix());
+        Auth::user()->setPreference(UserInterface::PREF_TIMESTAMP_ACTIVE, (string) time());
 
         Session::put('language', Auth::user()->getPreference(UserInterface::PREF_LANGUAGE));
         Session::put('theme', Auth::user()->getPreference(UserInterface::PREF_THEME));

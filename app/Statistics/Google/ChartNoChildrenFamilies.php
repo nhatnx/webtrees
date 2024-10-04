@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,37 +19,31 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Statistics\Google;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Statistics\Service\CenturyService;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\JoinClause;
-use stdClass;
+
+use function view;
 
 /**
  * A chart showing the number of families with no children by century.
  */
 class ChartNoChildrenFamilies
 {
-    /**
-     * @var Tree
-     */
-    private $tree;
+    private Tree $tree;
+
+    private CenturyService $century_service;
 
     /**
-     * @var CenturyService
+     * @param CenturyService $century_service
+     * @param Tree           $tree
      */
-    private $century_service;
-
-    /**
-     * Constructor.
-     *
-     * @param Tree $tree
-     */
-    public function __construct(Tree $tree)
+    public function __construct(CenturyService $century_service, Tree $tree)
     {
+        $this->century_service = $century_service;
         $this->tree            = $tree;
-        $this->century_service = new CenturyService();
     }
 
     /**
@@ -58,12 +52,12 @@ class ChartNoChildrenFamilies
      * @param int $year1
      * @param int $year2
      *
-     * @return stdClass[]
+     * @return array<object>
      */
     private function queryRecords(int $year1, int $year2): array
     {
         $query = DB::table('families')
-            ->selectRaw('ROUND((d_year + 49) / 100) AS century')
+            ->selectRaw('ROUND((d_year + 49) / 100, 0) AS century')
             ->selectRaw('COUNT(*) AS total')
             ->join('dates', static function (JoinClause $join): void {
                 $join->on('d_file', '=', 'f_file')
@@ -115,7 +109,7 @@ class ChartNoChildrenFamilies
             ];
         }
 
-        if ($total) {
+        if ($total > 0) {
             $data[] = [
                 I18N::translateContext('unknown century', 'Unknown'),
                 $no_child_fam - $total,
@@ -133,7 +127,9 @@ class ChartNoChildrenFamilies
                 'title' => I18N::translate('Total families'),
             ],
             'hAxis' => [
-                'title' => I18N::translate('Century'),
+                'showTextEvery' => 1,
+                'slantedText'   => false,
+                'title'         => I18N::translate('Century'),
             ],
             'colors' => [
                 '#84beff'

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -25,10 +25,8 @@ use Fisharebest\Localization\Locale\LocaleInterface;
 /**
  * Class LanguageEnglishAustralia.
  */
-class LanguageEnglishAustralia extends AbstractModule implements ModuleLanguageInterface
+class LanguageEnglishAustralia extends LanguageEnglishGreatBritain
 {
-    use ModuleLanguageTrait;
-
     /**
      * Should this module be enabled when it is first installed?
      *
@@ -37,6 +35,16 @@ class LanguageEnglishAustralia extends AbstractModule implements ModuleLanguageI
     public function isEnabledByDefault(): bool
     {
         return false;
+    }
+
+    /**
+     * One of: 'DMY', 'MDY', 'YMD'.
+     *
+     * @return string
+     */
+    public function dateOrder(): string
+    {
+        return 'DMY';
     }
 
     /**

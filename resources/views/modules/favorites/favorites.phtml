@@ -1,21 +1,23 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Tree;
 use Illuminate\Support\Collection;
 
 /**
- * @var int                  $block_id
- * @var bool                 $can_edit
- * @var Collection<stdClass> $favorites
- * @var string               $module_name
- * @var Tree                 $tree
+ * @var int                    $block_id
+ * @var bool                   $can_edit
+ * @var Collection<int,object> $favorites
+ * @var string                 $module_name
+ * @var Tree                   $tree
  */
 ?>
 
 <?php foreach ($favorites as $favorite) : ?>
-    <div class="person_box action_header<?= $favorite->record instanceof Individual ? $favorite->record->sex() : '' ?>">
+    <div class="pt-2">
         <?php if ($favorite->favorite_type === 'URL') : ?>
             <a href="<?= e($favorite->url) ?>"><b><?= e($favorite->title) ?></b></a>
         <?php elseif ($favorite->record instanceof Individual) : ?>
@@ -31,16 +33,17 @@ use Illuminate\Support\Collection;
 
     <?php if ($can_edit) : ?>
         <form method="post" action="<?= e(route('module', ['module' => $module_name, 'action' => 'DeleteFavorite', 'tree' => $tree->name(), 'favorite_id' => $favorite->favorite_id])) ?>">
-            <?= csrf_field() ?>
-            <button type="submit" class="btn btn-link" data-confirm="<?= I18N::translate('Are you sure you want to remove this item from your list of favorites?') ?>" onclick="return confirm(this.dataset.confirm);">
+            <button type="submit" class="btn btn-link" data-wt-confirm="<?= I18N::translate('Are you sure you want to remove this item from your list of favorites?') ?>" onclick="return confirm(this.dataset.confirm);">
                 <?= I18N::translate('Remove') ?>
             </button>
+
+            <?= csrf_field() ?>
         </form>
     <?php endif ?>
 <?php endforeach ?>
 
 <?php if ($can_edit) : ?>
-    <button type="button" class="btn btn-link" data-toggle="modal" data-backdrop="static" data-target="#favorite-form-<?= e($block_id) ?>">
+    <button type="button" class="btn btn-link" data-bs-toggle="modal" data-bs-backdrop="static" data-bs-target="#favorite-form-<?= e($block_id) ?>">
         <?= I18N::translate('Add a favorite') ?>
     </button>
 
@@ -48,17 +51,15 @@ use Illuminate\Support\Collection;
         <div class="modal-dialog modal-xl" role="document">
             <div class="modal-content">
                 <form method="post" action="<?= e(route('module', ['module' => $module_name, 'action' => 'AddFavorite', 'tree' => $tree->name()])) ?>">
-                    <?= csrf_field() ?>
                     <div class="modal-header">
                         <h5 class="modal-title" id="favorite-form-<?= e($block_id) ?>-label">
                             <?= I18N::translate('Add a favorite') ?>
                         </h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="<?= I18N::translate('close') ?>">
                         </button>
                     </div>
                     <div class="modal-body">
-                        <div class="form-row">
+                        <div class="row mb-3">
                             <div class="col-sm-4 col-md-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="type" value="indi" id="fav-indi-<?= e($block_id) ?>" checked>
@@ -72,7 +73,7 @@ use Illuminate\Support\Collection;
                             </div>
                         </div>
 
-                        <div class="form-row">
+                        <div class="row mb-3">
                             <div class="col-sm-4 col-md-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="type" value="fam" id="fav-fam-<?= e($block_id) ?>">
@@ -86,7 +87,7 @@ use Illuminate\Support\Collection;
                             </div>
                         </div>
 
-                        <div class="form-row">
+                        <div class="row mb-3">
                             <div class="col-sm-4 col-md-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="type" value="obje" id="fav-obje-<?= e($block_id) ?>">
@@ -100,7 +101,7 @@ use Illuminate\Support\Collection;
                             </div>
                         </div>
 
-                        <div class="form-row">
+                        <div class="row mb-3">
                             <div class="col-sm-4 col-md-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="type" value="sour" id="fav-sour-<?= e($block_id) ?>">
@@ -114,7 +115,7 @@ use Illuminate\Support\Collection;
                             </div>
                         </div>
 
-                        <div class="form-row">
+                        <div class="row mb-3">
                             <div class="col-sm-4 col-md-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="type" value="repo" id="fav-repo-<?= e($block_id) ?>">
@@ -128,7 +129,7 @@ use Illuminate\Support\Collection;
                             </div>
                         </div>
 
-                        <div class="form-row">
+                        <div class="row mb-3">
                             <div class="col-sm-4 col-md-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="type" value="url" id="fav-url-<?= e($block_id) ?>">
@@ -139,13 +140,13 @@ use Illuminate\Support\Collection;
                             </div>
                             <div class="col-sm-8 col-md-9">
                                 <label>
-                                    <span class="sr-only">
+                                    <span class="visually-hidden">
                                         <?= I18N::translate('URL') ?>
                                     </span>
                                     <input type="text" class="form-control" name="url" id="url" value="" placeholder="<?= I18N::translate('URL') ?>">
                                 </label>
                                 <label>
-                                    <span class="sr-only">
+                                    <span class="visually-hidden">
                                         <?= I18N::translate('Title') ?>
                                     </span>
                                     <input type="text" class="form-control" name="title" id="title" value="" placeholder="<?= I18N::translate('Title') ?>">
@@ -153,7 +154,7 @@ use Illuminate\Support\Collection;
                             </div>
                         </div>
 
-                        <div class="form-row">
+                        <div class="row mb-3">
                             <div class="col-sm-4 col-md-3">
                                 <label for="fav-note-<?= e($block_id) ?>">
                                     <?= I18N::translate('Note') ?>
@@ -166,7 +167,7 @@ use Illuminate\Support\Collection;
                     </div>
 
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                             <?= view('icons/cancel') ?>
                             <?= I18N::translate('cancel') ?>
                         </button>
@@ -175,6 +176,8 @@ use Illuminate\Support\Collection;
                             <?= I18N::translate('save') ?>
                         </button>
                     </div>
+
+                    <?= csrf_field() ?>
                 </form>
             </div>
         </div>

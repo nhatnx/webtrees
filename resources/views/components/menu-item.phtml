@@ -10,9 +10,9 @@ use Fisharebest\Webtrees\Menu;
 
 ?>
 
-<?php if ($menu->getSubMenus() !== []) : ?>
+<?php if ($menu->getSubmenus() !== []) : ?>
     <li class="nav-item dropdown <?= $menu->getClass() ?>">
-        <a href="#" class="nav-link dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+        <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false">
             <?= $menu->getLabel() ?>
             <span class="caret"></span>
         </a>

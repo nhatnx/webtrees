@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,8 +19,11 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Services;
 
+use Fisharebest\Webtrees\Contracts\TimeFactoryInterface;
 use Fisharebest\Webtrees\MockGlobalFunctions;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Mock function.
@@ -38,40 +41,16 @@ function ini_get(...$args)
     return TestCase::$mock_functions->iniGet(...$args);
 }
 
-/**
- * Mock function.
- *
- * @param mixed ...$args
- *
- * @return mixed
- */
-function microtime(...$args)
-{
-    if (TestCase::$mock_functions === null) {
-        return \microtime(...$args);
-    }
-
-    return TestCase::$mock_functions->microtime(...$args);
-}
-
-/**
- * Test harness for the class TimeoutService
- */
+#[CoversClass(TimeoutService::class)]
 class TimeoutServiceTest extends TestCase
 {
-    /**
-     * @return void
-     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        self::$mock_functions = $this->getMockForAbstractClass(MockGlobalFunctions::class);
+        self::$mock_functions = $this->createMock(MockGlobalFunctions::class);
     }
 
-    /**
-     * @return void
-     */
     protected function tearDown(): void
     {
         parent::setUp();
@@ -79,12 +58,6 @@ class TimeoutServiceTest extends TestCase
         self::$mock_functions = null;
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Services\TimeoutService::__construct
-     * @covers \Fisharebest\Webtrees\Services\TimeoutService::isTimeNearlyUp
-     *
-     * @return void
-     */
     public function testNoTimeOut(): void
     {
         $now = 1500000000.0;
@@ -99,12 +72,6 @@ class TimeoutServiceTest extends TestCase
         self::assertFalse($timeout_service->isTimeNearlyUp());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Services\TimeoutService::__construct
-     * @covers \Fisharebest\Webtrees\Services\TimeoutService::isTimeNearlyUp
-     *
-     * @return void
-     */
     public function testTimeOutReached(): void
     {
         $now = 1500000000.0;
@@ -116,23 +83,16 @@ class TimeoutServiceTest extends TestCase
             ->with('max_execution_time')
             ->willReturn('30');
 
-        self::$mock_functions
-            ->method('microtime')
-            ->with(true)
-            ->willReturn($now + 60.0);
+        $time_factory = $this->createMock(TimeFactoryInterface::class);
+        $time_factory->method('now')->willReturn($now + 60.0);
+        Registry::timeFactory($time_factory);
 
         self::assertTrue($timeout_service->isTimeNearlyUp());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Services\TimeoutService::__construct
-     * @covers \Fisharebest\Webtrees\Services\TimeoutService::isTimeNearlyUp
-     *
-     * @return void
-     */
     public function testTimeOutNotReached(): void
     {
-        $now = \microtime(true);
+        $now = Registry::timeFactory()->now();
 
         $timeout_service = new TimeoutService($now);
 
@@ -141,50 +101,35 @@ class TimeoutServiceTest extends TestCase
             ->with('max_execution_time')
             ->willReturn('30');
 
-        self::$mock_functions
-            ->method('microtime')
-            ->with(true)
-            ->willReturn($now + 10.0);
+        $time_factory = $this->createMock(TimeFactoryInterface::class);
+        $time_factory->method('now')->willReturn($now + 10.0);
+        Registry::timeFactory($time_factory);
 
         self::assertFalse($timeout_service->isTimeNearlyUp());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Services\TimeoutService::__construct
-     * @covers \Fisharebest\Webtrees\Services\TimeoutService::isTimeLimitUp
-     *
-     * @return void
-     */
     public function testTimeLimitNotReached(): void
     {
-        $now = \microtime(true);
+        $now = Registry::timeFactory()->now();
 
         $timeout_service = new TimeoutService($now);
 
-        self::$mock_functions
-            ->method('microtime')
-            ->with(true)
-            ->willReturn($now + 1.4);
+        $time_factory = $this->createMock(TimeFactoryInterface::class);
+        $time_factory->method('now')->willReturn($now + 1.4);
+        Registry::timeFactory($time_factory);
 
         self::assertFalse($timeout_service->isTimeLimitUp());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Services\TimeoutService::__construct
-     * @covers \Fisharebest\Webtrees\Services\TimeoutService::isTimeLimitUp
-     *
-     * @return void
-     */
     public function testTimeLimitReached(): void
     {
-        $now = \microtime(true);
+        $now = Registry::timeFactory()->now();
 
         $timeout_service = new TimeoutService($now);
 
-        self::$mock_functions
-            ->method('microtime')
-            ->with(true)
-            ->willReturn($now + 1.6);
+        $time_factory = $this->createMock(TimeFactoryInterface::class);
+        $time_factory->method('now')->willReturn($now + 1.6);
+        Registry::timeFactory($time_factory);
 
         self::assertTrue($timeout_service->isTimeLimitUp());
     }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,23 +22,17 @@ namespace Fisharebest\Webtrees\Http\Middleware;
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Services\HousekeepingService;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 use Psr\Http\Server\RequestHandlerInterface;
 
 use function response;
 
-/**
- * Test the DoHousekeeping middleware.
- *
- * @covers \Fisharebest\Webtrees\Http\Middleware\DoHousekeeping
- */
+#[CoversClass(DoHousekeeping::class)]
 class DoHousekeepingTest extends TestCase
 {
-    /**
-     * @return void
-     */
     public function testMiddleware(): void
     {
-        $handler = self::createMock(RequestHandlerInterface::class);
+        $handler = $this->createMock(RequestHandlerInterface::class);
         $handler->method('handle')->willReturn(response());
 
         $request    = self::createRequest();

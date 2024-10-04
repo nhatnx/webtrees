@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -24,26 +24,19 @@ namespace Fisharebest\Webtrees;
  */
 class ColorGenerator
 {
-    /** @var int Current hue */
-    private $hue;
+    private int $hue;
 
-    /** @var int Initial hue */
-    private $basehue;
+    private int $basehue;
 
-    /** @var int Saturation */
-    private $saturation;
+    private int $saturation;
 
-    /** @var int Lightness */
-    private $lightness;
+    private int $lightness;
 
-    /** @var int Initial lightness */
-    private $baselightness;
+    private int $baselightness;
 
-    /** @var float Alpha transparancy */
-    private $alpha;
+    private float $alpha;
 
-    /** @var int Clockwise or anticlockwise color wheel */
-    private $range;
+    private int $range;
 
     /**
      * Create a color generator.

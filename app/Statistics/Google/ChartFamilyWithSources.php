@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,34 +20,24 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Statistics\Google;
 
 use Fisharebest\Webtrees\I18N;
-use Fisharebest\Webtrees\Module\ModuleThemeInterface;
 use Fisharebest\Webtrees\Statistics\Service\ColorService;
 
-use function app;
 use function count;
+use function view;
 
 /**
  * A chart showing families with sources.
  */
 class ChartFamilyWithSources
 {
-    /**
-     * @var ModuleThemeInterface
-     */
-    private $theme;
+    private ColorService $color_service;
 
     /**
-     * @var ColorService
+     * @param ColorService $color_service
      */
-    private $color_service;
-
-    /**
-     * Constructor.
-     */
-    public function __construct()
+    public function __construct(ColorService $color_service)
     {
-        $this->theme         = app(ModuleThemeInterface::class);
-        $this->color_service = new ColorService();
+        $this->color_service = $color_service;
     }
 
     /**
@@ -63,13 +53,11 @@ class ChartFamilyWithSources
     public function chartFamsWithSources(
         int $tot_fam,
         int $tot_fam_source,
-        string $color_from = null,
-        string $color_to = null
+        string|null $color_from = null,
+        string|null $color_to = null
     ): string {
-        $chart_color1 = (string) $this->theme->parameter('distribution-chart-no-values');
-        $chart_color2 = (string) $this->theme->parameter('distribution-chart-high-values');
-        $color_from   = $color_from ?? $chart_color1;
-        $color_to     = $color_to   ?? $chart_color2;
+        $color_from ??= 'ffffff';
+        $color_to ??= '84beff';
 
         $data = [
             [
@@ -78,7 +66,7 @@ class ChartFamilyWithSources
             ],
         ];
 
-        if ($tot_fam || $tot_fam_source) {
+        if ($tot_fam > 0 || $tot_fam_source > 0) {
             $data[] = [
                 I18N::translate('Without sources'),
                 $tot_fam - $tot_fam_source

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -37,7 +37,7 @@ class ReportHtmlText extends ReportBaseText
      *
      * @return void
      */
-    public function render($renderer, bool $attrib = true)
+    public function render($renderer, bool $attrib = true): void
     {
         // Set up the style
         if ($renderer->getCurrentStyle() !== $this->styleName) {
@@ -103,7 +103,7 @@ class ReportHtmlText extends ReportBaseText
         }
         $style = $renderer->getStyle($this->styleName);
 
-        return ($style['size'] * $ct) * $renderer->cellHeightRatio;
+        return $style['size'] * $ct * $renderer->cellHeightRatio;
     }
 
     /**
@@ -111,9 +111,9 @@ class ReportHtmlText extends ReportBaseText
      *
      * @param HtmlRenderer $renderer
      *
-     * @return float|array
+     * @return array{0:float,1:int,2:float}
      */
-    public function getWidth($renderer)
+    public function getWidth($renderer): array
     {
         // Setup the style name, a font must be selected to calculate the width
         if ($renderer->getCurrentStyle() !== $this->styleName) {
@@ -137,11 +137,11 @@ class ReportHtmlText extends ReportBaseText
             if ($lw >= $wrapWidthRemaining || $lfct > 1) {
                 $newtext            = '';
                 $lines              = explode("\n", $this->text);
-                // Go throught the text line by line
+                // Go through the text line by line
                 foreach ($lines as $line) {
                     // Line width in points + a little margin
                     $lw = $renderer->getStringWidth($line);
-                    // If the line has to be wraped
+                    // If the line has to be wrapped
                     if ($lw > $wrapWidthRemaining) {
                         $words    = explode(' ', $line);
                         $addspace = count($words);

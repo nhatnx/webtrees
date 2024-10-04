@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,19 +19,24 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
-use Fisharebest\Webtrees\Carbon;
+use DateTimeImmutable;
+use DateTimeZone;
+use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\User;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Support\Collection;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
+use function date;
 use function max;
 use function min;
 
@@ -42,11 +47,9 @@ class SiteLogsPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
     /**
      * @param TreeService $tree_service
@@ -67,37 +70,35 @@ class SiteLogsPage implements RequestHandlerInterface
     {
         $this->layout = 'layouts/administration';
 
-        $earliest = DB::table('log')->min('log_time');
-        $latest   = DB::table('log')->max('log_time');
+        // First and last change in the database
+        $earliest = DB::table('log')->min('log_time') ?? date('Y-m-d H:i:s');
+        $latest   = DB::table('log')->max('log_time') ?? date('Y-m-d H:i:s');
 
-        $earliest = Carbon::make($earliest) ?? Carbon::now();
-        $latest   = Carbon::make($latest) ?? Carbon::now();
+        $earliest = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $earliest, new DateTimeZone('UTC'))
+            ->setTimezone(new DateTimeZone(Auth::user()->getPreference(UserInterface::PREF_TIME_ZONE, 'UTC')))
+            ->format('Y-m-d');
 
-        $earliest = $earliest->toDateString();
-        $latest   = $latest->toDateString();
+        $latest = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $latest, new DateTimeZone('UTC'))
+            ->setTimezone(new DateTimeZone(Auth::user()->getPreference(UserInterface::PREF_TIME_ZONE, 'UTC')))
+            ->format('Y-m-d');
 
-        $params   = $request->getQueryParams();
-        $action   = $params['action'] ?? '';
-        $from     = $params['from'] ?? $earliest;
-        $to       = $params['to'] ?? $latest;
-        $type     = $params['type'] ?? '';
-        $text     = $params['text'] ?? '';
-        $ip       = $params['ip'] ?? '';
-        $username = $params['username'] ?? '';
-        $tree     = $params['tree'] ?? '';
+        $action   = Validator::queryParams($request)->string('action', '');
+        $from     = Validator::queryParams($request)->string('from', $earliest);
+        $to       = Validator::queryParams($request)->string('to', $latest);
+        $type     = Validator::queryParams($request)->string('type', '');
+        $text     = Validator::queryParams($request)->string('text', '');
+        $ip       = Validator::queryParams($request)->string('ip', '');
+        $username = Validator::queryParams($request)->string('username', '');
+        $tree     = Validator::queryParams($request)->string('tree', '');
 
         $from = max($from, $earliest);
         $to   = min(max($from, $to), $latest);
 
-        $user_options = $this->user_service->all()->mapWithKeys(static function (User $user): array {
-            return [$user->userName() => $user->userName()];
-        });
-        $user_options = (new Collection(['' => '']))->merge($user_options);
+        $user_options = $this->user_service->all()->mapWithKeys(static fn (User $user): array => [$user->userName() => $user->userName()]);
+        $user_options->prepend('', '');
 
-        $tree_options = $this->tree_service->all()->mapWithKeys(static function (Tree $tree): array {
-            return [$tree->name() => $tree->title()];
-        });
-        $tree_options = (new Collection(['' => '']))->merge($tree_options);
+        $tree_options = $this->tree_service->all()->mapWithKeys(static fn (Tree $tree): array => [$tree->name() => $tree->title()]);
+        $tree_options->prepend('', '');
 
         $title = I18N::translate('Website logs');
 

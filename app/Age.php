@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -26,29 +26,21 @@ use function view;
  */
 class Age
 {
-    /** @var int */
-    private $years;
+    private int $years;
 
-    /** @var int */
-    private $months;
+    private int $months;
 
-    /** @var int */
-    private $days;
+    private int $days;
 
-    /** @var int */
-    private $total_days;
+    private int $total_days;
 
-    /** @var bool */
-    private $is_exact;
+    private bool $is_exact;
 
-    /** @var bool */
-    private $is_valid;
+    private bool $is_valid;
 
     /**
-     * Age constructor.
-     *
-     * @param Date $x - The first date
-     * @param Date $y - The second date
+     * @param Date $x The first date
+     * @param Date $y The second date
      */
     public function __construct(Date $x, Date $y)
     {
@@ -154,7 +146,6 @@ class Age
         if ($this->years < 0) {
             return view('icons/warning');
         }
-
 
         return I18N::number($this->years);
     }

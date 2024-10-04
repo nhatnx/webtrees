@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -31,7 +31,6 @@ use function gzdeflate;
 use function gzencode;
 use function in_array;
 use function str_contains;
-use function strlen;
 use function strstr;
 use function strtolower;
 use function strtr;
@@ -51,12 +50,9 @@ class CompressResponse implements MiddlewareInterface
         'image/svg+xml',
     ];
 
-    /** @var StreamFactoryInterface */
-    protected $stream_factory;
+    protected StreamFactoryInterface $stream_factory;
 
     /**
-     * CompressResponse constructor.
-     *
      * @param StreamFactoryInterface $stream_factory
      */
     public function __construct(StreamFactoryInterface $stream_factory)
@@ -98,19 +94,13 @@ class CompressResponse implements MiddlewareInterface
             return $response
                 ->withBody($stream)
                 ->withHeader('content-encoding', $method)
-                ->withHeader('content-length', (string) strlen($content))
                 ->withHeader('vary', 'accept-encoding');
         }
 
         return $response;
     }
 
-    /**
-     * @param RequestInterface $request
-     *
-     * @return string|null
-     */
-    protected function compressionMethod(RequestInterface $request): ?string
+    protected function compressionMethod(RequestInterface $request): string|null
     {
         $accept_encoding = strtolower($request->getHeaderLine('accept-encoding'));
         $zlib_available  = extension_loaded('zlib');

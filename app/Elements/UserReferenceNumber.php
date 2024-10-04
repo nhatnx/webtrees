@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -27,4 +27,6 @@ namespace Fisharebest\Webtrees\Elements;
  */
 class UserReferenceNumber extends AbstractElement
 {
+    // Which child elements can appear under this element.
+    protected const SUBTAGS = ['TYPE' => '0:1'];
 }

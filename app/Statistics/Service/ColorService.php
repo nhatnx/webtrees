@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -41,7 +41,7 @@ class ColorService
      */
     public function interpolateRgb(string $startColor, string $endColor, int $steps): array
     {
-        if (!$steps) {
+        if ($steps === 0) {
             return [];
         }
 
@@ -54,9 +54,9 @@ class ColorService
 
         for ($x = 1; $x < $steps; ++$x) {
             $colors[] = $this->rgbToHex(
-                (int) round($s[0] + ($factorR * $x)),
-                (int) round($s[1] + ($factorG * $x)),
-                (int) round($s[2] + ($factorB * $x))
+                (int) round($s[0] + $factorR * $x),
+                (int) round($s[1] + $factorG * $x),
+                (int) round($s[2] + $factorB * $x)
             );
         }
 
@@ -88,8 +88,6 @@ class ColorService
      */
     private function hexToRgb(string $hex): array
     {
-        return array_map(static function (string $hex): int {
-            return (int) hexdec($hex);
-        }, str_split(ltrim($hex, '#'), 2));
+        return array_map(static fn (string $hex): int => (int) hexdec($hex), str_split(ltrim($hex, '#'), 2));
     }
 }

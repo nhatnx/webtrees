@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,7 +19,7 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
-use function strtolower;
+use function strtoupper;
 
 /**
  * PHONETIC_TYPE := {Size=5:30}
@@ -43,13 +43,20 @@ class PhoneticType extends AbstractElement
      */
     public function canonical(string $value): string
     {
-        $value = parent::canonical($value);
-        $lower = strtolower($value);
+        return strtoupper(parent::canonical($value));
+    }
 
-        if ($lower === 'hangul' || $lower === 'kana') {
-            return $lower;
-        }
-
-        return $value;
+    /**
+     * A list of controlled values for this element
+     *
+     * @return array<int|string,string>
+     */
+    public function values(): array
+    {
+        return [
+            ''       => '',
+            'HANGUL' => 'hangul',
+            'KANA'   => 'kana',
+        ];
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,8 +20,10 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Statistics;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Str;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -61,19 +63,18 @@ class TopGivenNamesModule extends AbstractModule implements ModuleBlockInterface
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
     public function getBlock(Tree $tree, int $block_id, string $context, array $config = []): string
     {
-        $statistics = app(Statistics::class);
-
-        $num       = $this->getBlockSetting($block_id, 'num', self::DEFAULT_NUMBER);
-        $infoStyle = $this->getBlockSetting($block_id, 'infoStyle', self::DEFAULT_STYLE);
+        $statistics = Registry::container()->get(Statistics::class);
+        $num        = $this->getBlockSetting($block_id, 'num', self::DEFAULT_NUMBER);
+        $infoStyle  = $this->getBlockSetting($block_id, 'infoStyle', self::DEFAULT_STYLE);
 
         extract($config, EXTR_OVERWRITE);
 
@@ -158,10 +159,11 @@ class TopGivenNamesModule extends AbstractModule implements ModuleBlockInterface
      */
     public function saveBlockConfiguration(ServerRequestInterface $request, int $block_id): void
     {
-        $params = (array) $request->getParsedBody();
+        $num        = Validator::parsedBody($request)->integer('num');
+        $info_style = Validator::parsedBody($request)->string('infoStyle');
 
-        $this->setBlockSetting($block_id, 'num', $params['num']);
-        $this->setBlockSetting($block_id, 'infoStyle', $params['infoStyle']);
+        $this->setBlockSetting($block_id, 'num', (string) $num);
+        $this->setBlockSetting($block_id, 'infoStyle', $info_style);
     }
 
     /**
@@ -174,7 +176,7 @@ class TopGivenNamesModule extends AbstractModule implements ModuleBlockInterface
      */
     public function editBlockConfiguration(Tree $tree, int $block_id): string
     {
-        $num        = $this->getBlockSetting($block_id, 'num', self::DEFAULT_NUMBER);
+        $num        = (int) $this->getBlockSetting($block_id, 'num', self::DEFAULT_NUMBER);
         $info_style = $this->getBlockSetting($block_id, 'infoStyle', self::DEFAULT_STYLE);
 
         $info_styles = [

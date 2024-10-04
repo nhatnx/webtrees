@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,69 +19,34 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
-use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\I18N;
-use Fisharebest\Webtrees\Tree;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
 
-use function assert;
-
-/**
- * Class FamilyListModule
- */
 class FamilyListModule extends IndividualListModule
 {
-    protected const ROUTE_URL = '/tree/{tree}/family-list';
-
-    /**
-     * How should this module be identified in the control panel, etc.?
-     *
-     * @return string
-     */
     public function title(): string
     {
         /* I18N: Name of a module/list */
         return I18N::translate('Families');
     }
 
-    /**
-     * A sentence describing what this module does.
-     *
-     * @return string
-     */
     public function description(): string
     {
         /* I18N: Description of the “Families” module */
         return I18N::translate('A list of families.');
     }
 
-    /**
-     * CSS class for the URL.
-     *
-     * @return string
-     */
     public function listMenuClass(): string
     {
         return 'menu-list-fam';
     }
 
-    /**
-     * @param ServerRequestInterface $request
-     *
-     * @return ResponseInterface
-     */
-    public function handle(ServerRequestInterface $request): ResponseInterface
+    protected function showFamilies(): bool
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        return true;
+    }
 
-        $user = $request->getAttribute('user');
-        assert($user instanceof UserInterface);
-
-        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
-
-        return $this->createResponse($tree, $user, $request->getQueryParams(), true);
+    protected function routeUrl(): string
+    {
+        return '/tree/{tree}/family-list';
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,12 +19,15 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Elements\AddressLine;
+use Fisharebest\Webtrees\Elements\AddressWebPage;
+use Fisharebest\Webtrees\Elements\NameOfRepository;
+use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function response;
 use function view;
 
@@ -40,11 +43,17 @@ class CreateRepositoryModal implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree = Validator::attributes($request)->tree();
+
+        $elements = [
+            'name'    => new NameOfRepository(I18N::translateContext('Repository', 'Name')),
+            'address' => new AddressLine(I18N::translate('Address')),
+            'url'     => new AddressWebPage(I18N::translate('URL')),
+        ];
 
         return response(view('modals/create-repository', [
-            'tree' => $tree,
+            'elements' => $elements,
+            'tree'     => $tree,
         ]));
     }
 }

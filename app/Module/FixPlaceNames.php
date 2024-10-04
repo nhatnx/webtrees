@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -38,12 +38,9 @@ class FixPlaceNames extends AbstractModule implements ModuleDataFixInterface
 {
     use ModuleDataFixTrait;
 
-    /** @var DataFixService */
-    private $data_fix_service;
+    private DataFixService $data_fix_service;
 
     /**
-     * FixMissingDeaths constructor.
-     *
      * @param DataFixService $data_fix_service
      */
     public function __construct(DataFixService $data_fix_service)
@@ -92,15 +89,15 @@ class FixPlaceNames extends AbstractModule implements ModuleDataFixInterface
      * @param Tree                 $tree
      * @param array<string,string> $params
      *
-     * @return Collection<string>|null
+     * @return Collection<int,string>|null
      */
-    protected function familiesToFix(Tree $tree, array $params): ?Collection
+    protected function familiesToFix(Tree $tree, array $params): Collection|null
     {
-        if ($params['search'] === '' || $params['replace'] === '') {
+        if ($params['search-for'] === '' || $params['replace-with'] === '') {
             return null;
         }
 
-        $search = '%' . addcslashes($params['search'], '\\%_') . '%';
+        $search = '%' . addcslashes($params['search-for'], '\\%_') . '%';
 
         return  $this->familiesToFixQuery($tree, $params)
             ->where('f_gedcom', 'LIKE', $search)
@@ -114,15 +111,15 @@ class FixPlaceNames extends AbstractModule implements ModuleDataFixInterface
      * @param Tree                 $tree
      * @param array<string,string> $params
      *
-     * @return Collection<string>|null
+     * @return Collection<int,string>|null
      */
-    protected function individualsToFix(Tree $tree, array $params): ?Collection
+    protected function individualsToFix(Tree $tree, array $params): Collection|null
     {
-        if ($params['search'] === '' || $params['replace'] === '') {
+        if ($params['search-for'] === '' || $params['replace-with'] === '') {
             return null;
         }
 
-        $search = '%' . addcslashes($params['search'], '\\%_') . '%';
+        $search = '%' . addcslashes($params['search-for'], '\\%_') . '%';
 
         return  $this->individualsToFixQuery($tree, $params)
             ->where('i_file', '=', $tree->id())
@@ -140,7 +137,7 @@ class FixPlaceNames extends AbstractModule implements ModuleDataFixInterface
      */
     public function doesRecordNeedUpdate(GedcomRecord $record, array $params): bool
     {
-        $search = preg_quote($params['search'], '/');
+        $search = preg_quote($params['search-for'], '/');
         $regex  = '/\n2 PLAC (?:.*, )?' . $search . '(\n|$)/';
 
         return preg_match($regex, $record->gedcom()) === 1;
@@ -183,9 +180,9 @@ class FixPlaceNames extends AbstractModule implements ModuleDataFixInterface
      */
     private function updateGedcom(GedcomRecord $record, array $params): string
     {
-        $search  = preg_quote($params['search'], '/');
+        $search  = preg_quote($params['search-for'], '/');
         $regex   = '/(\n2 PLAC (?:.*, )?)' . $search . '(\n|$)/';
-        $replace = '$1' . addcslashes($params['replace'], '$\\') . '$2';
+        $replace = '$1' . addcslashes($params['replace-with'], '$\\') . '$2';
 
         return preg_replace($regex, $replace, $record->gedcom());
     }

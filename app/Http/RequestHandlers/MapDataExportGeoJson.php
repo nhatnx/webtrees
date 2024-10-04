@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,10 +19,10 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\PlaceLocation;
 use Fisharebest\Webtrees\Services\MapDataService;
-use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -40,8 +40,7 @@ use function response;
  */
 class MapDataExportGeoJson implements RequestHandlerInterface
 {
-    /** @var MapDataService */
-    private $map_data_service;
+    private MapDataService $map_data_service;
 
     /**
      * Dependency injection.
@@ -130,7 +129,7 @@ class MapDataExportGeoJson implements RequestHandlerInterface
         $filename = addcslashes($filename, '"');
 
         return response($geojson)
-            ->withHeader('Content-Type', 'application/vnd.geo+json')
-            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+            ->withHeader('content-type', 'application/vnd.geo+json')
+            ->withHeader('content-disposition', 'attachment; filename="' . $filename . '"');
     }
 }

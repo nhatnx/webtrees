@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,12 +22,11 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function in_array;
 use function redirect;
 
@@ -43,20 +42,14 @@ class ChangeFamilyMembersAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $params = (array) $request->getParsedBody();
-
-        $xref   = $params['xref'];
+        $tree   = Validator::attributes($request)->tree();
+        $xref   = Validator::parsedBody($request)->isXref()->string('xref');
         $family = Registry::familyFactory()->make($xref, $tree);
         $family = Auth::checkFamilyAccess($family, true);
 
-        $params = (array) $request->getParsedBody();
-
-        $HUSB = $params['HUSB'] ?? '';
-        $WIFE = $params['WIFE'] ?? '';
-        $CHIL = $params['CHIL'] ?? [];
+        $HUSB = Validator::parsedBody($request)->isXref()->string('HUSB', '');
+        $WIFE = Validator::parsedBody($request)->isXref()->string('WIFE', '');
+        $CHIL = Validator::parsedBody($request)->array('CHIL');
 
         // Current family members
         $old_father   = $family->husband();

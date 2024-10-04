@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,13 +19,15 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Services;
 
-use Fisharebest\Webtrees\Carbon;
-use Illuminate\Database\Capsule\Manager as DB;
-use League\Flysystem\Filesystem;
+use Fisharebest\Webtrees\DB;
 use League\Flysystem\FilesystemException;
 use League\Flysystem\FilesystemOperator;
+use League\Flysystem\FilesystemReader;
 use League\Flysystem\UnableToDeleteDirectory;
 use League\Flysystem\UnableToDeleteFile;
+
+use function date;
+use function time;
 
 /**
  * Clean up old data, files and folders.
@@ -60,61 +62,16 @@ class HousekeepingService
         'serviceClientTest.php',
         'siteconfig.php',
         'SOAP',
-        'themes/clouds/mozilla.css',
-        'themes/clouds/netscape.css',
-        'themes/colors/mozilla.css',
-        'themes/colors/netscape.css',
-        'themes/fab/mozilla.css',
-        'themes/fab/netscape.css',
-        'themes/minimal/mozilla.css',
-        'themes/minimal/netscape.css',
-        'themes/webtrees/mozilla.css',
-        'themes/webtrees/netscape.css',
-        'themes/webtrees/style_rtl.css',
-        'themes/xenea/mozilla.css',
-        'themes/xenea/netscape.css',
         'uploadmedia.php',
         'useradmin.php',
         'webservice',
         'wtinfo.php',
         // Removed in 1.1.2
         'treenav.php',
-        // Removed in 1.2.0
-        'themes/clouds/jquery',
-        'themes/colors/jquery',
-        'themes/fab/jquery',
-        'themes/minimal/jquery',
-        'themes/webtrees/jquery',
-        'themes/xenea/jquery',
-        // Removed in 1.2.2
-        'themes/clouds/chrome.css',
-        'themes/clouds/opera.css',
-        'themes/clouds/print.css',
-        'themes/clouds/style_rtl.css',
-        'themes/colors/chrome.css',
-        'themes/colors/opera.css',
-        'themes/colors/print.css',
-        'themes/colors/style_rtl.css',
-        'themes/fab/chrome.css',
-        'themes/fab/opera.css',
-        'themes/minimal/chrome.css',
-        'themes/minimal/opera.css',
-        'themes/minimal/print.css',
-        'themes/minimal/style_rtl.css',
-        'themes/xenea/chrome.css',
-        'themes/xenea/opera.css',
-        'themes/xenea/print.css',
-        'themes/xenea/style_rtl.css',
         // Removed in 1.2.3
         'modules_v2',
         // Removed in 1.2.4
         'search_engine.php',
-        'themes/clouds/modules.css',
-        'themes/colors/modules.css',
-        'themes/fab/modules.css',
-        'themes/minimal/modules.css',
-        'themes/webtrees/modules.css',
-        'themes/xenea/modules.css',
         // Removed in 1.2.5
         'sidebar.php',
         // Removed in 1.2.6
@@ -133,138 +90,22 @@ class HousekeepingService
         'imageview.php',
         'media/MediaInfo.txt',
         'media/thumbs/ThumbsInfo.txt',
-        'themes/webtrees/chrome.css',
-        // Removed in 1.4.2
-        'themes/clouds/jquery-ui-1.10.0',
-        'themes/colors/jquery-ui-1.10.0',
-        'themes/fab/jquery-ui-1.10.0',
-        'themes/minimal/jquery-ui-1.10.0',
-        'themes/webtrees/jquery-ui-1.10.0',
-        'themes/xenea/jquery-ui-1.10.0',
-        // Removed in 1.5.0
-        'themes/clouds/favicon.png',
-        'themes/clouds/images',
-        'themes/clouds/msie.css',
-        'themes/clouds/style.css',
-        'themes/colors/css',
-        'themes/colors/favicon.png',
-        'themes/colors/images',
-        'themes/colors/ipad.css',
-        'themes/colors/msie.css',
-        'themes/fab/favicon.png',
-        'themes/fab/images',
-        'themes/fab/msie.css',
-        'themes/fab/style.css',
-        'themes/minimal/favicon.png',
-        'themes/minimal/images',
-        'themes/minimal/msie.css',
-        'themes/minimal/style.css',
-        'themes/webtrees/favicon.png',
-        'themes/webtrees/images',
-        'themes/webtrees/msie.css',
-        'themes/webtrees/style.css',
-        'themes/xenea/favicon.png',
-        'themes/xenea/images',
-        'themes/xenea/msie.css',
-        'themes/xenea/style.css',
-        // Removed in 1.5.1
-        'themes/clouds/css-1.5.0',
-        'themes/colors/css-1.5.0',
-        'themes/fab/css-1.5.0',
-        'themes/minimal/css-1.5.0',
-        'themes/webtrees/css-1.5.0',
-        'themes/xenea/css-1.5.0',
-        // Removed in 1.5.2
-        'themes/clouds/css-1.5.1',
-        'themes/colors/css-1.5.1',
-        'themes/fab/css-1.5.1',
-        'themes/minimal/css-1.5.1',
-        'themes/webtrees/css-1.5.1',
-        'themes/xenea/css-1.5.1',
         // Removed in 1.5.3
         'readme.html',
-        'themes/clouds/css-1.5.2',
-        'themes/colors/css-1.5.2',
-        'themes/fab/css-1.5.2',
-        'themes/minimal/css-1.5.2',
-        'themes/webtrees/css-1.5.2',
-        'themes/xenea/css-1.5.2',
         // Removed in 1.6.0
         'downloadbackup.php',
         'site-php-version.php',
-        'themes/clouds/css-1.5.3',
-        'themes/colors/css-1.5.3',
-        'themes/fab/css-1.5.3',
-        'themes/minimal/css-1.5.3',
-        'themes/webtrees/css-1.5.3',
-        'themes/xenea/css-1.5.3',
-        // Removed in 1.6.2
-        'themes/clouds/jquery-ui-1.10.3',
-        'themes/colors/css-1.6.0',
-        'themes/colors/jquery-ui-1.10.3',
-        'themes/fab/css-1.6.0',
-        'themes/fab/jquery-ui-1.10.3',
-        'themes/minimal/css-1.6.0',
-        'themes/minimal/jquery-ui-1.10.3',
-        'themes/webtrees/css-1.6.0',
-        'themes/webtrees/jquery-ui-1.10.3',
-        'themes/xenea/css-1.6.0',
-        'themes/xenea/jquery-ui-1.10.3',
         // Removed in 1.7.0
         'admin_site_other.php',
         'js',
         'library',
         'save.php',
-        'themes/clouds/css-1.6.2',
-        'themes/clouds/templates',
-        'themes/clouds/header.php',
-        'themes/clouds/footer.php',
-        'themes/colors/css-1.6.2',
-        'themes/colors/templates',
-        'themes/colors/header.php',
-        'themes/colors/footer.php',
-        'themes/fab/css-1.6.2',
-        'themes/fab/templates',
-        'themes/fab/header.php',
-        'themes/fab/footer.php',
-        'themes/minimal/css-1.6.2',
-        'themes/minimal/templates',
-        'themes/minimal/header.php',
-        'themes/minimal/footer.php',
-        'themes/webtrees/css-1.6.2',
-        'themes/webtrees/templates',
-        'themes/webtrees/header.php',
-        'themes/webtrees/footer.php',
-        'themes/xenea/css-1.6.2',
-        'themes/xenea/templates',
-        'themes/xenea/header.php',
-        'themes/xenea/footer.php',
         // Removed in 1.7.2
         'assets/js-1.7.0',
         // Removed in 1.7.4
         'assets/js-1.7.2',
-        'themes/clouds/css-1.7.0',
-        'themes/colors/css-1.7.0',
-        'themes/fab/css-1.7.0',
-        'themes/minimal/css-1.7.0',
-        'themes/webtrees/css-1.7.0',
-        'themes/xenea/css-1.7.0',
-        // Removed in 1.7.5
-        'themes/clouds/css-1.7.4',
-        'themes/colors/css-1.7.4',
-        'themes/fab/css-1.7.4',
-        'themes/minimal/css-1.7.4',
-        'themes/webtrees/css-1.7.4',
-        'themes/xenea/css-1.7.4',
         // Removed in 1.7.7
         'assets/js-1.7.4',
-        // Removed in 1.7.8
-        'themes/clouds/css-1.7.5',
-        'themes/colors/css-1.7.5',
-        'themes/fab/css-1.7.5',
-        'themes/minimal/css-1.7.5',
-        'themes/webtrees/css-1.7.5',
-        'themes/xenea/css-1.7.5',
         // Removed in 2.0.0
         'action.php',
         'addmedia.php',
@@ -359,21 +200,30 @@ class HousekeepingService
         'sourcelist.php',
         'statistics.php',
         'statisticsplot.php',
-        'themes/_administration',
-        'themes/_custom',
-        'themes/clouds/css-1.7.8',
-        'themes/clouds/jquery-ui-1.11.2',
-        'themes/colors/css-1.7.8',
-        'themes/colors/jquery-ui-1.11.2',
-        'themes/fab/css-1.7.8',
-        'themes/fab/jquery-ui-1.11.2',
-        'themes/minimal/css-1.7.8',
-        'themes/minimal/jquery-ui-1.11.2',
-        'themes/webtrees/css-1.7.8',
-        'themes/webtrees/jquery-ui-1.11.2',
-        'themes/xenea/css-1.7.8',
-        'themes/xenea/jquery-ui-1.11.2',
+        'themes',
         'timeline.php',
+        // Removed in 2.0.3
+        'public/css/vendor.css',
+        // Removed in 2.0.4
+        'public/favicon-120.png',
+        'public/favicon-144.png',
+        'public/favicon-57.png',
+        'public/favicon-76.png',
+        'public/favicon-96.png',
+        // Removed in 2.0.7
+        'public/ckeditor-4.11.2-custom',
+        // Removed in 2.0.12
+        'public/ckeditor-4.14.1-custom',
+        // Removed in 2.1.0
+        'modules_v4/example-footer.disable',
+        'modules_v4/example-middleware.disable',
+        'modules_v4/example-report.disable',
+        'modules_v4/example-report.disable',
+        'modules_v4/example-server-configuration.disable',
+        'modules_v4/example-theme.disable',
+        'modules_v4/example.disable',
+        'public/favicon-196.png',
+        'public/site.webmanifest',
     ];
 
     /**
@@ -408,9 +258,9 @@ class HousekeepingService
      */
     public function deleteOldFiles(FilesystemOperator $filesystem, string $path, int $max_age): void
     {
-        $threshold = Carbon::now()->unix() - $max_age;
+        $threshold = time() - $max_age;
 
-        $list = $filesystem->listContents($path, Filesystem::LIST_DEEP);
+        $list = $filesystem->listContents($path, FilesystemReader::LIST_DEEP);
 
         foreach ($list as $metadata) {
             // The timestamp can be absent or false.
@@ -429,11 +279,9 @@ class HousekeepingService
      */
     public function deleteOldLogs(int $max_age_in_seconds): void
     {
-        $timestamp = Carbon::now()->subSeconds($max_age_in_seconds);
-
         DB::table('log')
             ->whereIn('log_type', ['error', 'media'])
-            ->where('log_time', '<', $timestamp)
+            ->where('log_time', '<', date('Y-m-d H:i:s', time() - $max_age_in_seconds))
             ->delete();
     }
 
@@ -444,10 +292,8 @@ class HousekeepingService
      */
     public function deleteOldSessions(int $max_age_in_seconds): void
     {
-        $timestamp = Carbon::now()->subSeconds($max_age_in_seconds);
-
         DB::table('session')
-            ->where('session_time', '<', $timestamp)
+            ->where('session_time', '<', date('Y-m-d H:i:s', time() - $max_age_in_seconds))
             ->delete();
     }
 
@@ -463,10 +309,10 @@ class HousekeepingService
     {
         try {
             $filesystem->delete($path);
-        } catch (FilesystemException | UnableToDeleteFile $ex) {
+        } catch (FilesystemException | UnableToDeleteFile) {
             try {
                 $filesystem->deleteDirectory($path);
-            } catch (FilesystemException | UnableToDeleteDirectory $ex) {
+            } catch (FilesystemException | UnableToDeleteDirectory) {
                 return false;
             }
         }

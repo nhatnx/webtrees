@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,7 +21,6 @@ namespace Fisharebest\Webtrees;
 
 use Closure;
 use Fisharebest\Webtrees\Http\RequestHandlers\FamilyPage;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Collection;
 
 /**
@@ -33,11 +32,11 @@ class Family extends GedcomRecord
 
     protected const ROUTE_NAME = FamilyPage::class;
 
-    /** @var Individual|null The husband (or first spouse for same-sex couples) */
-    private $husb;
+    // The husband (or first spouse for same-sex couples)
+    private Individual|null $husb = null;
 
-    /** @var Individual|null The wife (or second spouse for same-sex couples) */
-    private $wife;
+    // The wife (or second spouse for same-sex couples)
+    private Individual|null $wife = null;
 
     /**
      * Create a GedcomRecord object from raw GEDCOM data.
@@ -48,7 +47,7 @@ class Family extends GedcomRecord
      *                             empty string for records with pending deletions
      * @param Tree        $tree
      */
-    public function __construct(string $xref, string $gedcom, ?string $pending, Tree $tree)
+    public function __construct(string $xref, string $gedcom, string|null $pending, Tree $tree)
     {
         parent::__construct($xref, $gedcom, $pending, $tree);
 
@@ -66,39 +65,11 @@ class Family extends GedcomRecord
     /**
      * A closure which will compare families by marriage date.
      *
-     * @return Closure
+     * @return Closure(Family,Family):int
      */
     public static function marriageDateComparator(): Closure
     {
-        return static function (Family $x, Family $y): int {
-            return Date::compare($x->getMarriageDate(), $y->getMarriageDate());
-        };
-    }
-
-    /**
-     * Generate a private version of this record
-     *
-     * @param int $access_level
-     *
-     * @return string
-     */
-    protected function createPrivateGedcomRecord(int $access_level): string
-    {
-        if ($this->tree->getPreference('SHOW_PRIVATE_RELATIONSHIPS') === '1') {
-            $access_level = Auth::PRIV_HIDE;
-        }
-
-        $rec = '0 @' . $this->xref . '@ FAM';
-        // Just show the 1 CHIL/HUSB/WIFE tag, not any subtags, which may contain private data
-        preg_match_all('/\n1 (?:CHIL|HUSB|WIFE) @(' . Gedcom::REGEX_XREF . ')@/', $this->gedcom, $matches, PREG_SET_ORDER);
-        foreach ($matches as $match) {
-            $rela = Registry::individualFactory()->make($match[1], $this->tree);
-            if ($rela instanceof Individual && $rela->canShow($access_level)) {
-                $rec .= $match[0];
-            }
-        }
-
-        return $rec;
+        return static fn (Family $x, Family $y): int => Date::compare($x->getMarriageDate(), $y->getMarriageDate());
     }
 
     /**
@@ -108,7 +79,7 @@ class Family extends GedcomRecord
      *
      * @return Individual|null
      */
-    public function husband($access_level = null): ?Individual
+    public function husband(int|null $access_level = null): Individual|null
     {
         if ($this->tree->getPreference('SHOW_PRIVATE_RELATIONSHIPS') === '1') {
             $access_level = Auth::PRIV_HIDE;
@@ -128,7 +99,7 @@ class Family extends GedcomRecord
      *
      * @return Individual|null
      */
-    public function wife($access_level = null): ?Individual
+    public function wife(int|null $access_level = null): Individual|null
     {
         if ($this->tree->getPreference('SHOW_PRIVATE_RELATIONSHIPS') === '1') {
             $access_level = Auth::PRIV_HIDE;
@@ -169,7 +140,7 @@ class Family extends GedcomRecord
      *
      * @return bool
      */
-    public function canShowName(int $access_level = null): bool
+    public function canShowName(int|null $access_level = null): bool
     {
         // We can always see the name (Husband-name + Wife-name), however,
         // the name will often be "private + private"
@@ -184,7 +155,7 @@ class Family extends GedcomRecord
      *
      * @return Individual|null
      */
-    public function spouse(Individual $person, $access_level = null): ?Individual
+    public function spouse(Individual $person, int|null $access_level = null): Individual|null
     {
         if ($person === $this->wife) {
             return $this->husband($access_level);
@@ -198,9 +169,9 @@ class Family extends GedcomRecord
      *
      * @param int|null $access_level
      *
-     * @return Collection<Individual>
+     * @return Collection<int,Individual>
      */
-    public function spouses($access_level = null): Collection
+    public function spouses(int|null $access_level = null): Collection
     {
         $spouses = new Collection([
             $this->husband($access_level),
@@ -215,11 +186,11 @@ class Family extends GedcomRecord
      *
      * @param int|null $access_level
      *
-     * @return Collection<Individual>
+     * @return Collection<int,Individual>
      */
-    public function children($access_level = null): Collection
+    public function children(int|null $access_level = null): Collection
     {
-        $access_level = $access_level ?? Auth::accessLevel($this->tree);
+        $access_level ??= Auth::accessLevel($this->tree);
 
         if ($this->tree->getPreference('SHOW_PRIVATE_RELATIONSHIPS') === '1') {
             $access_level = Auth::PRIV_HIDE;
@@ -256,10 +227,8 @@ class Family extends GedcomRecord
 
     /**
      * get the marriage event
-     *
-     * @return Fact|null
      */
-    public function getMarriage(): ?Fact
+    public function getMarriage(): Fact|null
     {
         return $this->facts(['MARR'])->first();
     }
@@ -272,7 +241,7 @@ class Family extends GedcomRecord
     public function getMarriageDate(): Date
     {
         $marriage = $this->getMarriage();
-        if ($marriage) {
+        if ($marriage instanceof Fact) {
             return $marriage->date();
         }
 
@@ -308,7 +277,7 @@ class Family extends GedcomRecord
     /**
      * Get a list of all marriage dates - for the family lists.
      *
-     * @return Date[]
+     * @return array<Date>
      */
     public function getAllMarriageDates(): array
     {
@@ -326,7 +295,7 @@ class Family extends GedcomRecord
     /**
      * Get a list of all marriage places - for the family lists.
      *
-     * @return Place[]
+     * @return array<Place>
      */
     public function getAllMarriagePlaces(): array
     {
@@ -343,17 +312,15 @@ class Family extends GedcomRecord
     /**
      * Derived classes should redefine this function, otherwise the object will have no name
      *
-     * @return array<array<string>>
+     * @return array<int,array<string,string>>
      */
     public function getAllNames(): array
     {
-        if ($this->getAllNames === null) {
+        if ($this->getAllNames === []) {
             // Check the script used by each name, so we can match cyrillic with cyrillic, greek with greek, etc.
             $husb_names = [];
-            if ($this->husb) {
-                $husb_names = array_filter($this->husb->getAllNames(), static function (array $x): bool {
-                    return $x['type'] !== '_MARNM';
-                });
+            if ($this->husb instanceof Individual) {
+                $husb_names = array_filter($this->husb->getAllNames(), static fn (array $x): bool => $x['type'] !== '_MARNM');
             }
             // If the individual only has married names, create a fake birth name.
             if ($husb_names === []) {
@@ -368,10 +335,8 @@ class Family extends GedcomRecord
             }
 
             $wife_names = [];
-            if ($this->wife) {
-                $wife_names = array_filter($this->wife->getAllNames(), static function (array $x): bool {
-                    return $x['type'] !== '_MARNM';
-                });
+            if ($this->wife instanceof Individual) {
+                $wife_names = array_filter($this->wife->getAllNames(), static fn (array $x): bool => $x['type'] !== '_MARNM');
             }
             // If the individual only has married names, create a fake birth name.
             if ($wife_names === []) {

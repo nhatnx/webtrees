@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\I18N;
 
 /**
  * @var array<string,int>        $given_names
- * @var array<array<mixed>>|null $order
+ * @var array<array<int,string>> $order
  */
 
 ?>
@@ -15,9 +17,9 @@ use Fisharebest\Webtrees\I18N;
     data-info="false"
     data-paging="false"
     data-searching="false"
-    data-order="<?= e(json_encode($order ?? [[1, 'desc']])) ?>"
+    data-order="<?= e(json_encode($order, JSON_THROW_ON_ERROR)) ?>"
 >
-    <caption class="sr-only">
+    <caption class="visually-hidden">
         <?= I18N::translate('Given names') ?>
     </caption>
     <thead>

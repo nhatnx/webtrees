@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,13 +23,12 @@ use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Fact;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Services\GedcomEditService;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
-use function is_string;
 use function redirect;
 
 /**
@@ -39,6 +38,16 @@ class EditFactPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
+    private GedcomEditService $gedcom_edit_service;
+
+    /**
+     * @param GedcomEditService $gedcom_edit_service
+     */
+    public function __construct(GedcomEditService $gedcom_edit_service)
+    {
+        $this->gedcom_edit_service = $gedcom_edit_service;
+    }
+
     /**
      * @param ServerRequestInterface $request
      *
@@ -46,38 +55,49 @@ class EditFactPage implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getAttribute('xref');
-        assert(is_string($xref));
-
-        $fact_id = $request->getAttribute('fact_id');
-        assert(is_string($fact_id));
+        $tree           = Validator::attributes($request)->tree();
+        $xref           = Validator::attributes($request)->isXref()->string('xref');
+        $fact_id        = Validator::attributes($request)->string('fact_id');
+        $include_hidden = Validator::queryParams($request)->boolean('include_hidden', false);
 
         $record = Registry::gedcomRecordFactory()->make($xref, $tree);
         $record = Auth::checkRecordAccess($record, true);
 
         // Find the fact to edit
-        $fact = $record->facts()
-            ->first(static function (Fact $fact) use ($fact_id): bool {
-                return $fact->id() === $fact_id && $fact->canEdit();
-            });
+        $fact = $record->facts()->first(fn (Fact $fact): bool => $fact->id() === $fact_id && $fact->canEdit());
 
         if ($fact === null) {
             return redirect($record->url());
         }
 
-        $can_edit_raw = Auth::isAdmin() || $tree->getPreference('SHOW_GEDCOM_RECORD');
+        $can_edit_raw = Auth::isAdmin() || $tree->getPreference('SHOW_GEDCOM_RECORD') === '1';
+
+        $gedcom = $this->gedcom_edit_service->insertMissingFactSubtags($fact, $include_hidden);
+        $hidden = $this->gedcom_edit_service->insertMissingFactSubtags($fact, true);
+        $url    = Validator::queryParams($request)->isLocalUrl()->string('url', $record->url());
+
+        if ($gedcom === $hidden) {
+            $hidden_url = '';
+        } else {
+            $hidden_url = route(self::class, [
+                'fact_id' => $fact_id,
+                'include_hidden'  => true,
+                'tree'    => $tree->name(),
+                'url'     => $url,
+                'xref'    => $xref,
+            ]);
+        }
 
         $title = $record->fullName() . ' - ' . $fact->label();
 
         return $this->viewResponse('edit/edit-fact', [
             'can_edit_raw' => $can_edit_raw,
             'fact'         => $fact,
+            'gedcom'       => $gedcom,
+            'hidden_url'   => $hidden_url,
             'title'        => $title,
             'tree'         => $tree,
-            'url'          => $request->getQueryParams()['url'] ?? $record->url(),
+            'url'          => $url,
         ]);
     }
 }

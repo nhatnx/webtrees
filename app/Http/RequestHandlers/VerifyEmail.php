@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,15 +20,17 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Log;
 use Fisharebest\Webtrees\NoReplyUser;
 use Fisharebest\Webtrees\Services\EmailService;
+use Fisharebest\Webtrees\Services\MessageService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\SiteUser;
 use Fisharebest\Webtrees\User;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -40,15 +42,11 @@ class VerifyEmail implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var EmailService */
-    private $email_service;
+    private EmailService $email_service;
 
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
     /**
-     * MessageController constructor.
-     *
      * @param EmailService $email_service
      * @param UserService  $user_service
      */
@@ -68,7 +66,7 @@ class VerifyEmail implements RequestHandlerInterface
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $token    = $request->getAttribute('token');
-        $tree     = $request->getAttribute('tree');
+        $tree     = Validator::attributes($request)->treeOptional();
         $username = $request->getAttribute('username');
 
         $title = I18N::translate('User verification');
@@ -82,7 +80,7 @@ class VerifyEmail implements RequestHandlerInterface
                 // switch language to administrator settings
                 I18N::init($administrator->getPreference(UserInterface::PREF_LANGUAGE));
 
-                $base_url = $request->getAttribute('base_url');
+                $base_url = Validator::attributes($request)->string('base_url');
 
                 /* I18N: %s is a server name/URL */
                 $subject = I18N::translate('New user at %s', $base_url);
@@ -98,7 +96,11 @@ class VerifyEmail implements RequestHandlerInterface
 
                 $mail1_method = $administrator->getPreference('CONTACT_METHOD');
 
-                if ($mail1_method !== 'messaging3' && $mail1_method !== 'mailto' && $mail1_method !== 'none') {
+                if (
+                    $mail1_method !== MessageService::CONTACT_METHOD_EMAIL &&
+                    $mail1_method !== MessageService::CONTACT_METHOD_MAILTO &&
+                    $mail1_method !== MessageService::CONTACT_METHOD_NONE
+                ) {
                     DB::table('message')->insert([
                         'sender'     => $username,
                         'ip_address' => $request->getAttribute('client-ip'),

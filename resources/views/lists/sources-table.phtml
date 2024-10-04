@@ -1,16 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Source;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 
 /**
- * @var Collection<Source> $sources
- * @var Tree               $tree
+ * @var Collection<int,Source> $sources
+ * @var Tree                   $tree
  */
 
 ?>
@@ -27,8 +30,8 @@ $count_individuals = DB::table('individuals')
     ->where('l_type', '=', 'SOUR')
     ->where('l_file', '=', $tree->id())
     ->groupBy(['l_to'])
-    ->select(['l_to', new Expression('COUNT(*) AS total')])
-    ->pluck('total', 'l_to')
+    ->pluck(new Expression('COUNT(*) AS total'), 'l_to')
+    ->map(static fn ($n) => (int) $n)
     ->all();
 
 $count_families = DB::table('families')
@@ -39,8 +42,8 @@ $count_families = DB::table('families')
     ->where('l_type', '=', 'SOUR')
     ->where('l_file', '=', $tree->id())
     ->groupBy(['l_to'])
-    ->select(['l_to', new Expression('COUNT(*) AS total')])
-    ->pluck('total', 'l_to')
+    ->pluck(new Expression('COUNT(*) AS total'), 'l_to')
+    ->map(static fn ($n) => (int) $n)
     ->all();
 
 $count_media = DB::table('media')
@@ -51,8 +54,8 @@ $count_media = DB::table('media')
     ->where('l_type', '=', 'SOUR')
     ->where('l_file', '=', $tree->id())
     ->groupBy(['l_to'])
-    ->select(['l_to', new Expression('COUNT(*) AS total')])
-    ->pluck('total', 'l_to')
+    ->pluck(new Expression('COUNT(*) AS total'), 'l_to')
+    ->map(static fn ($n) => (int) $n)
     ->all();
 
 $count_notes = DB::table('other')
@@ -64,8 +67,8 @@ $count_notes = DB::table('other')
     ->where('l_type', '=', 'SOUR')
     ->where('l_file', '=', $tree->id())
     ->groupBy(['l_to'])
-    ->select(['l_to', new Expression('COUNT(*) AS total')])
-    ->pluck('total', 'l_to')
+    ->pluck(new Expression('COUNT(*) AS total'), 'l_to')
+    ->map(static fn ($n) => (int) $n)
     ->all();
 ?>
 
@@ -73,7 +76,7 @@ $count_notes = DB::table('other')
     class="table table-bordered table-sm wt-table-source datatables d-none"
     <?= view('lists/datatables-attributes') ?>
     data-columns="<?= e(json_encode([
-        null,
+        ['type' => 'html'],
         null,
         null,
         null,
@@ -82,9 +85,9 @@ $count_notes = DB::table('other')
         ['visible' => array_sum($count_media) > 0],
         ['visible' => array_sum($count_notes) > 0],
         ['visible' => (bool) $tree->getPreference('SHOW_LAST_CHANGE'), 'searchable' => false],
-    ])) ?>"
+    ], JSON_THROW_ON_ERROR)) ?>"
 >
-    <caption class="sr-only">
+    <caption class="visually-hidden">
         <?= $caption ?? I18N::translate('Sources') ?>
     </caption>
 
@@ -124,7 +127,7 @@ $count_notes = DB::table('other')
 
                 <!-- Publisher -->
                 <td class="d-none d-md-table-cell">
-                    <?= e($source->facts(['PUBL'])->isNotEmpty() ? $source->facts(['PUBL'])->first()->value() : '') ?>
+                    <?= Registry::elementFactory()->make('SOUR:PUBL')->value($source->facts(['PUBL'])->isNotEmpty() ? $source->facts(['PUBL'])->first()->value() : '', $tree) ?>
                 </td>
 
                 <!-- Count of linked individuals -->
@@ -148,7 +151,7 @@ $count_notes = DB::table('other')
                 </td>
 
                 <!-- Last change -->
-                <td data-sort="<?= $source->lastChangeTimestamp()->unix() ?>">
+                <td data-sort="<?= $source->lastChangeTimestamp()->timestamp() ?>">
                     <?= view('components/datetime', ['timestamp' => $source->lastChangeTimestamp()]) ?>
                 </td>
             </tr>

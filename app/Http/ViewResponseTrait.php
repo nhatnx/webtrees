@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,6 +20,7 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http;
 
 use Fig\Http\Message\StatusCodeInterface;
+use Fisharebest\Webtrees\Registry;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -32,13 +33,12 @@ use function view;
  */
 trait ViewResponseTrait
 {
-    /** @var string */
-    protected $layout = 'layouts/default';
+    protected string $layout = 'layouts/default';
 
     /**
-     * @param string  $view_name
-     * @param mixed[] $view_data
-     * @param int     $status
+     * @param string       $view_name
+     * @param array<mixed> $view_data
+     * @param int          $status
      *
      * @return ResponseInterface
      */
@@ -49,7 +49,7 @@ trait ViewResponseTrait
 
         // Render the view
         $layout_data['content'] = view($view_name, $view_data);
-        $layout_data['request'] = app(ServerRequestInterface::class);
+        $layout_data['request'] = Registry::container()->get(ServerRequestInterface::class);
 
         // Insert the view into the layout
         $html = view($this->layout, $layout_data);

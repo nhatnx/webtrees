@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,11 +19,9 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
-use Aura\Router\Route;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Fact;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\Http\RequestHandlers\AccountEdit;
 use Fisharebest\Webtrees\Http\RequestHandlers\ControlPanel;
@@ -41,12 +39,14 @@ use Fisharebest\Webtrees\Http\RequestHandlers\UserPageEdit;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Menu;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ServerRequestInterface;
 
-use function app;
-use function assert;
+use function count;
+use function in_array;
 use function route;
 use function view;
 
@@ -55,6 +55,13 @@ use function view;
  */
 trait ModuleThemeTrait
 {
+    /**
+     * How should this module be identified in the control panel, etc.?
+     *
+     * @return string
+     */
+    abstract public function title(): string;
+
     /**
      * A sentence describing what this module does.
      *
@@ -124,7 +131,7 @@ trait ModuleThemeTrait
      *
      * @param Individual $individual
      *
-     * @return Menu[]
+     * @return array<Menu>
      */
     public function individualBoxMenu(Individual $individual): array
     {
@@ -139,21 +146,22 @@ trait ModuleThemeTrait
      *
      * @param Individual $individual
      *
-     * @return Menu[]
+     * @return array<Menu>
      */
     public function individualBoxMenuCharts(Individual $individual): array
     {
         $menus = [];
-        foreach (app(ModuleService::class)->findByComponent(ModuleChartInterface::class, $individual->tree(), Auth::user()) as $chart) {
+
+        $module_service = Registry::container()->get(ModuleService::class);
+
+        foreach ($module_service->findByComponent(ModuleChartInterface::class, $individual->tree(), Auth::user()) as $chart) {
             $menu = $chart->chartBoxMenu($individual);
             if ($menu) {
                 $menus[] = $menu;
             }
         }
 
-        usort($menus, static function (Menu $x, Menu $y): int {
-            return I18N::strcasecmp($x->getLabel(), $y->getLabel());
-        });
+        usort($menus, static fn (Menu $x, Menu $y): int => I18N::comparator()($x->getLabel(), $y->getLabel()));
 
         return $menus;
     }
@@ -163,7 +171,7 @@ trait ModuleThemeTrait
      *
      * @param Individual $individual
      *
-     * @return Menu[]
+     * @return array<Menu>
      */
     public function individualBoxMenuFamilyLinks(Individual $individual): array
     {
@@ -192,13 +200,10 @@ trait ModuleThemeTrait
      *
      * @return Menu|null
      */
-    public function menuChangeBlocks(Tree $tree): ?Menu
+    public function menuChangeBlocks(Tree $tree): Menu|null
     {
-        /** @var ServerRequestInterface $request */
-        $request = app(ServerRequestInterface::class);
-
-        $route = $request->getAttribute('route');
-        assert($route instanceof Route);
+        $request = Registry::container()->get(ServerRequestInterface::class);
+        $route   = Validator::attributes($request)->route();
 
         if (Auth::check() && $route->name === UserPage::class) {
             return new Menu(I18N::translate('Customize this page'), route(UserPageEdit::class, ['tree' => $tree->name()]), 'menu-change-blocks');
@@ -218,7 +223,7 @@ trait ModuleThemeTrait
      *
      * @return Menu|null
      */
-    public function menuControlPanel(Tree $tree): ?Menu
+    public function menuControlPanel(Tree $tree): Menu|null
     {
         if (Auth::isAdmin()) {
             return new Menu(I18N::translate('Control panel'), route(ControlPanel::class), 'menu-admin');
@@ -236,7 +241,7 @@ trait ModuleThemeTrait
      *
      * @return Menu|null
      */
-    public function menuLanguages(): ?Menu
+    public function menuLanguages(): Menu|null
     {
         $menu = new Menu(I18N::translate('Language'), '#', 'menu-language');
 
@@ -244,7 +249,7 @@ trait ModuleThemeTrait
             $language_tag = $active_locale->languageTag();
             $class        = 'menu-language-' . $language_tag . (I18N::languageTag() === $language_tag ? ' active' : '');
             $menu->addSubmenu(new Menu($active_locale->endonym(), '#', $class, [
-                'data-post-url' => route(SelectLanguage::class, ['language' => $language_tag]),
+                'data-wt-post-url' => route(SelectLanguage::class, ['language' => $language_tag]),
             ]));
         }
 
@@ -260,28 +265,26 @@ trait ModuleThemeTrait
      *
      * @return Menu|null
      */
-    public function menuLogin(): ?Menu
+    public function menuLogin(): Menu|null
     {
         if (Auth::check()) {
             return null;
         }
 
-        $request = app(ServerRequestInterface::class);
+        $request = Registry::container()->get(ServerRequestInterface::class);
 
         // Return to this page after login...
-        $redirect = $request->getQueryParams()['url'] ?? (string) $request->getUri();
-
-        $tree  = $request->getAttribute('tree');
-        $route = $request->getAttribute('route');
-        assert($route instanceof Route);
+        $redirect = Validator::queryParams($request)->string('url', (string) $request->getUri());
+        $tree     = Validator::attributes($request)->treeOptional();
+        $route    = Validator::attributes($request)->route();
 
         // ...but switch from the tree-page to the user-page
         if ($route->name === TreePage::class) {
-            $redirect = route(UserPage::class, ['tree' => $tree instanceof Tree ? $tree->name() : null]);
+            $redirect = route(UserPage::class, ['tree' => $tree?->name()]);
         }
 
         // Stay on the same tree page
-        $url  = route(LoginPage::class, ['tree' => $tree instanceof Tree ? $tree->name() : null, 'url' => $redirect]);
+        $url = route(LoginPage::class, ['tree' => $tree?->name(), 'url' => $redirect]);
 
         return new Menu(I18N::translate('Sign in'), $url, 'menu-login', ['rel' => 'nofollow']);
     }
@@ -291,12 +294,12 @@ trait ModuleThemeTrait
      *
      * @return Menu|null
      */
-    public function menuLogout(): ?Menu
+    public function menuLogout(): Menu|null
     {
         if (Auth::check()) {
             $parameters = [
-                'data-post-url'   => route(Logout::class),
-                'data-reload-url' => route(HomePage::class)
+                'data-wt-post-url'   => route(Logout::class),
+                'data-wt-reload-url' => route(HomePage::class)
             ];
 
             return new Menu(I18N::translate('Sign out'), '#', 'menu-logout', $parameters);
@@ -312,9 +315,9 @@ trait ModuleThemeTrait
      *
      * @return Menu
      */
-    public function menuMyAccount(?Tree $tree): Menu
+    public function menuMyAccount(Tree|null $tree): Menu
     {
-        $url = route(AccountEdit::class, ['tree' => $tree instanceof Tree ? $tree->name() : null]);
+        $url = route(AccountEdit::class, ['tree' => $tree?->name()]);
 
         return new Menu(I18N::translate('My account'), $url, 'menu-myaccount');
     }
@@ -326,11 +329,11 @@ trait ModuleThemeTrait
      *
      * @return Menu|null
      */
-    public function menuMyIndividualRecord(Tree $tree): ?Menu
+    public function menuMyIndividualRecord(Tree $tree): Menu|null
     {
         $record = Registry::individualFactory()->make($tree->getUserPreference(Auth::user(), UserInterface::PREF_TREE_ACCOUNT_XREF), $tree);
 
-        if ($record) {
+        if ($record instanceof Individual) {
             return new Menu(I18N::translate('My individual record'), $record->url(), 'menu-myrecord');
         }
 
@@ -356,7 +359,7 @@ trait ModuleThemeTrait
      *
      * @return Menu|null
      */
-    public function menuMyPages(?Tree $tree): ?Menu
+    public function menuMyPages(Tree|null $tree): Menu|null
     {
         if (Auth::check()) {
             if ($tree instanceof Tree) {
@@ -383,24 +386,25 @@ trait ModuleThemeTrait
      *
      * @return Menu|null
      */
-    public function menuMyPedigree(Tree $tree): ?Menu
+    public function menuMyPedigree(Tree $tree): Menu|null
     {
-        $gedcomid = $tree->getUserPreference(Auth::user(), UserInterface::PREF_TREE_ACCOUNT_XREF);
+        $my_xref = $tree->getUserPreference(Auth::user(), UserInterface::PREF_TREE_ACCOUNT_XREF);
 
-        $pedigree_chart = app(ModuleService::class)->findByComponent(ModuleChartInterface::class, $tree, Auth::user())
-            ->filter(static function (ModuleInterface $module): bool {
-                return $module instanceof PedigreeChartModule;
-            });
+        $module_service = Registry::container()->get(ModuleService::class);
+        $pedigree_chart = $module_service
+            ->findByComponent(ModuleChartInterface::class, $tree, Auth::user())
+            ->first(static fn (ModuleInterface $module): bool => $module instanceof PedigreeChartModule);
 
-        if ($gedcomid !== '' && $pedigree_chart instanceof PedigreeChartModule) {
-            return new Menu(
-                I18N::translate('My pedigree'),
-                route('pedigree', [
-                    'xref' => $gedcomid,
-                    'tree'  => $tree->name(),
-                ]),
-                'menu-mypedigree'
-            );
+        if ($my_xref !== '' && $pedigree_chart instanceof PedigreeChartModule) {
+            $individual = Registry::individualFactory()->make($my_xref, $tree);
+
+            if ($individual instanceof Individual) {
+                return new Menu(
+                    I18N::translate('My pedigree'),
+                    $pedigree_chart->chartUrl($individual),
+                    'menu-mypedigree'
+                );
+            }
         }
 
         return null;
@@ -413,12 +417,14 @@ trait ModuleThemeTrait
      *
      * @return Menu|null
      */
-    public function menuPendingChanges(?Tree $tree): ?Menu
+    public function menuPendingChanges(Tree|null $tree): Menu|null
     {
         if ($tree instanceof Tree && $tree->hasPendingEdit() && Auth::isModerator($tree)) {
+            $request = Registry::container()->get(ServerRequestInterface::class);
+
             $url = route(PendingChanges::class, [
                 'tree' => $tree->name(),
-                'url' => (string) app(ServerRequestInterface::class)->getUri(),
+                'url' => (string) $request->getUri(),
             ]);
 
             return new Menu(I18N::translate('Pending changes'), $url, 'menu-pending');
@@ -432,11 +438,11 @@ trait ModuleThemeTrait
      *
      * @return Menu|null
      */
-    public function menuThemes(): ?Menu
+    public function menuThemes(): Menu|null
     {
-        $themes = app(ModuleService::class)->findByInterface(ModuleThemeInterface::class, false, true);
-
-        $current_theme = app(ModuleThemeInterface::class);
+        $module_service = Registry::container()->get(ModuleService::class);
+        $themes         = $module_service->findByInterface(ModuleThemeInterface::class, false, true);
+        $current_theme  = Registry::container()->get(ModuleThemeInterface::class);
 
         if ($themes->count() > 1) {
             $submenus = $themes->map(static function (ModuleThemeInterface $theme) use ($current_theme): Menu {
@@ -444,7 +450,7 @@ trait ModuleThemeTrait
                 $class      = 'menu-theme-' . $theme->name() . ($active ? ' active' : '');
 
                 return new Menu($theme->title(), '#', $class, [
-                    'data-post-url' => route(SelectTheme::class, ['theme' => $theme->name()]),
+                    'data-wt-post-url' => route(SelectTheme::class, ['theme' => $theme->name()]),
                 ]);
             });
 
@@ -455,34 +461,23 @@ trait ModuleThemeTrait
     }
 
     /**
-     * Miscellaneous dimensions, fonts, styles, etc.
-     *
-     * @param string $parameter_name
-     *
-     * @return string|int|float
-     */
-    public function parameter($parameter_name)
-    {
-        return '';
-    }
-
-    /**
      * Generate a list of items for the main menu.
      *
      * @param Tree|null $tree
      *
-     * @return Menu[]
+     * @return array<Menu>
      */
-    public function genealogyMenu(?Tree $tree): array
+    public function genealogyMenu(Tree|null $tree): array
     {
         if ($tree === null) {
             return [];
         }
 
-        return app(ModuleService::class)->findByComponent(ModuleMenuInterface::class, $tree, Auth::user())
-            ->map(static function (ModuleMenuInterface $menu) use ($tree): ?Menu {
-                return $menu->getMenu($tree);
-            })
+        $module_service = Registry::container()->get(ModuleService::class);
+
+        return $module_service
+            ->findByComponent(ModuleMenuInterface::class, $tree, Auth::user())
+            ->map(static fn (ModuleMenuInterface $menu): Menu|null => $menu->getMenu($tree))
             ->filter()
             ->all();
     }
@@ -490,15 +485,13 @@ trait ModuleThemeTrait
     /**
      * Create the genealogy menu.
      *
-     * @param Menu[] $menus
+     * @param array<Menu> $menus
      *
      * @return string
      */
     public function genealogyMenuContent(array $menus): string
     {
-        return implode('', array_map(static function (Menu $menu): string {
-            return view('components/menu-item', ['menu' => $menu]);
-        }, $menus));
+        return implode('', array_map(static fn (Menu $menu): string => view('components/menu-item', ['menu' => $menu]), $menus));
     }
 
     /**
@@ -506,9 +499,9 @@ trait ModuleThemeTrait
      *
      * @param Tree|null $tree
      *
-     * @return Menu[]
+     * @return array<Menu>
      */
-    public function userMenu(?Tree $tree): array
+    public function userMenu(Tree|null $tree): array
     {
         return array_filter([
             $this->menuPendingChanges($tree),

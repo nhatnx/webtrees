@@ -1,16 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Location;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 
 /**
- * @var Collection<Location> $locations
- * @var Tree                   $tree
+ * @var Collection<int,Location> $locations
+ * @var Tree                     $tree
  */
 
 ?>
@@ -27,8 +29,8 @@ $count_individuals = DB::table('individuals')
     ->where('l_type', '=', '_LOC')
     ->where('l_file', '=', $tree->id())
     ->groupBy(['l_to'])
-    ->select(['l_to', new Expression('COUNT(*) AS total')])
-    ->pluck('total', 'l_to')
+    ->pluck(new Expression('COUNT(*) AS total'), 'l_to')
+    ->map(static fn ($n) => (int) $n)
     ->all();
 
 $count_families = DB::table('families')
@@ -39,8 +41,8 @@ $count_families = DB::table('families')
     ->where('l_type', '=', '_LOC')
     ->where('l_file', '=', $tree->id())
     ->groupBy(['l_to'])
-    ->select(['l_to', new Expression('COUNT(*) AS total')])
-    ->pluck('total', 'l_to')
+    ->pluck(new Expression('COUNT(*) AS total'), 'l_to')
+    ->map(static fn ($n) => (int) $n)
     ->all();
 ?>
 
@@ -48,13 +50,13 @@ $count_families = DB::table('families')
     class="table table-bordered table-sm wt-table-location datatables d-none"
     <?= view('lists/datatables-attributes') ?>
     data-columns="<?= e(json_encode([
-        null,
+        ['type' => 'html'],
         ['visible' => array_sum($count_individuals) > 0],
         ['visible' => array_sum($count_families) > 0],
         ['visible' => (bool) $tree->getPreference('SHOW_LAST_CHANGE'), 'searchable' => false],
-    ])) ?>"
+    ], JSON_THROW_ON_ERROR)) ?>"
 >
-    <caption class="sr-only">
+    <caption class="visually-hidden">
         <?= $caption ?? I18N::translate('Locations') ?>
     </caption>
 
@@ -88,7 +90,7 @@ $count_families = DB::table('families')
                 </td>
 
                 <!-- Last change -->
-                <td data-sort="<?= $location->lastChangeTimestamp()->unix() ?>">
+                <td data-sort="<?= $location->lastChangeTimestamp()->timestamp() ?>">
                     <?= view('components/datetime', ['timestamp' => $location->lastChangeTimestamp()]) ?>
                 </td>
             </tr>

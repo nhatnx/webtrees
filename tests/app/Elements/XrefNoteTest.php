@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -25,22 +25,13 @@ use Fisharebest\Webtrees\Note;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\TestCase;
 use Fisharebest\Webtrees\Tree;
-use Psr\Http\Message\ServerRequestInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-use function app;
-
-/**
- * Test harness for the class XrefNote
- *
- * @covers \Fisharebest\Webtrees\Elements\AbstractElement
- * @covers \Fisharebest\Webtrees\Elements\AbstractXrefElement
- * @covers \Fisharebest\Webtrees\Elements\XrefNote
- */
+#[CoversClass(AbstractElement::class)]
+#[CoversClass(AbstractXrefElement::class)]
+#[CoversClass(XrefNote::class)]
 class XrefNoteTest extends TestCase
 {
-    /**
-     * @return void
-     */
     public function testEdit(): void
     {
         $element = new XrefNote('');
@@ -49,15 +40,11 @@ class XrefNoteTest extends TestCase
 
         $factory = $this->createMock(NoteFactory::class);
 
-        $factory->expects(self::once())
+        $factory->expects($this->once())
             ->method('make')
             ->willReturn(null);
 
         Registry::noteFactory($factory);
-
-        $request = $this->createMock(ServerRequestInterface::class);
-
-        app()->instance(ServerRequestInterface::class, $request);
 
         $html = $element->edit('some-id', 'some-name', '@X123@', $tree);
         $dom  = new DOMDocument();
@@ -69,9 +56,6 @@ class XrefNoteTest extends TestCase
         $option_nodes = $select_nodes[0]->getElementsByTagName('option');
         self::assertEquals(1, $option_nodes->count());
     }
-    /**
-     * @return void
-     */
     public function testEscape(): void
     {
         $element = new XrefNote('');
@@ -79,20 +63,17 @@ class XrefNoteTest extends TestCase
         self::assertSame('@X123@', $element->escape('@X123@'));
     }
 
-    /**
-     * @return void
-     */
     public function testValueXrefLink(): void
     {
         $element = new XrefNote('');
 
         $record = $this->createMock(Note::class);
 
-        $record->expects(self::once())
+        $record->expects($this->once())
             ->method('fullName')
             ->willReturn('Full Name');
 
-        $record->expects(self::once())
+        $record->expects($this->once())
             ->method('url')
             ->willReturn('https://url');
 
@@ -100,19 +81,15 @@ class XrefNoteTest extends TestCase
 
         $factory = $this->createMock(NoteFactory::class);
 
-        $factory->expects(self::once())
+        $factory->expects($this->once())
             ->method('make')
             ->willReturn($record);
-
 
         Registry::noteFactory($factory);
 
         self::assertSame('<a href="https://url">Full Name</a>', $element->value('@X123@', $tree));
     }
 
-    /**
-     * @return void
-     */
     public function testValueXrefLinkWithInvalidXref(): void
     {
         $element = new XrefNote('');
@@ -122,9 +99,6 @@ class XrefNoteTest extends TestCase
         self::assertSame('<span class="error">invalid</span>', $element->value('invalid', $tree));
     }
 
-    /**
-     * @return void
-     */
     public function testValueXrefLinkWithMissingRecord(): void
     {
         $element = new XrefNote('');
@@ -133,7 +107,7 @@ class XrefNoteTest extends TestCase
 
         $factory = $this->createMock(NoteFactory::class);
 
-        $factory->expects(self::once())
+        $factory->expects($this->once())
             ->method('make')
             ->willReturn(null);
 

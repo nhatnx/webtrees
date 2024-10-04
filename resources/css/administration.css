@@ -1,6 +1,6 @@
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -18,6 +18,13 @@
 
 @import "_mime-type-icons.css";
 
+:root {
+    --link-color-hover: #0a58ca;
+    --link-color: #0d6efd;
+    --link-decoration-hover: underline;
+    --link-decoration: none;
+}
+
 /* Heading sizes */
 h1 {
     font-size: 2rem;
@@ -32,21 +39,7 @@ h4 {
     font-size: 1.25rem;
 }
 
-/* Tree Preferences - fit thumbnail into parent for Default Individual*/
-.select2-selection.select2-selection--single {
-    min-height: 36px;
-    height: auto;
-    padding: 2px 0;
-}
-
-.select2-container .select2-selection--single .select2-selection__rendered {
-    padding-left: 2px;
-}
-.select2-selection--single .NAME {
-    padding-left: 4px;
-}
-
-.wt-global {
+::backdrop, .wt-global {
     background: url(administration/paper_fibers.png); /* http://www.subtlepatterns.com */
 }
 
@@ -58,7 +51,7 @@ h4 {
 }
 
 @media (min-device-pixel-ratio: 2) {
-    .wt-global {
+    ::backdrop, .wt-global {
         background: url(administration/paper_fibers_@2X.png);
     }
 }
@@ -101,15 +94,18 @@ h4 {
     background-color: #99c;
 }
 .php-info .v {
-    background-color: #ddd;
+    background-color: #fff;
     max-width: 300px;
     overflow-x: auto;
     word-break: break-all;
 }
-.php-info .v i {
-    color: #999;
-}
 .php-info img {
     float: right;
     border: 0;
+}
+
+/* Up/down arrows to move items in a list tr*/
+tr:first-child > td.move.up > a,
+tr:last-child > td.move.down > a {
+    display: none;
 }

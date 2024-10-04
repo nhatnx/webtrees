@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,39 +22,26 @@ namespace Fisharebest\Webtrees\Census;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Place;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class CensusColumnBirthPlaceSimple
- */
+#[CoversClass(CensusColumnBirthPlaceSimple::class)]
+#[CoversClass(AbstractCensusColumn::class)]
 class CensusColumnBirthPlaceSimpleTest extends TestCase
 {
-    /**
-     * Get place mock.
-     *
-     * @param string $place Gedcom Place
-     *
-     * @return Place
-     */
     private function getPlaceMock(string $place): Place
     {
-        $placeMock = self::createMock(Place::class);
+        $placeMock = $this->createMock(Place::class);
         $placeMock->method('gedcomName')->willReturn($place);
 
         return $placeMock;
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnBirthPlaceSimple
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testForeignCountry(): void
     {
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthPlace')->willReturn($this->getPlaceMock('Westminster, London, England'));
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusPlace')->willReturn('United States');
 
         $column = new CensusColumnBirthPlaceSimple($census, '', '');
@@ -62,18 +49,12 @@ class CensusColumnBirthPlaceSimpleTest extends TestCase
         self::assertSame('England', $column->generate($individual, $individual));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnBirthPlaceSimple
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testJustCountry(): void
     {
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthPlace')->willReturn($this->getPlaceMock('United States'));
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusPlace')->willReturn('United States');
 
         $column = new CensusColumnBirthPlaceSimple($census, '', '');
@@ -81,18 +62,12 @@ class CensusColumnBirthPlaceSimpleTest extends TestCase
         self::assertSame('', $column->generate($individual, $individual));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnBirthPlaceSimple
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testKnownState(): void
     {
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthPlace')->willReturn($this->getPlaceMock('Maryland, United States'));
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusPlace')->willReturn('United States');
 
         $column = new CensusColumnBirthPlaceSimple($census, '', '');
@@ -100,18 +75,12 @@ class CensusColumnBirthPlaceSimpleTest extends TestCase
         self::assertSame('Maryland', $column->generate($individual, $individual));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnBirthPlaceSimple
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testKnownStateAndTown(): void
     {
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthPlace')->willReturn($this->getPlaceMock('Miami, Florida, United States'));
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusPlace')->willReturn('United States');
 
         $column = new CensusColumnBirthPlaceSimple($census, '', '');

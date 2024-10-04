@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -41,6 +41,36 @@ abstract class AbstractGregorianJulianDate extends AbstractCalendarDate
         'OCT' => 10,
         'NOV' => 11,
         'DEC' => 12,
+    ];
+
+    protected const MONTH_TO_NUMBER = [
+        'JAN' => 1,
+        'FEB' => 2,
+        'MAR' => 3,
+        'APR' => 4,
+        'MAY' => 5,
+        'JUN' => 6,
+        'JUL' => 7,
+        'AUG' => 8,
+        'SEP' => 9,
+        'OCT' => 10,
+        'NOV' => 11,
+        'DEC' => 12,
+    ];
+
+    protected const NUMBER_TO_MONTH = [
+        1  => 'JAN',
+        2  => 'FEB',
+        3  => 'MAR',
+        4  => 'APR',
+        5  => 'MAY',
+        6  => 'JUN',
+        7  => 'JUL',
+        8  => 'AUG',
+        9  => 'SEP',
+        10 => 'OCT',
+        11 => 'NOV',
+        12 => 'DEC',
     ];
 
     /**

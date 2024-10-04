@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -35,12 +35,9 @@ class FixNameSlashesAndSpaces extends AbstractModule implements ModuleDataFixInt
 {
     use ModuleDataFixTrait;
 
-    /** @var DataFixService */
-    private $data_fix_service;
+    private DataFixService $data_fix_service;
 
     /**
-     * FixMissingDeaths constructor.
-     *
      * @param DataFixService $data_fix_service
      */
     public function __construct(DataFixService $data_fix_service)
@@ -77,9 +74,9 @@ class FixNameSlashesAndSpaces extends AbstractModule implements ModuleDataFixInt
      * @param Tree                 $tree
      * @param array<string,string> $params
      *
-     * @return Collection<string>|null
+     * @return Collection<int,string>|null
      */
-    protected function individualsToFix(Tree $tree, array $params): ?Collection
+    protected function individualsToFix(Tree $tree, array $params): Collection|null
     {
         // No DB querying possible?  Select all.
         return $this->individualsToFixQuery($tree, $params)
@@ -139,12 +136,9 @@ class FixNameSlashesAndSpaces extends AbstractModule implements ModuleDataFixInt
      */
     private function updateGedcom(GedcomRecord $record): string
     {
-        return preg_replace([
-            '/^((?:1 NAME|2 (?:FONE|ROMN|_MARNM|_AKA|_HEB)) [^\/\n]*\/[^\/\n]*)$/m',
-            '/^((?:1 NAME|2 (?:FONE|ROMN|_MARNM|_AKA|_HEB)) [^\/\n]*[^\/ ])(\/)/m',
-        ], [
-            '$1/',
-            '$1 $2',
-        ], $record->gedcom());
+        $gedcom = $record->gedcom();
+        $gedcom = preg_replace('/^((?:1 NAME|2 (?:FONE|ROMN|_MARNM|_AKA|_HEB)) [^\/\n]*\/[^\/\n]*)$/m', '$1/', $gedcom);
+
+        return preg_replace('/^((?:1 NAME|2 (?:FONE|ROMN|_MARNM|_AKA|_HEB)) [^\/\n]*[^\/ ])(\/)/m', '$1 $2', $gedcom);
     }
 }

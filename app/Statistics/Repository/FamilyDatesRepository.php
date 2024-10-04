@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,15 +20,17 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Statistics\Repository;
 
 use Fisharebest\Webtrees\Date;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Fact;
-use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Functions\FunctionsPrint;
+use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Statistics\Repository\Interfaces\FamilyDatesRepositoryInterface;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Builder;
-use stdClass;
+
+use function abs;
+use function e;
 
 /**
  * A repository providing methods for family dates related statistics (birth, death, marriage, divorce).
@@ -49,14 +51,9 @@ class FamilyDatesRepository implements FamilyDatesRepositoryInterface
     private const EVENT_MARRIAGE = 'MARR';
     private const EVENT_DIVORCE  = 'DIV';
 
-    /**
-     * @var Tree
-     */
-    private $tree;
+    private Tree $tree;
 
     /**
-     * Constructor.
-     *
      * @param Tree $tree
      */
     public function __construct(Tree $tree)
@@ -70,9 +67,9 @@ class FamilyDatesRepository implements FamilyDatesRepositoryInterface
      * @param string $fact
      * @param string $operation
      *
-     * @return stdClass|null
+     * @return object{id:string,year:int,fact:string,type:string}|null
      */
-    private function eventQuery(string $fact, string $operation): ?stdClass
+    private function eventQuery(string $fact, string $operation): object|null
     {
         return DB::table('dates')
             ->select(['d_gid as id', 'd_year as year', 'd_fact AS fact', 'd_type AS type'])
@@ -85,11 +82,19 @@ class FamilyDatesRepository implements FamilyDatesRepositoryInterface
                     ->where('d_fact', '=', $fact)
                     ->where('d_julianday1', '<>', 0);
             })
+            ->limit(1)
+            ->get()
+            ->map(static fn (object $row): object => (object) [
+                'id'   => $row->id,
+                'year' => (int) $row->year,
+                'fact' => $row->fact,
+                'type' => $row->type,
+            ])
             ->first();
     }
 
     /**
-     * Returns the formatted year of the first/last occuring event.
+     * Returns the formatted year of the first/last occurring event.
      *
      * @param string $type      The fact to query
      * @param string $operation The sorting operation
@@ -101,10 +106,10 @@ class FamilyDatesRepository implements FamilyDatesRepositoryInterface
         $row    = $this->eventQuery($type, $operation);
         $result = I18N::translate('This information is not available.');
 
-        if ($row) {
+        if ($row !== null) {
             $record = Registry::gedcomRecordFactory()->make($row->id, $this->tree);
 
-            if ($record && $record->canShow()) {
+            if ($record instanceof GedcomRecord && $record->canShow()) {
                 $result = $record->formatList();
             } else {
                 $result = I18N::translate('This information is private and cannot be shown.');
@@ -179,7 +184,7 @@ class FamilyDatesRepository implements FamilyDatesRepositoryInterface
     }
 
     /**
-     * Returns the formatted year of the first/last occuring event.
+     * Returns the formatted year of the first/last occurring event.
      *
      * @param string $type      The fact to query
      * @param string $operation The sorting operation
@@ -190,7 +195,7 @@ class FamilyDatesRepository implements FamilyDatesRepositoryInterface
     {
         $row = $this->eventQuery($type, $operation);
 
-        if (!$row) {
+        if ($row === null) {
             return '';
         }
 
@@ -267,7 +272,7 @@ class FamilyDatesRepository implements FamilyDatesRepositoryInterface
     }
 
     /**
-     * Returns the formatted name of the first/last occuring event.
+     * Returns the formatted name of the first/last occurring event.
      *
      * @param string $type      The fact to query
      * @param string $operation The sorting operation
@@ -278,10 +283,10 @@ class FamilyDatesRepository implements FamilyDatesRepositoryInterface
     {
         $row = $this->eventQuery($type, $operation);
 
-        if ($row) {
+        if ($row !== null) {
             $record = Registry::gedcomRecordFactory()->make($row->id, $this->tree);
 
-            if ($record) {
+            if ($record instanceof GedcomRecord) {
                 return '<a href="' . e($record->url()) . '">' . $record->fullName() . '</a>';
             }
         }
@@ -354,7 +359,7 @@ class FamilyDatesRepository implements FamilyDatesRepositoryInterface
     }
 
     /**
-     * Returns the formatted place of the first/last occuring event.
+     * Returns the formatted place of the first/last occurring event.
      *
      * @param string $type      The fact to query
      * @param string $operation The sorting operation
@@ -365,16 +370,16 @@ class FamilyDatesRepository implements FamilyDatesRepositoryInterface
     {
         $row = $this->eventQuery($type, $operation);
 
-        if ($row) {
+        if ($row != null) {
             $record = Registry::gedcomRecordFactory()->make($row->id, $this->tree);
             $fact   = null;
 
-            if ($record) {
+            if ($record instanceof GedcomRecord) {
                 $fact = $record->facts([$row->fact])->first();
             }
 
             if ($fact instanceof Fact) {
-                return FunctionsPrint::formatFactPlace($fact, true, true, true);
+                return $fact->place()->shortName();
             }
         }
 

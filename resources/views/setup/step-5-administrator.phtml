@@ -1,23 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\I18N;
 use Illuminate\Support\Collection;
 
 /**
- * @var string             $dbhost
- * @var string             $dbname
- * @var string             $dbpass
- * @var string             $dbport
- * @var string             $dbtype
- * @var string             $dbuser
- * @var Collection<string> $errors
- * @var string             $lang
- * @var string             $tblpfx
- * @var Collection<string> $warnings
- * @var string             $wtemail
- * @var string             $wtname
- * @var string             $wtpass
- * @var string             $wtuser
+ * @var string                 $dbhost
+ * @var string                 $dbname
+ * @var string                 $dbpass
+ * @var string                 $dbport
+ * @var string                 $dbtype
+ * @var string                 $dbuser
+ * @var Collection<int,string> $errors
+ * @var string                 $lang
+ * @var string                 $tblpfx
+ * @var Collection<int,string> $warnings
+ * @var string                 $wtemail
+ * @var string                 $wtname
+ * @var string                 $wtpass
+ * @var string                 $wtuser
  */
 
 ?>
@@ -49,51 +51,51 @@ use Illuminate\Support\Collection;
         <?= I18N::translate('You need to set up an administrator account. This account can control all aspects of this webtrees installation. Please choose a strong password.') ?>
     </p>
 
-    <div class="row form-group">
+    <div class="row mb-3">
         <label class="col-form-label col-sm-3" for="wtname">
             <?= I18N::translate('Your name') ?>
         </label>
         <div class="col-sm-9">
             <input class="form-control" dir="ltr" id="wtname" name="wtname" type="text" value="<?= e($wtname) ?>" autocomplete="name">
-            <p class="small text-muted">
+            <div class="form-text">
                 <?= I18N::translate('This is your real name, as you would like it displayed on screen.') ?>
-            </p>
+            </div>
         </div>
     </div>
 
-    <div class="row form-group">
+    <div class="row mb-3">
         <label class="col-form-label col-sm-3" for="wtuser">
             <?= I18N::translate('Username') ?>
         </label>
         <div class="col-sm-9">
             <input class="form-control" dir="ltr" id="wtuser" name="wtuser" type="text" value="<?= e($wtuser) ?>" autocomplete="username">
-            <p class="small text-muted">
+            <div class="form-text">
                 <?= I18N::translate('You will use this to sign in to webtrees.') ?>
-            </p>
+            </div>
         </div>
     </div>
 
-    <div class="row form-group">
+    <div class="row mb-3">
         <label class="col-form-label col-sm-3" for="wtpass">
             <?= I18N::translate('Password') ?>
         </label>
         <div class="col-sm-9">
-            <input class="form-control" dir="ltr" id="wtpass" name="wtpass" pattern=".{6,}" type="password" value="<?= e($wtpass) ?>" autocomplete="current-password">
-            <p class="small text-muted">
+            <input class="form-control" dir="ltr" id="wtpass" name="wtpass" pattern=".{6,}" type="password" value="<?= e($wtpass) ?>" autocomplete="current-password" data-wt-show-password-text="<?= e(I18N::translate('show')) ?>" data-wt-show-password-title="<?= e(I18N::translate('Show password')) ?>" data-wt-hide-password-text="<?= e(I18N::translate('hide')) ?>" data-wt-hide-password-title="<?= e(I18N::translate('Hide password')) ?>">
+            <div class="form-text">
                 <?= I18N::translate('This must be at least six characters long. It is case-sensitive.') ?>
-            </p>
+            </div>
         </div>
     </div>
 
-    <div class="row form-group">
+    <div class="row mb-3">
         <label class="col-form-label col-sm-3" for="wtemail">
             <?= I18N::translate('Email address') ?>
         </label>
         <div class="col-sm-9">
             <input class="form-control" dir="ltr" id="wtemail" name="wtemail" type="email" value="<?= e($wtemail) ?>" autocomplete="email">
-            <p class="small text-muted">
+            <div class="form-text">
                 <?= I18N::translate('This email address will be used to send password reminders, website notifications, and messages from other family members who are registered on the website.') ?>
-            </p>
+            </div>
         </div>
     </div>
 
@@ -111,5 +113,5 @@ use Illuminate\Support\Collection;
 </form>
 
 <script>
-  document.querySelector('input[name=baseurl]').value = decodeURI(location.href.split('index.php')[0].replace(/\/+$/, ''));
+  document.querySelector('input[name=baseurl]').value = decodeURI(location.href.split(/\?|#|index\.php/)[0].replace(/\/+$/, ''));
 </script>

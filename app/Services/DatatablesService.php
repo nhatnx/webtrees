@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,6 +20,7 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Services;
 
 use Closure;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Collection;
@@ -32,28 +33,28 @@ use function strtr;
 /**
  * Paginate and search queries for datatables.
  *
- * @link http://www.datatables.net/usage/server-side
+ * @link https://www.datatables.net/usage/server-side
  */
 class DatatablesService
 {
     /**
      * Apply filtering and pagination to a collection, and generate a response suitable for datatables.
      *
-     * @param ServerRequestInterface $request        Includes the datatables request parameters.
-     * @param Collection<mixed>      $collection     All the data.
-     * @param string[]|int[]         $search_columns The names of searchable columns.
-     * @param string[]|int[]         $sort_columns   Sort column mapping.
-     * @param Closure                $callback       Converts a row-object to an array-of-columns.
+     * @param ServerRequestInterface   $request        Includes the datatables request parameters.
+     * @param Collection<int,mixed>    $collection     All the data.
+     * @param array<string>|array<int> $search_columns The names of searchable columns.
+     * @param array<string>|array<int> $sort_columns   Sort column mapping.
+     * @param Closure                  $callback       Converts a row-object to an array-of-columns.
      *
      * @return ResponseInterface
      */
     public function handleCollection(ServerRequestInterface $request, Collection $collection, array $search_columns, array $sort_columns, Closure $callback): ResponseInterface
     {
-        $search = $request->getQueryParams()['search']['value'] ?? '';
-        $start  = (int) ($request->getQueryParams()['start'] ?? 0);
-        $length = (int) ($request->getQueryParams()['length'] ?? 0);
-        $order  = $request->getQueryParams()['order'] ?? [];
-        $draw   = (int) ($request->getQueryParams()['draw'] ?? 0);
+        $search = Validator::queryParams($request)->array('search')['value'] ?? '';
+        $start  = Validator::queryParams($request)->integer('start', 0);
+        $length = Validator::queryParams($request)->integer('length', 0);
+        $order  = Validator::queryParams($request)->array('order');
+        $draw   = Validator::queryParams($request)->integer('draw', 0);
 
         // Count unfiltered records
         $recordsTotal = $collection->count();
@@ -94,13 +95,11 @@ class DatatablesService
         }
 
         // Paginating
-        if ($length > 0) {
-            $recordsFiltered = $collection->count();
+        $recordsFiltered = $collection->count();
 
+        if ($length > 0) {
             $data = $collection->slice($start, $length);
         } else {
-            $recordsFiltered = $collection->count();
-
             $data = $collection;
         }
 
@@ -117,21 +116,21 @@ class DatatablesService
     /**
      * Apply filtering and pagination to a database query, and generate a response suitable for datatables.
      *
-     * @param ServerRequestInterface $request        Includes the datatables request parameters.
-     * @param Builder                $query          A query to fetch the unfiltered rows and columns.
-     * @param string[]               $search_columns The names of searchable columns.
-     * @param string[]               $sort_columns   Sort column mapping.
-     * @param Closure                $callback       Converts a row-object to an array-of-columns.
+     * @param ServerRequestInterface   $request        Includes the datatables request parameters.
+     * @param Builder                  $query          A query to fetch the unfiltered rows and columns.
+     * @param array<string>            $search_columns The names of searchable columns.
+     * @param array<string|Expression> $sort_columns   Sort column mapping.
+     * @param Closure                  $callback       Converts a row-object to an array-of-columns.
      *
      * @return ResponseInterface
      */
     public function handleQuery(ServerRequestInterface $request, Builder $query, array $search_columns, array $sort_columns, Closure $callback): ResponseInterface
     {
-        $search = $request->getQueryParams()['search']['value'] ?? '';
-        $start  = (int) ($request->getQueryParams()['start'] ?? 0);
-        $length = (int) ($request->getQueryParams()['length'] ?? 0);
-        $order  = $request->getQueryParams()['order'] ?? [];
-        $draw   = (int) ($request->getQueryParams()['draw'] ?? 0);
+        $search = Validator::queryParams($request)->array('search')['value'] ?? '';
+        $start  = Validator::queryParams($request)->integer('start', 0);
+        $length = Validator::queryParams($request)->integer('length', 0);
+        $order  = Validator::queryParams($request)->array('order');
+        $draw   = Validator::queryParams($request)->integer('draw', 0);
 
         // Count unfiltered records
         $recordsTotal = (clone $query)->count();

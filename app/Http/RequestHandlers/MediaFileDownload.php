@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,14 +21,12 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function redirect;
 
 /**
@@ -45,22 +43,16 @@ class MediaFileDownload implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $user = $request->getAttribute('user');
-        assert($user instanceof UserInterface);
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
 
         $image_factory = Registry::imageFactory();
 
-        $disposition = $request->getQueryParams()['disposition'] ?? 'inline';
-        assert($disposition === 'inline' || $disposition === 'attachment');
-
-        $params  = $request->getQueryParams();
-        $xref    = $params['xref'];
-        $fact_id = $params['fact_id'];
-        $media   = Registry::mediaFactory()->make($xref, $tree);
-        $media   = Auth::checkMediaAccess($media);
+        $disposition = Validator::queryParams($request)->isInArray(['inline', 'attachment'])->string('disposition');
+        $xref        = Validator::queryParams($request)->isXref()->string('xref');
+        $fact_id     = Validator::queryParams($request)->string('fact_id');
+        $media       = Registry::mediaFactory()->make($xref, $tree);
+        $media       = Auth::checkMediaAccess($media);
 
         foreach ($media->mediaFiles() as $media_file) {
             if ($media_file->factId() === $fact_id) {
@@ -71,7 +63,9 @@ class MediaFileDownload implements RequestHandlerInterface
                 $watermark = $media_file->isImage() && $image_factory->fileNeedsWatermark($media_file, $user);
                 $download  = $disposition === 'attachment';
 
-                return $image_factory->mediaFileResponse($media_file, $watermark, $download);
+                $response = $image_factory->mediaFileResponse($media_file, $watermark, $download);
+
+                return $response->withHeader('cache-control', 'public,max-age=31536000');
             }
         }
 

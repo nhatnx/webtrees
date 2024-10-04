@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,13 +22,14 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Services\GedcomEditService;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
-use function is_string;
+use function array_key_exists;
+use function route;
 
 /**
  * Edit a record.
@@ -37,6 +38,16 @@ class EditRecordPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
+    private GedcomEditService $gedcom_edit_service;
+
+    /**
+     * @param GedcomEditService $gedcom_edit_service
+     */
+    public function __construct(GedcomEditService $gedcom_edit_service)
+    {
+        $this->gedcom_edit_service = $gedcom_edit_service;
+    }
+
     /**
      * @param ServerRequestInterface $request
      *
@@ -44,22 +55,32 @@ class EditRecordPage implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree           = Validator::attributes($request)->tree();
+        $xref           = Validator::attributes($request)->isXref()->string('xref');
+        $record         = Registry::gedcomRecordFactory()->make($xref, $tree);
+        $record         = Auth::checkRecordAccess($record, true);
+        $include_hidden = Validator::queryParams($request)->boolean('include_hidden', false);
+        $can_edit_raw   = Auth::isAdmin() || $tree->getPreference('SHOW_GEDCOM_RECORD') === '1';
+        $subtags        = Registry::elementFactory()->make($record->tag())->subtags();
 
-        $xref = $request->getAttribute('xref');
-        assert(is_string($xref));
+        $gedcom = $this->gedcom_edit_service->insertMissingRecordSubtags($record, $include_hidden);
+        $hidden = $this->gedcom_edit_service->insertMissingRecordSubtags($record, true);
 
-        $record = Registry::gedcomRecordFactory()->make($xref, $tree);
-        $record = Auth::checkRecordAccess($record, true);
-
-        $can_edit_raw = Auth::isAdmin() || $tree->getPreference('SHOW_GEDCOM_RECORD');
-
-        $subtags = Registry::elementFactory()->make($record->tag())->subtags();
+        if ($gedcom === $hidden) {
+            $hidden_url = '';
+        } else {
+            $hidden_url = route(self::class, [
+                'include_hidden'  => true,
+                'tree'    => $tree->name(),
+                'xref'    => $xref,
+            ]);
+        }
 
         return $this->viewResponse('edit/edit-record', [
             'can_edit_raw' => $can_edit_raw,
+            'gedcom'       => $gedcom,
             'has_chan'     => array_key_exists('CHAN', $subtags),
+            'hidden_url'   => $hidden_url,
             'record'       => $record,
             'title'        => $record->fullName(),
             'tree'         => $tree,

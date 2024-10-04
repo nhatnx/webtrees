@@ -1,18 +1,20 @@
 <?php
 
-use Fisharebest\Webtrees\Carbon;
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Http\RequestHandlers\ControlPanel;
 use Fisharebest\Webtrees\Http\RequestHandlers\UserEditPage;
 use Fisharebest\Webtrees\Http\RequestHandlers\UserListPage;
 use Fisharebest\Webtrees\Http\RequestHandlers\UsersCleanupAction;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Illuminate\Support\Collection;
 
 /**
- * @var Collection<UserInterface> $inactive_users
- * @var string                    $title
- * @var Collection<UserInterface> $unverified_users
+ * @var Collection<int,UserInterface> $inactive_users
+ * @var string                        $title
+ * @var Collection<int,UserInterface> $unverified_users
  */
 
 ?>
@@ -26,8 +28,6 @@ use Illuminate\Support\Collection;
 <h1><?= $title ?></h1>
 
 <form method="post" action="<?= e(route(UsersCleanupAction::class)) ?>">
-    <?= csrf_field() ?>
-
     <table class="table table-bordered">
         <?php foreach ($inactive_users as $user) : ?>
             <tr>
@@ -38,12 +38,12 @@ use Illuminate\Support\Collection;
                     <a href="<?= e(route(UserEditPage::class, ['user_id' => $user->id()])) ?>">
                         <?= e($user->userName()) ?>
                         —
-                        <span dir="auto"><?= e($user->realName()) ?></span>
+                        <bdi><?= e($user->realName()) ?></bdi>
                     </a>
                 </td>
                 <td>
                     <?= I18N::translate('User’s account has been inactive too long: ') ?>
-                    <?= view('components/datetime', ['timestamp' => Carbon::createFromTimestamp(max((int) $user->getPreference(UserInterface::PREF_TIMESTAMP_REGISTERED), (int) $user->getPreference(UserInterface::PREF_TIMESTAMP_ACTIVE)))]) ?>
+                    <?= view('components/datetime', ['timestamp' => Registry::timestampFactory()->make(max((int) $user->getPreference(UserInterface::PREF_TIMESTAMP_REGISTERED), (int) $user->getPreference(UserInterface::PREF_TIMESTAMP_ACTIVE)))]) ?>
                 </td>
             </tr>
         <?php endforeach ?>
@@ -57,7 +57,7 @@ use Illuminate\Support\Collection;
                     <a href="<?= e(route(UserEditPage::class, ['user_id' => $user->id()])) ?>">
                         <?= e($user->userName()) ?>
                         —
-                        <span dir="auto"><?= e($user->realName()) ?></span>
+                        <bdi><?= e($user->realName()) ?></bdi>
                     </a>
                 </td>
                 <td>
@@ -79,4 +79,6 @@ use Illuminate\Support\Collection;
             </button>
         <?php endif ?>
     </p>
+
+    <?= csrf_field() ?>
 </form>

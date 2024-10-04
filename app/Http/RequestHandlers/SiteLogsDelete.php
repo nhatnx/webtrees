@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -31,8 +31,7 @@ use function response;
  */
 class SiteLogsDelete implements RequestHandlerInterface
 {
-    /** @var SiteLogsService */
-    private $site_logs_service;
+    private SiteLogsService $site_logs_service;
 
     /**
      * @param SiteLogsService $site_logs_service
@@ -49,7 +48,7 @@ class SiteLogsDelete implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $this->site_logs_service->logsQuery($request->getQueryParams())->delete();
+        $this->site_logs_service->logsQuery($request)->delete();
 
         return response();
     }

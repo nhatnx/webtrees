@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,18 +20,13 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Census;
 
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class CensusOfSlovakia
- */
+#[CoversClass(CensusOfSlovakia::class)]
 class CensusOfSlovakiaTest extends TestCase
 {
     /**
      * Test the census place
-     *
-     * @covers \Fisharebest\Webtrees\Census\CensusOfSlovakia
-     *
-     * @return void
      */
     public function testPlace(): void
     {
@@ -42,10 +37,6 @@ class CensusOfSlovakiaTest extends TestCase
 
     /**
      * Test the census language
-     *
-     * @covers \Fisharebest\Webtrees\Census\CensusOfCzechRepublic
-     *
-     * @return void
      */
     public function testLanguage(): void
     {
@@ -56,10 +47,6 @@ class CensusOfSlovakiaTest extends TestCase
 
     /**
      * Test the census dates
-     *
-     * @covers \Fisharebest\Webtrees\Census\CensusOfSlovakia
-     *
-     * @return void
      */
     public function testAllDates(): void
     {
@@ -67,7 +54,9 @@ class CensusOfSlovakiaTest extends TestCase
 
         $census_dates = $census->allCensusDates();
 
-        self::assertCount(1, $census_dates);
+        self::assertCount(3, $census_dates);
         self::assertInstanceOf(CensusOfSlovakia1869::class, $census_dates[0]);
+        self::assertInstanceOf(CensusOfSlovakia1930::class, $census_dates[1]);
+        self::assertInstanceOf(CensusOfSlovakia1940::class, $census_dates[2]);
     }
 }

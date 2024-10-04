@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,22 +21,19 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Module\ModuleReportInterface;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Report\HtmlRenderer;
 use Fisharebest\Webtrees\Report\PdfRenderer;
 use Fisharebest\Webtrees\Report\ReportParserGenerate;
 use Fisharebest\Webtrees\Services\ModuleService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 use function addcslashes;
-use function assert;
 use function ob_get_clean;
 use function ob_start;
 use function redirect;
@@ -50,14 +47,9 @@ class ReportGenerate implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /**
-     * @var ModuleService
-     */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * ReportEngineController constructor.
-     *
      * @param ModuleService $module_service
      */
     public function __construct(ModuleService $module_service)
@@ -74,15 +66,9 @@ class ReportGenerate implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $user = $request->getAttribute('user');
-        assert($user instanceof UserInterface);
-
-        $data_filesystem = Registry::filesystem()->data();
-
-        $report = $request->getAttribute('report');
+        $tree   = Validator::attributes($request)->tree();
+        $user   = Validator::attributes($request)->user();
+        $report = Validator::attributes($request)->string('report');
         $module = $this->module_service->findByName($report);
 
         if (!$module instanceof ModuleReportInterface) {
@@ -91,8 +77,8 @@ class ReportGenerate implements RequestHandlerInterface
 
         Auth::checkComponentAccess($module, ModuleReportInterface::class, $tree, $user);
 
-        $varnames  = $request->getQueryParams()['varnames'] ?? [];
-        $vars      = $request->getQueryParams()['vars'] ?? [];
+        $varnames  = Validator::queryParams($request)->array('varnames');
+        $vars      = Validator::queryParams($request)->array('vars');
         $variables = [];
 
         foreach ($varnames as $name) {
@@ -100,9 +86,8 @@ class ReportGenerate implements RequestHandlerInterface
         }
 
         $xml_filename = $module->resourcesFolder() . $module->xmlFilename();
-
-        $format      = $request->getQueryParams()['format'] ?? '';
-        $destination = $request->getQueryParams()['destination'] ?? '';
+        $format       = Validator::queryParams($request)->string('format');
+        $destination  = Validator::queryParams($request)->string('destination');
 
         $user->setPreference('default-report-destination', $destination);
         $user->setPreference('default-report-format', $format);
@@ -111,7 +96,7 @@ class ReportGenerate implements RequestHandlerInterface
             default:
             case 'HTML':
                 ob_start();
-                new ReportParserGenerate($xml_filename, new HtmlRenderer(), $variables, $tree, $data_filesystem);
+                new ReportParserGenerate($xml_filename, new HtmlRenderer(), $variables, $tree);
                 $html = ob_get_clean();
 
                 $this->layout = 'layouts/report';
@@ -122,20 +107,20 @@ class ReportGenerate implements RequestHandlerInterface
                 ]);
 
                 if ($destination === 'download') {
-                    $response = $response->withHeader('Content-Disposition', 'attachment; filename="' . addcslashes($report, '"') . '.html"');
+                    $response = $response->withHeader('content-disposition', 'attachment; filename="' . addcslashes($report, '"') . '.html"');
                 }
 
                 return $response;
 
             case 'PDF':
                 ob_start();
-                new ReportParserGenerate($xml_filename, new PdfRenderer(), $variables, $tree, $data_filesystem);
+                new ReportParserGenerate($xml_filename, new PdfRenderer(), $variables, $tree);
                 $pdf = ob_get_clean();
 
-                $headers = ['Content-Type' => 'application/pdf'];
+                $headers = ['content-type' => 'application/pdf'];
 
                 if ($destination === 'download') {
-                    $headers['Content-Disposition'] = 'attachment; filename="' . addcslashes($report, '"') . '.pdf"';
+                    $headers['content-disposition'] = 'attachment; filename="' . addcslashes($report, '"') . '.pdf"';
                 }
 
                 return response($pdf, StatusCodeInterface::STATUS_OK, $headers);

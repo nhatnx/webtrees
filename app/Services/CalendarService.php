@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,7 +20,6 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Services;
 
 use Fisharebest\ExtCalendar\PersianCalendar;
-use Fisharebest\Webtrees\Carbon;
 use Fisharebest\Webtrees\Date;
 use Fisharebest\Webtrees\Date\AbstractCalendarDate;
 use Fisharebest\Webtrees\Date\FrenchDate;
@@ -29,18 +28,19 @@ use Fisharebest\Webtrees\Date\HijriDate;
 use Fisharebest\Webtrees\Date\JalaliDate;
 use Fisharebest\Webtrees\Date\JewishDate;
 use Fisharebest\Webtrees\Date\JulianDate;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Fact;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 
 use function array_merge;
+use function assert;
 use function in_array;
 use function preg_match_all;
 use function range;
@@ -101,7 +101,7 @@ class CalendarService
      * @param string $filterof filter by living/recent
      * @param string $filtersx filter by sex
      *
-     * @return Fact[]
+     * @return array<Fact>
      */
     public function getCalendarEvents(int $jd1, int $jd2, string $facts, Tree $tree, string $filterof = '', string $filtersx = ''): array
     {
@@ -130,7 +130,7 @@ class CalendarService
         }
 
         if ($filterof === 'recent') {
-            $query->where('d_julianday1', '>=', Carbon::now()->subYears(100)->julianDay());
+            $query->where('d_julianday1', '>=', Registry::timestampFactory()->now()->subtractYears(100)->julianDay());
         }
 
         $ind_query = (clone $query)
@@ -180,7 +180,7 @@ class CalendarService
 
                 foreach ($record->facts([$row->d_fact]) as $fact) {
                     // For date ranges, we need a match on either the start/end.
-                    if (($fact->date()->minimumJulianDay() === $anniv_date->minimumJulianDay() || $fact->date()->maximumJulianDay() === $anniv_date->maximumJulianDay())) {
+                    if ($fact->date()->minimumJulianDay() === $anniv_date->minimumJulianDay() || $fact->date()->maximumJulianDay() === $anniv_date->maximumJulianDay()) {
                         $fact->anniv   = 0;
                         $found_facts[] = $fact;
                     }
@@ -201,7 +201,7 @@ class CalendarService
      * @param string $sort_by
      * @param Tree   $tree
      *
-     * @return Collection<Fact>
+     * @return Collection<int,Fact>
      */
     public function getEventsList(int $jd1, int $jd2, string $events, bool $only_living, string $sort_by, Tree $tree): Collection
     {
@@ -236,21 +236,15 @@ class CalendarService
         switch ($sort_by) {
             case 'anniv':
             case 'anniv_asc':
-                $facts = $facts->sort(static function (Fact $x, Fact $y): int {
-                    return $x->jd <=> $y->jd ?: $x->date()->minimumJulianDay() <=> $y->date()->minimumJulianDay();
-                });
+                $facts = $facts->sort(static fn (Fact $x, Fact $y): int => $x->jd <=> $y->jd ?: $x->date()->minimumJulianDay() <=> $y->date()->minimumJulianDay());
                 break;
 
             case 'anniv_desc':
-                $facts = $facts->sort(static function (Fact $x, Fact $y): int {
-                    return $x->jd <=> $y->jd ?: $y->date()->minimumJulianDay() <=> $x->date()->minimumJulianDay();
-                });
+                $facts = $facts->sort(static fn (Fact $x, Fact $y): int => $x->jd <=> $y->jd ?: $y->date()->minimumJulianDay() <=> $x->date()->minimumJulianDay());
                 break;
 
             case 'alpha':
-                $facts = $facts->sort(static function (Fact $x, Fact $y): int {
-                    return GedcomRecord::nameComparator()($x->record(), $y->record());
-                });
+                $facts = $facts->sort(static fn (Fact $x, Fact $y): int => GedcomRecord::nameComparator()($x->record(), $y->record()));
                 break;
         }
 
@@ -267,7 +261,7 @@ class CalendarService
      * @param string $filterof filter by living/recent
      * @param string $filtersx filter by sex
      *
-     * @return Fact[]
+     * @return array<Fact>
      */
     public function getAnniversaryEvents(int $jd, string $facts, Tree $tree, string $filterof = '', string $filtersx = ''): array
     {
@@ -332,7 +326,7 @@ class CalendarService
             }
 
             if ($filterof === 'recent') {
-                $query->where('d_julianday1', '>=', Carbon::now()->subYears(100)->julianDay());
+                $query->where('d_julianday1', '>=', Registry::timestampFactory()->now()->subtractYears(100)->julianDay());
             }
 
             $query

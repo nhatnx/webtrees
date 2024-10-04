@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,17 +20,17 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Menu;
 use Fisharebest\Webtrees\Session;
 use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
-use function assert;
 use function asset;
+use function is_string;
 use function response;
 use function uasort;
 
@@ -58,9 +58,9 @@ class ColorsTheme extends CloudsTheme
      *
      * @param Tree|null $tree
      *
-     * @return Menu[]
+     * @return array<Menu>
      */
-    public function userMenu(?Tree $tree): array
+    public function userMenu(Tree|null $tree): array
     {
         return array_filter([
             $this->menuPendingChanges($tree),
@@ -82,11 +82,8 @@ class ColorsTheme extends CloudsTheme
      */
     public function postPaletteAction(ServerRequestInterface $request): ResponseInterface
     {
-        $user = $request->getAttribute('user');
-        assert($user instanceof UserInterface);
-
-        $palette = $request->getQueryParams()['palette'];
-        assert(array_key_exists($palette, $this->palettes()));
+        $user    = Validator::attributes($request)->user();
+        $palette = Validator::queryParams($request)->isInArrayKeys($this->palettes())->string('palette');
 
         $user->setPreference('themecolor', $palette);
 
@@ -133,7 +130,7 @@ class ColorsTheme extends CloudsTheme
                 '#',
                 'menu-color-' . $palette_id . ($palette === $palette_id ? ' active' : ''),
                 [
-                    'data-post-url' => $url,
+                    'data-wt-post-url' => $url,
                 ]
             );
 
@@ -183,7 +180,7 @@ class ColorsTheme extends CloudsTheme
             'tealtop'          => I18N::translate('Teal Top'),
         ];
 
-        uasort($palettes, '\Fisharebest\Webtrees\I18N::strcasecmp');
+        uasort($palettes, I18N::comparator());
 
         return $palettes;
     }
@@ -194,16 +191,21 @@ class ColorsTheme extends CloudsTheme
     private function palette(): string
     {
         // If we are logged in, use our preference
-        $palette = Auth::user()->getPreference('themecolor', '');
+        $palette = Auth::user()->getPreference('themecolor');
 
         // If not logged in or no preference, use one we selected earlier in the session.
         if ($palette === '') {
-            $palette = Session::get('palette', '');
+            $palette = Session::get('palette');
+            $palette = is_string($palette) ? $palette : '';
         }
 
         // We haven't selected one this session? Use the site default
         if ($palette === '') {
-            $palette = Site::getPreference('DEFAULT_COLOR_PALETTE', self::DEFAULT_PALETTE);
+            $palette = Site::getPreference('DEFAULT_COLOR_PALETTE');
+        }
+
+        if ($palette === '') {
+            $palette = self::DEFAULT_PALETTE;
         }
 
         return $palette;

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,7 +21,6 @@ namespace Fisharebest\Webtrees\Report;
 
 use Fisharebest\Webtrees\MediaFile;
 use Fisharebest\Webtrees\Webtrees;
-use League\Flysystem\FilesystemOperator;
 
 use function count;
 
@@ -51,45 +50,22 @@ class PdfRenderer extends AbstractRenderer
      */
     private const UNICODE = true;
 
-    /**
-     * false means that the full font is embedded, true means only the used chars
-     * in TCPDF v5.9 font subsetting is a very slow process, this leads to larger files
-     *
-     * @var bool const
-     */
+    // Font sub-setting in TCPDF is slow.
     private const SUBSETTING = false;
 
-    /**
-     * @var TcpdfWrapper
-     */
-    public $tcpdf;
+    public TcpdfWrapper $tcpdf;
 
-    /** @var ReportBaseElement[] Array of elements in the header */
-    public $headerElements = [];
+    /** @var array<ReportPdfFootnote> Array of elements in the footer notes */
+    public array $printedfootnotes = [];
 
-    /** @var ReportBaseElement[] Array of elements in the footer */
-    public $footerElements = [];
+    // The last cell height
+    public float $lastCellHeight = 0.0;
 
-    /** @var ReportBaseElement[] Array of elements in the body */
-    public $bodyElements = [];
+    // The largest font size within a TextBox to calculate the height
+    public float $largestFontHeight = 0.0;
 
-    /** @var ReportPdfFootnote[] Array of elements in the footer notes */
-    public $printedfootnotes = [];
-
-    /** @var string Currently used style name */
-    public $currentStyle = '';
-
-    /** @var float The last cell height */
-    public $lastCellHeight = 0;
-
-    /** @var float The largest font size within a TextBox to calculate the height */
-    public $largestFontHeight = 0;
-
-    /** @var int The last pictures page number */
-    public $lastpicpage = 0;
-
-    /** @var PdfRenderer The current report. */
-    public $wt_report;
+    // The last pictures page number
+    public int $lastpicpage = 0;
 
     /**
      * PDF Header -PDF
@@ -118,7 +94,7 @@ class PdfRenderer extends AbstractRenderer
     {
         $this->tcpdf->AddPage();
 
-        foreach ($this->bodyElements as $key => $element) {
+        foreach ($this->bodyElements as $element) {
             if ($element instanceof ReportBaseElement) {
                 $element->render($this);
             } elseif ($element === 'footnotetexts') {
@@ -130,14 +106,14 @@ class PdfRenderer extends AbstractRenderer
     }
 
     /**
-     * PDF Footnotes -PDF
+     * Generate footnotes
      *
      * @return void
      */
     public function footnotes(): void
     {
         foreach ($this->printedfootnotes as $element) {
-            if (($this->tcpdf->GetY() + $element->getFootnoteHeight($this)) > $this->tcpdf->getPageHeight()) {
+            if ($this->tcpdf->GetY() + $element->getFootnoteHeight($this) > $this->tcpdf->getPageHeight()) {
                 $this->tcpdf->AddPage();
             }
 
@@ -168,42 +144,6 @@ class PdfRenderer extends AbstractRenderer
     }
 
     /**
-     * Add an element to the Header -PDF
-     *
-     * @param ReportBaseElement|string $element
-     *
-     * @return void
-     */
-    public function addHeader($element): void
-    {
-        $this->headerElements[] = $element;
-    }
-
-    /**
-     * Add an element to the Body -PDF
-     *
-     * @param ReportBaseElement|string $element
-     *
-     * @return void
-     */
-    public function addBody($element): void
-    {
-        $this->bodyElements[] = $element;
-    }
-
-    /**
-     * Add an element to the Footer -PDF
-     *
-     * @param ReportBaseElement|string $element
-     *
-     * @return void
-     */
-    public function addFooter($element): void
-    {
-        $this->footerElements[] = $element;
-    }
-
-    /**
      * Remove the header.
      *
      * @param int $index
@@ -228,18 +168,6 @@ class PdfRenderer extends AbstractRenderer
     }
 
     /**
-     * Remove the footer.
-     *
-     * @param int $index
-     *
-     * @return void
-     */
-    public function removeFooter(int $index): void
-    {
-        unset($this->footerElements[$index]);
-    }
-
-    /**
      * Clear the Header -PDF
      *
      * @return void
@@ -248,18 +176,6 @@ class PdfRenderer extends AbstractRenderer
     {
         unset($this->headerElements);
         $this->headerElements = [];
-    }
-
-    /**
-     * Set the report.
-     *
-     * @param PdfRenderer $report
-     *
-     * @return void
-     */
-    public function setReport(PdfRenderer $report): void
-    {
-        $this->wt_report = $report;
     }
 
     /**
@@ -282,8 +198,8 @@ class PdfRenderer extends AbstractRenderer
     public function setCurrentStyle(string $s): void
     {
         $this->currentStyle = $s;
-        $style              = $this->wt_report->getStyle($s);
-        $this->tcpdf->SetFont($style['font'], $style['style'], $style['size']);
+        $style              = $this->getStyle($s);
+        $this->tcpdf->setFont($style['font'], $style['style'], $style['size']);
     }
 
     /**
@@ -291,16 +207,11 @@ class PdfRenderer extends AbstractRenderer
      *
      * @param string $s Style name
      *
-     * @return array
+     * @return array{'name': string, 'font': string, 'style': string, 'size': float}
      */
     public function getStyle(string $s): array
     {
-        if (!isset($this->wt_report->styles[$s])) {
-            $s                           = $this->getCurrentStyle();
-            $this->wt_report->styles[$s] = $s;
-        }
-
-        return $this->wt_report->styles[$s];
+        return $this->styles[$s] ?? $this->styles[$this->getCurrentStyle()];
     }
 
     /**
@@ -319,13 +230,13 @@ class PdfRenderer extends AbstractRenderer
         } else {
             $x += $m['left'];
         }
-        $this->tcpdf->SetX($x);
+        $this->tcpdf->setX($x);
 
         return $x;
     }
 
     /**
-     * Get the maximum line width to draw from the curren position -PDF
+     * Get the maximum line width to draw from the current position -PDF
      * RTL supported
      *
      * @return float
@@ -334,10 +245,10 @@ class PdfRenderer extends AbstractRenderer
     {
         $m = $this->tcpdf->getMargins();
         if ($this->tcpdf->getRTL()) {
-            return ($this->tcpdf->getRemainingWidth() + $m['right']);
+            return $this->tcpdf->getRemainingWidth() + $m['right'];
         }
 
-        return ($this->tcpdf->getRemainingWidth() + $m['left']);
+        return $this->tcpdf->getRemainingWidth() + $m['left'];
     }
 
     /**
@@ -363,11 +274,11 @@ class PdfRenderer extends AbstractRenderer
     public function getCurrentStyleHeight(): float
     {
         if ($this->currentStyle === '') {
-            return $this->wt_report->default_font_size;
+            return $this->default_font_size;
         }
-        $style = $this->wt_report->getStyle($this->currentStyle);
+        $style = $this->getStyle($this->currentStyle);
 
-        return (float) $style['size'];
+        return $style['size'];
     }
 
     /**
@@ -383,7 +294,7 @@ class PdfRenderer extends AbstractRenderer
         $val = $footnote->getValue();
         $i   = 0;
         while ($i < $ct) {
-            if ($this->printedfootnotes[$i]->getValue() == $val) {
+            if ($this->printedfootnotes[$i]->getValue() === $val) {
                 // If this footnote already exist then set up the numbers for this object
                 $footnote->setNum($i + 1);
                 $footnote->setAddlink((string) ($i + 1));
@@ -444,68 +355,36 @@ class PdfRenderer extends AbstractRenderer
     {
         parent::setup();
 
-        // Setup the PDF class with custom size pages because WT supports more page sizes. If WT sends an unknown size name then the default would be A4
-        $this->tcpdf = new TcpdfWrapper($this->orientation, parent::UNITS, [
-            $this->page_width,
-            $this->page_height,
-        ], self::UNICODE, 'UTF-8', self::DISK_CACHE);
+        $this->tcpdf = new TcpdfWrapper(
+            $this->orientation,
+            self::UNITS,
+            [$this->page_width, $this->page_height],
+            self::UNICODE,
+            'UTF-8',
+            self::DISK_CACHE
+        );
 
-        // Setup the PDF margins
-        $this->tcpdf->SetMargins($this->left_margin, $this->top_margin, $this->right_margin);
+        $this->tcpdf->setMargins($this->left_margin, $this->top_margin, $this->right_margin);
         $this->tcpdf->setHeaderMargin($this->header_margin);
         $this->tcpdf->setFooterMargin($this->footer_margin);
-        //Set auto page breaks
-        $this->tcpdf->SetAutoPageBreak(true, $this->bottom_margin);
-        // Set font subsetting
+        $this->tcpdf->setAutoPageBreak(true, $this->bottom_margin);
         $this->tcpdf->setFontSubsetting(self::SUBSETTING);
-        // Setup PDF compression
-        $this->tcpdf->SetCompression(self::COMPRESSION);
-        // Setup RTL support
+        $this->tcpdf->setCompression(self::COMPRESSION);
         $this->tcpdf->setRTL($this->rtl);
-        // Set the document information
-        $this->tcpdf->SetCreator(Webtrees::NAME . ' ' . Webtrees::VERSION);
-        $this->tcpdf->SetAuthor($this->rauthor);
-        $this->tcpdf->SetTitle($this->title);
-        $this->tcpdf->SetSubject($this->rsubject);
-        $this->tcpdf->SetKeywords($this->rkeywords);
-        $this->tcpdf->SetHeaderData('', 0, $this->title);
-
-        $this->setReport($this);
+        $this->tcpdf->setCreator(Webtrees::NAME . ' ' . Webtrees::VERSION);
+        $this->tcpdf->setAuthor($this->rauthor);
+        $this->tcpdf->setTitle($this->title);
+        $this->tcpdf->setSubject($this->rsubject);
+        $this->tcpdf->setKeywords($this->rkeywords);
+        $this->tcpdf->setHeaderData('', 0, $this->title);
+        $this->tcpdf->setHeaderFont([$this->default_font, '', $this->default_font_size]);
 
         if ($this->show_generated_by) {
             // The default style name for Generated by.... is 'genby'
-            $element = new ReportPdfCell(0, 10, 0, 'C', '', 'genby', 1, ReportBaseElement::CURRENT_POSITION, ReportBaseElement::CURRENT_POSITION, 0, 0, '', '', true);
+            $element = new ReportPdfCell(0.0, 10.0, '', 'C', '', 'genby', 1, ReportBaseElement::CURRENT_POSITION, ReportBaseElement::CURRENT_POSITION, false, 0, '', '', true);
             $element->addText($this->generated_by);
             $element->setUrl(Webtrees::URL);
-            $this->addFooter($element);
-        }
-    }
-
-    /**
-     * Add an element.
-     *
-     * @param ReportBaseElement|string $element
-     *
-     * @return void
-     */
-    public function addElement($element): void
-    {
-        if ($this->processing === 'B') {
-            $this->addBody($element);
-
-            return;
-        }
-
-        if ($this->processing === 'H') {
-            $this->addHeader($element);
-
-            return;
-        }
-
-        if ($this->processing === 'F') {
-            $this->addFooter($element);
-
-            return;
+            $this->addElementToFooter($element);
         }
     }
 
@@ -523,16 +402,16 @@ class PdfRenderer extends AbstractRenderer
     /**
      * Create a new Cell object.
      *
-     * @param int    $width   cell width (expressed in points)
-     * @param int    $height  cell height (expressed in points)
-     * @param mixed  $border  Border style
-     * @param string $align   Text alignement
+     * @param float  $width   cell width (expressed in points)
+     * @param float  $height  cell height (expressed in points)
+     * @param string $border  Border style
+     * @param string $align   Text alignment
      * @param string $bgcolor Background color code
      * @param string $style   The name of the text style
      * @param int    $ln      Indicates where the current position should go after the call
-     * @param mixed  $top     Y-position
-     * @param mixed  $left    X-position
-     * @param int    $fill    Indicates if the cell background must be painted (1) or transparent (0). Default value: 1
+     * @param float  $top     Y-position
+     * @param float  $left    X-position
+     * @param bool   $fill    Indicates if the cell background must be painted (1) or transparent (0). Default value: 1
      * @param int    $stretch Stretch carachter mode
      * @param string $bocolor Border color
      * @param string $tcolor  Text color
@@ -540,7 +419,7 @@ class PdfRenderer extends AbstractRenderer
      *
      * @return ReportBaseCell
      */
-    public function createCell(int $width, int $height, $border, string $align, string $bgcolor, string $style, int $ln, $top, $left, int $fill, int $stretch, string $bocolor, string $tcolor, bool $reseth): ReportBaseCell
+    public function createCell(float $width, float $height, string $border, string $align, string $bgcolor, string $style, int $ln, float $top, float $left, bool $fill, int $stretch, string $bocolor, string $tcolor, bool $reseth): ReportBaseCell
     {
         return new ReportPdfCell($width, $height, $border, $align, $bgcolor, $style, $ln, $top, $left, $fill, $stretch, $bocolor, $tcolor, $reseth);
     }
@@ -626,14 +505,13 @@ class PdfRenderer extends AbstractRenderer
     /**
      * Create a new image object from Media Object.
      *
-     * @param MediaFile          $media_file
-     * @param float              $x
-     * @param float              $y
-     * @param float              $w     Image width
-     * @param float              $h     Image height
-     * @param string             $align L:left, C:center, R:right or empty to use x/y
-     * @param string             $ln    T:same line, N:next line
-     * @param FilesystemOperator $data_filesystem
+     * @param MediaFile $media_file
+     * @param float     $x
+     * @param float     $y
+     * @param float     $w     Image width
+     * @param float     $h     Image height
+     * @param string    $align L:left, C:center, R:right or empty to use x/y
+     * @param string    $ln    T:same line, N:next line
      *
      * @return ReportBaseImage
      */
@@ -644,10 +522,9 @@ class PdfRenderer extends AbstractRenderer
         float $w,
         float $h,
         string $align,
-        string $ln,
-        FilesystemOperator $data_filesystem
+        string $ln
     ): ReportBaseImage {
-        return new ReportPdfImage('@' . $media_file->fileContents($data_filesystem), $x, $y, $w, $h, $align, $ln);
+        return new ReportPdfImage('@' . $media_file->fileContents(), $x, $y, $w, $h, $align, $ln);
     }
 
     /**

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,18 +23,18 @@ use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Location;
 use Fisharebest\Webtrees\Media;
 use Fisharebest\Webtrees\Note;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Repository;
 use Fisharebest\Webtrees\Source;
 use Fisharebest\Webtrees\Submitter;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function e;
 
 /**
@@ -55,11 +55,9 @@ class MergeRecordsPage implements RequestHandlerInterface
     {
         $this->layout = 'layouts/administration';
 
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref1 = $request->getQueryParams()['xref1'] ?? '';
-        $xref2 = $request->getQueryParams()['xref2'] ?? '';
+        $tree  = Validator::attributes($request)->tree();
+        $xref1 = Validator::queryParams($request)->isXref()->string('xref1', '');
+        $xref2 = Validator::queryParams($request)->isXref()->string('xref2', '');
 
         $record1 = Registry::gedcomRecordFactory()->make($xref1, $tree);
         $record2 = Registry::gedcomRecordFactory()->make($xref2, $tree);
@@ -81,6 +79,8 @@ class MergeRecordsPage implements RequestHandlerInterface
             'note2'       => $record2 instanceof Note ? $record2 : null,
             'submitter1'  => $record1 instanceof Submitter ? $record1 : null,
             'submitter2'  => $record2 instanceof Submitter ? $record2 : null,
+            'location1'   => $record1 instanceof Location ? $record1 : null,
+            'location2'   => $record2 instanceof Location ? $record2 : null,
             'title'       => $title,
             'tree'        => $tree,
         ]);

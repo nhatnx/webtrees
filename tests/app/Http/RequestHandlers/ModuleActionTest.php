@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,30 +20,26 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
-use Fisharebest\Webtrees\Exceptions\HttpAccessDeniedException;
-use Fisharebest\Webtrees\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\GuestUser;
+use Fisharebest\Webtrees\Http\Exceptions\HttpAccessDeniedException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\Module\AbstractModule;
 use Fisharebest\Webtrees\Module\ModuleInterface;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 use Psr\Http\Message\ResponseInterface;
 
 use function response;
 
-/**
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\ModuleAction
- */
+#[CoversClass(ModuleAction::class)]
 class ModuleActionTest extends TestCase
 {
-    /**
-     * @return void
-     */
     public function testModuleAction(): void
     {
-        $module_service = self::createMock(ModuleService::class);
+        $module_service = $this->createMock(ModuleService::class);
         $module_service
-            ->expects(self::once())
+            ->expects($this->once())
             ->method('findByName')
             ->with('test')
             ->willReturn($this->fooModule());
@@ -60,17 +56,14 @@ class ModuleActionTest extends TestCase
         self::assertSame('It works!', (string) $response->getBody());
     }
 
-    /**
-     * @return void
-     */
     public function testNonExistingAction(): void
     {
         $this->expectException(HttpNotFoundException::class);
         $this->expectExceptionMessage('Method getTestingAction() not found in test');
 
-        $module_service = self::createMock(ModuleService::class);
+        $module_service = $this->createMock(ModuleService::class);
         $module_service
-            ->expects(self::once())
+            ->expects($this->once())
             ->method('findByName')
             ->with('test')
             ->willReturn($this->fooModule());
@@ -84,17 +77,14 @@ class ModuleActionTest extends TestCase
         $handler->handle($request);
     }
 
-    /**
-     * @return void
-     */
     public function testNonExistingModule(): void
     {
         $this->expectException(HttpNotFoundException::class);
         $this->expectExceptionMessage('Module test does not exist');
 
-        $module_service = self::createMock(ModuleService::class);
+        $module_service = $this->createMock(ModuleService::class);
         $module_service
-            ->expects(self::once())
+            ->expects($this->once())
             ->method('findByName')
             ->with('test')
             ->willReturn(null);
@@ -108,17 +98,14 @@ class ModuleActionTest extends TestCase
         $handler->handle($request);
     }
 
-    /**
-     * @return void
-     */
     public function testAdminAction(): void
     {
         $this->expectException(HttpAccessDeniedException::class);
         $this->expectExceptionMessage('Admin only action');
 
-        $module_service = self::createMock(ModuleService::class);
+        $module_service = $this->createMock(ModuleService::class);
         $module_service
-            ->expects(self::once())
+            ->expects($this->once())
             ->method('findByName')
             ->with('test')
             ->willReturn($this->fooModule());
@@ -132,12 +119,9 @@ class ModuleActionTest extends TestCase
         $handler->handle($request);
     }
 
-    /**
-     * @return ModuleInterface
-     */
     private function fooModule(): ModuleInterface
     {
-        return new class extends AbstractModule {
+        return new class () extends AbstractModule {
             public function getTestAction(): ResponseInterface
             {
                 return response('It works!');

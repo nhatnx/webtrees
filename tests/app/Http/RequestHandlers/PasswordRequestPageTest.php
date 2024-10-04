@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,15 +22,13 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\TestCase;
 use Fisharebest\Webtrees\User;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\PasswordRequestPage
- */
+#[CoversClass(PasswordRequestPage::class)]
 class PasswordRequestPageTest extends TestCase
 {
-    /**
-     * @return void
-     */
+    protected static bool $uses_database = true;
+
     public function testPasswordRequestPage(): void
     {
         $request  = self::createRequest();
@@ -40,12 +38,9 @@ class PasswordRequestPageTest extends TestCase
         self::assertSame(StatusCodeInterface::STATUS_OK, $response->getStatusCode());
     }
 
-    /**
-     * @return void
-     */
     public function testPasswordRequestPageAlreadyLoggedIn(): void
     {
-        $user     = self::createMock(User::class);
+        $user     = $this->createMock(User::class);
         $request  = self::createRequest()->withAttribute('user', $user);
         $handler  = new PasswordRequestPage();
         $response = $handler->handle($request);

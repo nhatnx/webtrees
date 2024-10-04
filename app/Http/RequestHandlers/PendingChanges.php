@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,12 +22,11 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Services\PendingChangesService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function route;
 
 /**
@@ -40,12 +39,9 @@ class PendingChanges implements RequestHandlerInterface
     // Some servers may not have enough resources to show all the changes.
     private const MAX_CHANGES = 1000;
 
-    /** @var PendingChangesService */
-    private $pending_changes_service;
+    private PendingChangesService $pending_changes_service;
 
     /**
-     * PendingChanges constructor.
-     *
      * @param PendingChangesService $pending_changes_service
      */
     public function __construct(PendingChangesService $pending_changes_service)
@@ -60,15 +56,13 @@ class PendingChanges implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $n = (int) ($request->getQueryParams()['n'] ?? self::MAX_CHANGES);
-
-        $url     = $request->getQueryParams()['url'] ?? route(TreePage::class, ['tree' => $tree->name()]);
-        $xrefs   = $this->pending_changes_service->pendingXrefs($tree);
-        $changes = $this->pending_changes_service->pendingChanges($tree, $n);
-        $title   = I18N::translate('Pending changes');
+        $tree        = Validator::attributes($request)->tree();
+        $n           = Validator::queryParams($request)->integer('n', self::MAX_CHANGES);
+        $default_url = route(TreePage::class, ['tree' => $tree->name()]);
+        $url         = Validator::queryParams($request)->isLocalUrl()->string('url', $default_url);
+        $xrefs       = $this->pending_changes_service->pendingXrefs($tree);
+        $changes     = $this->pending_changes_service->pendingChanges($tree, $n);
+        $title       = I18N::translate('Pending changes');
 
         return $this->viewResponse('pending-changes-page', [
             'changes' => $changes,

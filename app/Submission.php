@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,7 +20,6 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees;
 
 use Fisharebest\Webtrees\Http\RequestHandlers\SubmissionPage;
-use Illuminate\Database\Capsule\Manager as DB;
 
 /**
  * A GEDCOM submission (SUBN) object.
@@ -32,23 +31,6 @@ class Submission extends GedcomRecord
     public const RECORD_TYPE = 'SUBN';
 
     protected const ROUTE_NAME = SubmissionPage::class;
-
-    /**
-     * Fetch data from the database
-     *
-     * @param string $xref
-     * @param int    $tree_id
-     *
-     * @return string|null
-     */
-    protected static function fetchGedcomRecord(string $xref, int $tree_id): ?string
-    {
-        return DB::table('other')
-            ->where('o_id', '=', $xref)
-            ->where('o_file', '=', $tree_id)
-            ->where('o_type', '=', static::RECORD_TYPE)
-            ->value('o_gedcom');
-    }
 
     /**
      * Extract names from the GEDCOM record.

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,22 +21,24 @@ namespace Fisharebest\Webtrees\Http\Middleware;
 
 use Fig\Http\Message\RequestMethodInterface;
 use Fig\Http\Message\StatusCodeInterface;
-use Fisharebest\Webtrees\Exceptions\HttpException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpException;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\Log;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Site;
-use League\Flysystem\NotSupportedException;
+use Fisharebest\Webtrees\Validator;
+use League\Flysystem\FilesystemException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Throwable;
 
-use function app;
 use function dirname;
 use function error_get_last;
 use function ini_get;
+use function nl2br;
 use function ob_end_clean;
 use function ob_get_level;
 use function register_shutdown_function;
@@ -54,12 +56,9 @@ class HandleExceptions implements MiddlewareInterface, StatusCodeInterface
 {
     use ViewResponseTrait;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
-     * HandleExceptions constructor.
-     *
      * @param TreeService $tree_service
      */
     public function __construct(TreeService $tree_service)
@@ -81,7 +80,7 @@ class HandleExceptions implements MiddlewareInterface, StatusCodeInterface
             if (error_get_last() !== null && error_get_last()['type'] & E_ERROR) {
                 // If PHP does not display the error, then we must display it.
                 if (ini_get('display_errors') !== '1') {
-                    echo error_get_last()['message'], '<br><br>', error_get_last()['file'] , ': ', error_get_last()['line'];
+                    echo error_get_last()['message'], '<br><br>', error_get_last()['file'], ': ', error_get_last()['line'];
                 }
             }
         });
@@ -90,16 +89,16 @@ class HandleExceptions implements MiddlewareInterface, StatusCodeInterface
             return $handler->handle($request);
         } catch (HttpException $exception) {
             // The router added the tree attribute to the request, and we need it for the error response.
-            if (app()->has(ServerRequestInterface::class)) {
-                $request = app(ServerRequestInterface::class);
+            if (Registry::container()->has(ServerRequestInterface::class)) {
+                $request = Registry::container()->get(ServerRequestInterface::class);
             } else {
-                app()->instance(ServerRequestInterface::class, $request);
+                Registry::container()->set(ServerRequestInterface::class, $request);
             }
 
             return $this->httpExceptionResponse($request, $exception);
-        } catch (NotSupportedException $exception) {
+        } catch (FilesystemException $exception) {
             // The router added the tree attribute to the request, and we need it for the error response.
-            $request = app(ServerRequestInterface::class) ?? $request;
+            $request = Registry::container()->get(ServerRequestInterface::class) ?? $request;
 
             return $this->thirdPartyExceptionResponse($request, $exception);
         } catch (Throwable $exception) {
@@ -110,14 +109,14 @@ class HandleExceptions implements MiddlewareInterface, StatusCodeInterface
 
             // The Router middleware may have added a tree attribute to the request.
             // This might be usable in the error page.
-            if (app()->has(ServerRequestInterface::class)) {
-                $request = app(ServerRequestInterface::class) ?? $request;
+            if (Registry::container()->has(ServerRequestInterface::class)) {
+                $request = Registry::container()->get(ServerRequestInterface::class);
             }
 
             // Show the exception in a standard webtrees page (if we can).
             try {
                 return $this->unhandledExceptionResponse($request, $exception);
-            } catch (Throwable $ignore) {
+            } catch (Throwable) {
                 // That didn't work.  Try something else.
             }
 
@@ -126,7 +125,7 @@ class HandleExceptions implements MiddlewareInterface, StatusCodeInterface
                 $request = $request->withAttribute('tree', null);
 
                 return $this->unhandledExceptionResponse($request, $exception);
-            } catch (Throwable $ignore) {
+            } catch (Throwable) {
                 // That didn't work.  Try something else.
             }
 
@@ -135,12 +134,12 @@ class HandleExceptions implements MiddlewareInterface, StatusCodeInterface
                 $this->layout = 'layouts/error';
 
                 return $this->unhandledExceptionResponse($request, $exception);
-            } catch (Throwable $ignore) {
+            } catch (Throwable) {
                 // That didn't work.  Try something else.
             }
 
             // Show a stack dump.
-            return response((string) $exception, StatusCodeInterface::STATUS_INTERNAL_SERVER_ERROR);
+            return response(nl2br((string) $exception), StatusCodeInterface::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -152,10 +151,9 @@ class HandleExceptions implements MiddlewareInterface, StatusCodeInterface
      */
     private function httpExceptionResponse(ServerRequestInterface $request, HttpException $exception): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-
+        $tree    = Validator::attributes($request)->treeOptional();
         $default = Site::getPreference('DEFAULT_GEDCOM');
-        $tree = $tree ?? $this->tree_service->all()[$default] ?? $this->tree_service->all()->first();
+        $tree    ??= $this->tree_service->all()[$default] ?? $this->tree_service->all()->first();
 
         $status_code = $exception->getCode();
 
@@ -184,10 +182,10 @@ class HandleExceptions implements MiddlewareInterface, StatusCodeInterface
      */
     private function thirdPartyExceptionResponse(ServerRequestInterface $request, Throwable $exception): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
+        $tree = Validator::attributes($request)->treeOptional();
 
         $default = Site::getPreference('DEFAULT_GEDCOM');
-        $tree = $tree ?? $this->tree_service->all()[$default] ?? $this->tree_service->all()->first();
+        $tree ??= $this->tree_service->all()[$default] ?? $this->tree_service->all()->first();
 
         if ($request->getHeaderLine('X-Requested-With') !== '') {
             $this->layout = 'layouts/ajax';
@@ -221,7 +219,7 @@ class HandleExceptions implements MiddlewareInterface, StatusCodeInterface
 
         try {
             Log::addErrorLog($trace);
-        } catch (Throwable $ignore) {
+        } catch (Throwable) {
             // Must have been a problem with the database.  Nothing we can do here.
         }
 
@@ -243,9 +241,9 @@ class HandleExceptions implements MiddlewareInterface, StatusCodeInterface
                 'title'   => 'Error',
                 'error'   => $trace,
                 'request' => $request,
-                'tree'    => $request->getAttribute('tree'),
+                'tree'    => Validator::attributes($request)->treeOptional(),
             ], StatusCodeInterface::STATUS_INTERNAL_SERVER_ERROR);
-        } catch (Throwable $ignore) {
+        } catch (Throwable) {
             // Try with a minimal header/menu
             return $this->viewResponse('errors/unhandled-exception', [
                 'title'   => 'Error',

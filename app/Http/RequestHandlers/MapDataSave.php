@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,9 +19,10 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\FlashMessages;
 use Fisharebest\Webtrees\I18N;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -29,7 +30,6 @@ use Psr\Http\Server\RequestHandlerInterface;
 use function e;
 use function redirect;
 use function round;
-use function route;
 
 /**
  * Controller for maintaining geographic data.
@@ -43,13 +43,16 @@ class MapDataSave implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $params = (array) $request->getParsedBody();
+        $parent_id = Validator::parsedBody($request)->string('parent_id');
+        $place_id  = Validator::parsedBody($request)->string('place_id');
+        $latitude  = Validator::parsedBody($request)->string('new_place_lati');
+        $longitude = Validator::parsedBody($request)->string('new_place_long');
+        $name      = Validator::parsedBody($request)->string('new_place_name');
+        $url       = Validator::parsedBody($request)->isLocalUrl()->string('url');
 
-        $place_id  = $params['place_id'] ?? '';
-        $parent_id = $params['parent_id'] ?? null;
-        $latitude  = $params['new_place_lati'] ?? '';
-        $longitude = $params['new_place_long'] ?? '';
-        $name      = mb_substr($params['new_place_name'] ?? '', 0, 120);
+        $name      = mb_substr($name, 0, 120);
+        $place_id  = $place_id === '' ? null : $place_id;
+        $parent_id = $parent_id === '' ? null : $parent_id;
 
         if ($latitude === '' || $longitude === '') {
             $latitude  = null;
@@ -66,13 +69,26 @@ class MapDataSave implements RequestHandlerInterface
             }
         }
 
-        if ($place_id === '') {
-            DB::table('place_location')->insert([
-                'parent_id' => $parent_id,
-                'place'     => $name,
-                'latitude'  => $latitude,
-                'longitude' => $longitude,
-            ]);
+        if ($place_id === null) {
+            $exists_query = DB::table('place_location')->where('place', '=', $name);
+
+            if ($parent_id === null) {
+                $exists_query->whereNull('parent_id');
+            } else {
+                $exists_query->where('parent_id', '=', $parent_id);
+            }
+
+            if (!$exists_query->exists()) {
+                DB::table('place_location')->insert([
+                    'parent_id' => $parent_id,
+                    'place'     => $name,
+                    'latitude'  => $latitude,
+                    'longitude' => $longitude,
+                ]);
+
+                $message = I18N::translate('The location has been created', e($name));
+                FlashMessages::addMessage($message, 'success');
+            }
         } else {
             DB::table('place_location')
                 ->where('id', '=', $place_id)
@@ -81,12 +97,10 @@ class MapDataSave implements RequestHandlerInterface
                     'latitude'  => $latitude,
                     'longitude' => $longitude,
                 ]);
+
+            $message = I18N::translate('The details for “%s” have been updated.', e($name));
+            FlashMessages::addMessage($message, 'success');
         }
-
-        $message = I18N::translate('The details for “%s” have been updated.', e($name));
-        FlashMessages::addMessage($message, 'success');
-
-        $url = route(MapDataList::class, ['parent_id' => $parent_id]);
 
         return redirect($url);
     }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,45 +19,48 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
-use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Services\MediaFileService;
+use Fisharebest\Webtrees\Services\SearchService;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Collection;
-use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemException;
 use Psr\Http\Message\ServerRequestInterface;
-
-use function assert;
 
 /**
  * Autocomplete handler for media folders
  */
 class AutoCompleteFolder extends AbstractAutocompleteHandler
 {
+    private MediaFileService $media_file_service;
+
+    /**
+     * @param MediaFileService $media_file_service
+     * @param SearchService    $search_service
+     */
+    public function __construct(MediaFileService $media_file_service, SearchService $search_service)
+    {
+        parent::__construct($search_service);
+
+        $this->media_file_service = $media_file_service;
+    }
+
     /**
      * @param ServerRequestInterface $request
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     protected function search(ServerRequestInterface $request): Collection
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $query = $request->getAttribute('query');
-
-        $media_filesystem = Registry::filesystem()->media($tree);
+        $tree  = Validator::attributes($request)->tree();
+        $query = Validator::queryParams($request)->string('query');
 
         try {
-            $contents = new Collection($media_filesystem->listContents('', Filesystem::LIST_DEEP));
-
-            return $contents
-                ->filter(static function (array $object) use ($query): bool {
-                    return $object['type'] === 'dir' && str_contains($object['path'], $query);
-                })
-                ->values()
-                ->pluck('path')
-                ->take(static::LIMIT);
-        } catch (FilesystemException $ex) {
+            return $this->media_file_service->mediaFolders($tree)
+                ->filter(fn (string $path): bool => stripos($path, $query) !== false)
+                ->sort(I18N::comparator())
+                ->values();
+        } catch (FilesystemException) {
             return new Collection();
         }
     }

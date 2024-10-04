@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\Place;
 
 /**
@@ -8,12 +10,17 @@ use Fisharebest\Webtrees\Place;
  * @var string $tag
  * @var string $url
  * @var string $value
+ * @var string $date
  */
 
 ?>
 
 <div class="label">
     <?= $tag ?>
+</div>
+
+<div>
+    <?= $date ?>
 </div>
 
 <?php if ($url !== '') : ?>

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,18 +19,20 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use Fisharebest\Algorithm\MyersDiff;
-use Fisharebest\Webtrees\Carbon;
+use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\DatatablesService;
 use Fisharebest\Webtrees\Services\PendingChangesService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use stdClass;
 
 use function e;
 use function explode;
@@ -42,14 +44,11 @@ use function preg_replace_callback;
  */
 class PendingChangesLogData implements RequestHandlerInterface
 {
-    /** @var DatatablesService */
-    private $datatables_service;
+    private DatatablesService $datatables_service;
 
-    /** @var MyersDiff */
-    private $myers_diff;
+    private MyersDiff $myers_diff;
 
-    /** @var PendingChangesService */
-    private $pending_changes_service;
+    private PendingChangesService $pending_changes_service;
 
     /**
      * @param DatatablesService     $datatables_service
@@ -73,15 +72,13 @@ class PendingChangesLogData implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
+        $tree           = Validator::attributes($request)->tree();
         $params         = $request->getQueryParams();
         $params['tree'] = $tree->name();
 
         $query = $this->pending_changes_service->changesQuery($params);
 
-        $callback = function (stdClass $row) use ($tree): array {
+        $callback = function (object $row) use ($tree): array {
             $old_lines = $row->old_gedcom === '' ? [] : explode("\n", $row->old_gedcom);
             $new_lines = $row->new_gedcom === '' ? [] : explode("\n", $row->new_gedcom);
 
@@ -104,9 +101,13 @@ class PendingChangesLogData implements RequestHandlerInterface
             // Only convert valid xrefs to links
             $record = Registry::gedcomRecordFactory()->make($row->xref, $tree);
 
+            $change_time = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $row->change_time, new DateTimeZone('UTC'))
+                ->setTimezone(new DateTimeZone(Auth::user()->getPreference(UserInterface::PREF_TIME_ZONE, 'UTC')))
+                ->format('Y-m-d H:i:s T');
+
             return [
                 $row->change_id,
-                Carbon::make($row->change_time)->local()->format('Y-m-d H:i:s'),
+                $change_time,
                 I18N::translate($row->status),
                 $record ? '<a href="' . e($record->url()) . '">' . $record->xref() . '</a>' : $row->xref,
                 '<div class="gedcom-data" dir="ltr">' .

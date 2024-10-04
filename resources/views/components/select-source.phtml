@@ -1,6 +1,9 @@
 <?php
 
-use Fisharebest\Webtrees\Http\RequestHandlers\Select2Source;
+declare(strict_types=1);
+
+use Fisharebest\Webtrees\Http\RequestHandlers\TomSelectSource;
+use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Source;
 use Fisharebest\Webtrees\Tree;
 
@@ -19,21 +22,16 @@ $at = $at ?? '';
 
 <select
     autocomplete="off"
-    class="form-control select2 <?= $class ?? '' ?>"
-    data-ajax--delay="<?= e(Select2Source::AJAX_DELAY) ?>"
-    data-minimum-input-length="<?= e(Select2Source::MINIMUM_INPUT_LENGTH) ?>"
-    data-ajax--type="POST"
-    data-ajax--url="<?= e(route(Select2Source::class, ['tree' => $tree->name(), 'at' => $at])) ?>"
-    data-allow-clear="true"
-    data-placeholder=""
+    class="form-select tom-select <?= $class ?? '' ?>"
+    data-wt-url="<?= e(route(TomSelectSource::class, ['tree' => $tree->name(), 'at' => $at])) ?>"
+    data-wt-i18n-no-results="<?= I18N::translate('No results found') ?>"
     id="<?= e($id ?? $name) ?>"
     name="<?= e($name) ?>"
-    <?= ($disabled ?? false) ? 'disabled' : '' ?>
-    <?= ($required ?? false) ? 'required' : '' ?>
-    style="width:100%"
+    <?= ($disabled ?? false) ? 'disabled="disabled"' : '' ?>
+    <?= ($required ?? false) ? 'required="required"' : '' ?>
 >
     <?php if (($source ?? null) instanceof Source) : ?>
-        <option value="<?= e($at . $source->xref() . $at) ?>"d>
+        <option value="<?= e($at . $source->xref() . $at) ?>">
             <?= view('selects/source', ['source' => $source]) ?>
         </option>
     <?php else : ?>

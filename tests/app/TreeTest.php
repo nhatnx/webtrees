@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,76 +21,67 @@ namespace Fisharebest\Webtrees;
 
 use Fisharebest\Webtrees\Contracts\CacheFactoryInterface;
 use Fisharebest\Webtrees\Contracts\UserInterface;
-use Fisharebest\Webtrees\Functions\FunctionsImport;
 use Fisharebest\Webtrees\Services\GedcomExportService;
+use Fisharebest\Webtrees\Services\GedcomImportService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Services\UserService;
 use InvalidArgumentException;
+use Nyholm\Psr7\Factory\Psr17Factory;
+use PHPUnit\Framework\Attributes\CoversClass;
 use Symfony\Component\Cache\Adapter\NullAdapter;
 
+use function fclose;
+use function file_get_contents;
+use function preg_replace;
 use function stream_get_contents;
 
-/**
- * Test harness for the class Tree
- */
+#[CoversClass(Tree::class)]
+#[CoversClass(TreeService::class)]
+#[CoversClass(GedcomExportService::class)]
 class TreeTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    public function setUp(): void
+    /**
+     * Things to run before every test.
+     */
+    protected function setUp(): void
     {
         parent::setUp();
 
-        $cache_factory = self::createMock(CacheFactoryInterface::class);
+        $cache_factory = $this->createMock(CacheFactoryInterface::class);
         $cache_factory->method('array')->willReturn(new Cache(new NullAdapter()));
         Registry::cache($cache_factory);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::__construct
-     * @covers \Fisharebest\Webtrees\Tree::id
-     * @covers \Fisharebest\Webtrees\Tree::name
-     * @covers \Fisharebest\Webtrees\Tree::title
-     * @return void
-     */
     public function testConstructor(): void
     {
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
 
         self::assertSame('name', $tree->name());
         self::assertSame('title', $tree->title());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::getPreference
-     * @covers \Fisharebest\Webtrees\Tree::setPreference
-     * @return void
-     */
     public function testTreePreferences(): void
     {
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
-
-        $pref = $tree->getPreference('foo', 'default');
-        self::assertSame('default', $pref);
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
 
         $tree->setPreference('foo', 'bar');
-        $pref = $tree->getPreference('foo', 'default');
+        $pref = $tree->getPreference('foo');
         self::assertSame('bar', $pref);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::getUserPreference
-     * @covers \Fisharebest\Webtrees\Tree::setUserPreference
-     * @return void
-     */
     public function testUserTreePreferences(): void
     {
-        $user_service = new UserService();
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
-        $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
+        $user_service          = new UserService();
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
+        $user                  = $user_service->create('user', 'User', 'user@example.com', 'secret');
 
         $pref = $tree->getUserPreference($user, 'foo', 'default');
         self::assertSame('default', $pref);
@@ -100,34 +91,28 @@ class TreeTest extends TestCase
         self::assertSame('bar', $pref);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::createIndividual
-     * @return void
-     */
     public function testCreateInvalidIndividual(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        $user_service = new UserService();
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
-        $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
+        $user_service          = new UserService();
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
+        $user                  = $user_service->create('user', 'User', 'user@example.com', 'secret');
         $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $tree->createIndividual("0 @@ FOO\n1 SEX U");
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::createIndividual
-     * @return void
-     */
     public function testCreateIndividual(): void
     {
-        $user_service = new UserService();
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
-        $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
+        $user_service          = new UserService();
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
+        $user                  = $user_service->create('user', 'User', 'user@example.com', 'secret');
         $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
@@ -139,34 +124,28 @@ class TreeTest extends TestCase
         self::assertFalse($record->isPendingAddition());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::createFamily
-     * @return void
-     */
     public function testCreateInvalidFamily(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        $user_service = new UserService();
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
-        $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
+        $user_service          = new UserService();
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
+        $user                  = $user_service->create('user', 'User', 'user@example.com', 'secret');
         $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $tree->createFamily("0 @@ FOO\n1 MARR Y");
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::createFamily
-     * @return void
-     */
     public function testCreateFamily(): void
     {
-        $user_service = new UserService();
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
-        $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
+        $user_service          = new UserService();
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
+        $user                  = $user_service->create('user', 'User', 'user@example.com', 'secret');
         $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
@@ -178,34 +157,28 @@ class TreeTest extends TestCase
         self::assertFalse($record->isPendingAddition());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::createMediaObject
-     * @return void
-     */
     public function testCreateInvalidMediaObject(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        $user_service = new UserService();
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
-        $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
+        $user_service          = new UserService();
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
+        $user                  = $user_service->create('user', 'User', 'user@example.com', 'secret');
         $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $tree->createMediaObject("0 @@ FOO\n1 MARR Y");
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::createMediaObject
-     * @return void
-     */
     public function testCreateMediaObject(): void
     {
-        $user_service = new UserService();
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
-        $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
+        $user_service          = new UserService();
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
+        $user                  = $user_service->create('user', 'User', 'user@example.com', 'secret');
         $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
@@ -217,34 +190,28 @@ class TreeTest extends TestCase
         self::assertFalse($record->isPendingAddition());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::createRecord
-     * @return void
-     */
     public function testCreateInvalidRecord(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        $user_service = new UserService();
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
-        $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
+        $user_service          = new UserService();
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
+        $user                  = $user_service->create('user', 'User', 'user@example.com', 'secret');
         $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
         $tree->createRecord("0 @@FOO\n1 NOTE noted");
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::createRecord
-     * @return void
-     */
     public function testCreateRecord(): void
     {
-        $user_service = new UserService();
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
-        $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
+        $user_service          = new UserService();
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
+        $user                  = $user_service->create('user', 'User', 'user@example.com', 'secret');
         $user->setPreference(UserInterface::PREF_IS_ADMINISTRATOR, '1');
         Auth::login($user);
 
@@ -256,21 +223,18 @@ class TreeTest extends TestCase
         self::assertFalse($record->isPendingAddition());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::significantIndividual
-     * @return void
-     */
     public function testSignificantIndividual(): void
     {
+        $gedcom_import_service = new GedcomImportService();
         $user_service = new UserService();
-        $tree_service = new TreeService();
+        $tree_service = new TreeService($gedcom_import_service);
         $tree         = $tree_service->create('name', 'title');
         $user         = $user_service->create('user', 'User', 'user@example.com', 'secret');
         $user->setPreference(UserInterface::PREF_AUTO_ACCEPT_EDITS, '1');
         Auth::login($user);
 
         // Delete the tree's default individual.
-        FunctionsImport::updateRecord('0 @X1@ INDI', $tree, true);
+        $gedcom_import_service->updateRecord('0 @X1@ INDI', $tree, true);
 
         // No individuals in tree?  Fake individual
         self::assertSame('I', $tree->significantIndividual($user)->xref());
@@ -296,15 +260,11 @@ class TreeTest extends TestCase
         self::assertSame($record4->xref(), $tree->significantIndividual($user)->xref());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Services\TreeService::importGedcomFile
-     * @covers \Fisharebest\Webtrees\Services\TreeService::deleteGenealogyData
-     * @return void
-     */
     public function testImportAndDeleteGedcomFile(): void
     {
-        $tree_service = new TreeService();
-        $tree = $this->importTree('demo.ged');
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $this->importTree('demo.ged');
         self::assertNotNull($tree_service->all()->get('demo.ged'));
         Site::setPreference('DEFAULT_GEDCOM', $tree->name());
 
@@ -314,10 +274,6 @@ class TreeTest extends TestCase
         self::assertSame('', Site::getPreference('DEFAULT_GEDCOM'));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Tree::hasPendingEdit
-     * @return void
-     */
     public function testHasPendingEdits(): void
     {
         $user_service = new UserService();
@@ -335,23 +291,16 @@ class TreeTest extends TestCase
         self::assertTrue($tree->hasPendingEdit());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Services\GedcomExportService::export
-     * @return void
-     */
     public function testExportGedcom(): void
     {
         $tree = $this->importTree('demo.ged');
 
-        $fp = fopen('php://memory', 'wb');
+        $gedcom_export_service = new GedcomExportService(new Psr17Factory(), new Psr17Factory());
 
-        $gedcom_export_service = new GedcomExportService();
-        $gedcom_export_service->export($tree, $fp, true);
-
-        rewind($fp);
-
+        $resource = $gedcom_export_service->export($tree, true);
         $original = file_get_contents(__DIR__ . '/../data/demo.ged');
-        $export   = stream_get_contents($fp);
+        $export   = stream_get_contents($resource);
+        fclose($resource);
 
         // The version, date and time in the HEAD record will be different.
         $original = preg_replace('/\n2 VERS .*/', '', $original, 1);

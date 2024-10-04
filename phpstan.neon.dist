@@ -1,8 +1,16 @@
 includes:
-	- phpstan-baseline.neon
+#    - phar://phpstan.phar/conf/bleedingEdge.neon
+    - phpstan-baseline.neon
 
 parameters:
-    ignoreErrors:
-        - '#^Call to an undefined method Aura\\Router\\Map::extras\(\)\.$#'
-        - '#^Parameter \#1 \$column of method Illuminate\\Database\\Query\\Builder::[a-zA-Z]+\(\) expects string, Illuminate\\Database\\Query\\Expression given\.$#'
-        - '#^Parameter \#1 \$column of method Illuminate\\Database\\Query\\Builder::[a-zA-Z]+\(\) expects array\|Closure\|string, Illuminate\\Database\\Query\\Expression given\.$#'
+    fileExtensions:
+        - php
+        - phtml
+
+    level: max
+
+    paths:
+        - index.php
+        - app
+        - resources/views
+        - tests

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,20 +19,21 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Http\RequestHandlers\ControlPanel;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Menu;
 use Fisharebest\Webtrees\Services\HtmlService;
 use Fisharebest\Webtrees\Services\TreeService;
+use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use stdClass;
 
-use function assert;
+use function in_array;
 use function redirect;
 use function route;
 
@@ -44,15 +45,11 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
     use ModuleConfigTrait;
     use ModuleMenuTrait;
 
-    /** @var HtmlService */
-    private $html_service;
+    private HtmlService $html_service;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
-     * FrequentlyAskedQuestionsModule constructor.
-     *
      * @param HtmlService $html_service
      * @param TreeService $tree_service
      */
@@ -101,7 +98,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
      *
      * @return Menu|null
      */
-    public function getMenu(Tree $tree): ?Menu
+    public function getMenu(Tree $tree): Menu|null
     {
         if ($this->faqsExist($tree, I18N::languageTag())) {
             return new Menu($this->title(), route('module', [
@@ -124,10 +121,13 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
         $this->layout = 'layouts/administration';
 
         // This module can't run without a tree
-        $tree = $request->getAttribute('tree');
+        $tree = Validator::attributes($request)->treeOptional();
 
         if (!$tree instanceof Tree) {
-            $tree = $this->tree_service->all()->first();
+            $trees = $this->tree_service->all();
+
+            $tree = $trees->get(Site::getPreference('DEFAULT_GEDCOM')) ?? $trees->first();
+
             if ($tree instanceof Tree) {
                 return redirect(route('module', ['module' => $this->name(), 'action' => 'Admin', 'tree' => $tree->name()]));
             }
@@ -137,7 +137,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
 
         $faqs = $this->faqsForTree($tree);
 
-        $min_block_order = DB::table('block')
+        $min_block_order = (int) DB::table('block')
             ->where('module_name', '=', $this->name())
             ->where(static function (Builder $query) use ($tree): void {
                 $query
@@ -146,7 +146,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
             })
             ->min('block_order');
 
-        $max_block_order = DB::table('block')
+        $max_block_order = (int) DB::table('block')
             ->where('module_name', '=', $this->name())
             ->where(static function (Builder $query) use ($tree): void {
                 $query
@@ -176,12 +176,10 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
      */
     public function postAdminAction(ServerRequestInterface $request): ResponseInterface
     {
-        $params = (array) $request->getParsedBody();
-
         return redirect(route('module', [
             'module' => $this->name(),
             'action' => 'Admin',
-            'tree'   => $params['tree'] ?? '',
+            'tree'   => Validator::parsedBody($request)->string('tree'),
         ]));
     }
 
@@ -192,7 +190,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
      */
     public function postAdminDeleteAction(ServerRequestInterface $request): ResponseInterface
     {
-        $block_id = (int) $request->getQueryParams()['block_id'];
+        $block_id = Validator::queryParams($request)->integer('block_id');
 
         DB::table('block_setting')->where('block_id', '=', $block_id)->delete();
 
@@ -213,7 +211,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
      */
     public function postAdminMoveDownAction(ServerRequestInterface $request): ResponseInterface
     {
-        $block_id = (int) $request->getQueryParams()['block_id'];
+        $block_id = Validator::queryParams($request)->integer('block_id');
 
         $block_order = DB::table('block')
             ->where('block_id', '=', $block_id)
@@ -222,7 +220,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
         $swap_block = DB::table('block')
             ->where('module_name', '=', $this->name())
             ->where('block_order', '>', $block_order)
-            ->orderBy('block_order', 'asc')
+            ->orderBy('block_order')
             ->first();
 
         if ($block_order !== null && $swap_block !== null) {
@@ -249,7 +247,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
      */
     public function postAdminMoveUpAction(ServerRequestInterface $request): ResponseInterface
     {
-        $block_id = (int) $request->getQueryParams()['block_id'];
+        $block_id = Validator::queryParams($request)->integer('block_id');
 
         $block_order = DB::table('block')
             ->where('block_id', '=', $block_id)
@@ -287,7 +285,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
     {
         $this->layout = 'layouts/administration';
 
-        $block_id = (int) ($request->getQueryParams()['block_id'] ?? 0);
+        $block_id = Validator::queryParams($request)->integer('block_id', 0);
 
         if ($block_id === 0) {
             // Creating a new faq
@@ -312,9 +310,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
         }
 
         $gedcom_ids = $this->tree_service->all()
-            ->mapWithKeys(static function (Tree $tree): array {
-                return [$tree->id() => $tree->title()];
-            })
+            ->mapWithKeys(static fn (Tree $tree): array => [$tree->id() => $tree->title()])
             ->all();
 
         $gedcom_ids = ['' => I18N::translate('All')] + $gedcom_ids;
@@ -338,15 +334,12 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
      */
     public function postAdminEditAction(ServerRequestInterface $request): ResponseInterface
     {
-        $block_id = (int) ($request->getQueryParams()['block_id'] ?? 0);
-
-        $params = (array) $request->getParsedBody();
-
-        $body        = $params['body'];
-        $header      = $params['header'];
-        $languages   = $params['languages'] ?? [];
-        $gedcom_id   = $params['gedcom_id'];
-        $block_order = (int) $params['block_order'];
+        $block_id    = Validator::queryParams($request)->integer('block_id', 0);
+        $body        = Validator::parsedBody($request)->string('body');
+        $header      = Validator::parsedBody($request)->string('header');
+        $languages   = Validator::parsedBody($request)->array('languages');
+        $gedcom_id   = Validator::parsedBody($request)->string('gedcom_id');
+        $block_order = Validator::parsedBody($request)->integer('block_order');
 
         if ($gedcom_id === '') {
             $gedcom_id = null;
@@ -369,7 +362,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
                 'block_order' => $block_order,
             ]);
 
-            $block_id = (int) DB::connection()->getPdo()->lastInsertId();
+            $block_id = DB::lastInsertId();
         }
 
         $this->setBlockSetting($block_id, 'faqbody', $body);
@@ -391,14 +384,11 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
      */
     public function getShowAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree = Validator::attributes($request)->tree();
 
         // Filter foreign languages.
         $faqs = $this->faqsForTree($tree)
-            ->filter(static function (stdClass $faq): bool {
-                return $faq->languages === '' || in_array(I18N::languageTag(), explode(',', $faq->languages), true);
-            });
+            ->filter(static fn (object $faq): bool => $faq->languages === '' || in_array(I18N::languageTag(), explode(',', $faq->languages), true));
 
         return $this->viewResponse('modules/faq/show', [
             'faqs'  => $faqs,
@@ -410,7 +400,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
     /**
      * @param Tree $tree
      *
-     * @return Collection<stdClass>
+     * @return Collection<int,object>
      */
     private function faqsForTree(Tree $tree): Collection
     {
@@ -429,7 +419,14 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
             })
             ->orderBy('block_order')
             ->select(['block.block_id', 'block_order', 'gedcom_id', 'bs1.setting_value AS header', 'bs2.setting_value AS faqbody', 'bs3.setting_value AS languages'])
-            ->get();
+            ->get()
+            ->map(static function (object $row): object {
+                $row->block_id    = (int) $row->block_id;
+                $row->block_order = (int) $row->block_order;
+                $row->gedcom_id   = (int) $row->gedcom_id;
+
+                return $row;
+            });
     }
 
     /**
@@ -451,9 +448,7 @@ class FrequentlyAskedQuestionsModule extends AbstractModule implements ModuleCon
             })
             ->select(['setting_value AS languages'])
             ->get()
-            ->filter(static function (stdClass $faq) use ($language): bool {
-                return $faq->languages === '' || in_array($language, explode(',', $faq->languages), true);
-            })
+            ->filter(static fn (object $faq): bool => $faq->languages === '' || in_array($language, explode(',', $faq->languages), true))
             ->isNotEmpty();
     }
 }

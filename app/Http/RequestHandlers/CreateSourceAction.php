@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,12 +21,10 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-
-use function assert;
 
 /**
  * Process a form to create a new source.
@@ -40,76 +38,63 @@ class CreateSourceAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree         = Validator::attributes($request)->tree();
+        $title        = Validator::parsedBody($request)->isNotEmpty()->string('source-title');
+        $abbreviation = Validator::parsedBody($request)->string('source-abbreviation');
+        $author       = Validator::parsedBody($request)->string('source-author');
+        $publication  = Validator::parsedBody($request)->string('source-publication');
+        $repository   = Validator::parsedBody($request)->isXref()->string('source-repository', '');
+        $call_number  = Validator::parsedBody($request)->string('source-call-number');
+        $text         = Validator::parsedBody($request)->string('source-text');
+        $restriction  = Validator::parsedBody($request)->string('restriction');
 
-        $params              = (array) $request->getParsedBody();
-        $title               = $params['source-title'];
-        $abbreviation        = $params['source-abbreviation'];
-        $author              = $params['source-author'];
-        $publication         = $params['source-publication'];
-        $repository          = $params['source-repository'];
-        $call_number         = $params['source-call-number'];
-        $text                = $params['source-text'];
-        $privacy_restriction = $params['privacy-restriction'];
-        $edit_restriction    = $params['edit-restriction'];
+        $title        = Registry::elementFactory()->make('SOUR:TITL')->canonical($title);
+        $abbreviation = Registry::elementFactory()->make('SOUR:ABBR')->canonical($abbreviation);
+        $author       = Registry::elementFactory()->make('SOUR:AUTH')->canonical($author);
+        $publication  = Registry::elementFactory()->make('SOUR:PUBL')->canonical($publication);
+        $repository   = Registry::elementFactory()->make('SOUR:REPO')->canonical($repository);
+        $call_number  = Registry::elementFactory()->make('SOUR:REPO:CALN')->canonical($call_number);
+        $text         = Registry::elementFactory()->make('SOUR:TEXT')->canonical($text);
+        $restriction  = Registry::elementFactory()->make('SOUR:RESN')->canonical($restriction);
 
-        // Fix non-printing characters
-        $title        = trim(preg_replace('/\s+/', ' ', $title));
-        $abbreviation = trim(preg_replace('/\s+/', ' ', $abbreviation));
-        $author       = trim(preg_replace('/\s+/', ' ', $author));
-        $publication  = trim(preg_replace('/\s+/', ' ', $publication));
-        $repository   = trim(preg_replace('/\s+/', ' ', $repository));
-        $call_number  = trim(preg_replace('/\s+/', ' ', $call_number));
-
-        // Convert HTML line endings to GEDCOM continuations
-        $text = strtr($text, ["\r\n" => "\n2 CONT "]);
-
-        $gedcom = "0 @@ SOUR\n\n1 TITL " . $title;
+        $gedcom = "0 @@ SOUR\n1 TITL " . strtr($title, ["\n" => "\n2 CONT "]);
 
         if ($abbreviation !== '') {
-            $gedcom .= "\n1 ABBR " . $abbreviation;
+            $gedcom .= "\n1 ABBR " . strtr($abbreviation, ["\n" => "\n2 CONT "]);
         }
 
         if ($author !== '') {
-            $gedcom .= "\n1 AUTH " . $author;
+            $gedcom .= "\n1 AUTH " . strtr($author, ["\n" => "\n2 CONT "]);
         }
 
         if ($publication !== '') {
-            $gedcom .= "\n1 PUBL " . $publication;
+            $gedcom .= "\n1 PUBL " . strtr($publication, ["\n" => "\n2 CONT "]);
         }
 
         if ($text !== '') {
-            $gedcom .= "\n1 TEXT " . $text;
+            $gedcom .= "\n1 TEXT " . strtr($text, ["\n" => "\n2 CONT "]);
         }
 
         if ($repository !== '') {
             $gedcom .= "\n1 REPO @" . $repository . '@';
 
             if ($call_number !== '') {
-                $gedcom .= "\n2 CALN " . $call_number;
+                $gedcom .= "\n2 CALN " . strtr($call_number, ["\n" => "\n3 CONT "]);
             }
         }
 
-        if (in_array($privacy_restriction, ['none', 'privacy', 'confidential'], true)) {
-            $gedcom .= "\n1 RESN " . $privacy_restriction;
-        }
-
-        if ($edit_restriction === 'locked') {
-            $gedcom .= "\n1 RESN " . $edit_restriction;
+        if ($restriction !== '') {
+            $gedcom .= "\n1 RESN " . strtr($restriction, ["\n" => "\n2 CONT "]);
         }
 
         $record = $tree->createRecord($gedcom);
-        $record = Registry::sourceFactory()->new($record->xref(), $record->gedcom(), null, $tree);
 
-        // id and text are for select2 / autocomplete
+        // value and text are for autocomplete
         // html is for interactive modals
         return response([
-            'id'   => '@' . $record->xref() . '@',
-            'text' => view('selects/source', [
-                'source' => $record,
-            ]),
-            'html' => view('modals/record-created', [
+            'value' => '@' . $record->xref() . '@',
+            'text'  => view('selects/source', ['source' => $record]),
+            'html'  => view('modals/record-created', [
                 'title' => I18N::translate('The source has been created'),
                 'name'  => $record->fullName(),
                 'url'   => $record->url(),

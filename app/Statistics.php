@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -54,15 +54,17 @@ use Fisharebest\Webtrees\Statistics\Repository\NewsRepository;
 use Fisharebest\Webtrees\Statistics\Repository\PlaceRepository;
 use Fisharebest\Webtrees\Statistics\Repository\ServerRepository;
 use Fisharebest\Webtrees\Statistics\Repository\UserRepository;
+use Fisharebest\Webtrees\Statistics\Service\CenturyService;
+use Fisharebest\Webtrees\Statistics\Service\ColorService;
+use Fisharebest\Webtrees\Statistics\Service\CountryService;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionMethod;
-use ReflectionType;
+use ReflectionNamedType;
 use stdClass;
 
-use function call_user_func;
 use function count;
 use function in_array;
 use function str_contains;
@@ -89,127 +91,78 @@ class Statistics implements
     FamilyDatesRepositoryInterface,
     PlaceRepositoryInterface
 {
-    /**
-     * Generate statistics for a specified tree.
-     *
-     * @var Tree
-     */
-    private $tree;
-    /**
-     * @var GedcomRepository
-     */
-    private $gedcomRepository;
+    private Tree $tree;
 
-    /**
-     * @var IndividualRepository
-     */
-    private $individualRepository;
+    private GedcomRepository $gedcom_repository;
 
-    /**
-     * @var FamilyRepository
-     */
-    private $familyRepository;
+    private IndividualRepository $individual_repository;
 
-    /**
-     * @var MediaRepository
-     */
-    private $mediaRepository;
+    private FamilyRepository $family_repository;
 
-    /**
-     * @var EventRepository
-     */
-    private $eventRepository;
+    private MediaRepository $media_repository;
 
-    /**
-     * @var UserRepository
-     */
-    private $userRepository;
+    private EventRepository $event_repository;
 
-    /**
-     * @var ServerRepository
-     */
-    private $serverRepository;
+    private UserRepository $user_repository;
 
-    /**
-     * @var BrowserRepository
-     */
-    private $browserRepository;
+    private ServerRepository $server_repository;
 
-    /**
-     * @var HitCountRepository
-     */
-    private $hitCountRepository;
+    private BrowserRepository $browser_repository;
 
-    /**
-     * @var LatestUserRepository
-     */
-    private $latestUserRepository;
+    private HitCountRepository $hit_count_repository;
 
-    /**
-     * @var FavoritesRepository
-     */
-    private $favoritesRepository;
+    private LatestUserRepository $latest_user_repository;
 
-    /**
-     * @var NewsRepository
-     */
-    private $newsRepository;
+    private FavoritesRepository $favorites_repository;
 
-    /**
-     * @var MessageRepository
-     */
-    private $messageRepository;
+    private NewsRepository $news_repository;
 
-    /**
-     * @var ContactRepository
-     */
-    private $contactRepository;
+    private MessageRepository $message_repository;
 
-    /**
-     * @var FamilyDatesRepository
-     */
-    private $familyDatesRepository;
+    private ContactRepository $contact_repository;
 
-    /**
-     * @var PlaceRepository
-     */
-    private $placeRepository;
+    private FamilyDatesRepository $family_dates_repository;
 
-    /**
-     * @var ModuleService
-     */
-    private $module_service;
+    private PlaceRepository $place_repository;
+
+    private ModuleService $module_service;
 
     /**
      * Create the statistics for a tree.
      *
-     * @param ModuleService $module_service
-     * @param Tree          $tree Generate statistics for this tree
-     * @param UserService   $user_service
+     * @param CenturyService $century_service
+     * @param ColorService   $color_service
+     * @param CountryService $country_service
+     * @param ModuleService  $module_service
+     * @param Tree           $tree Generate statistics for this tree
+     * @param UserService    $user_service
      */
     public function __construct(
+        CenturyService $century_service,
+        ColorService $color_service,
+        CountryService $country_service,
         ModuleService $module_service,
         Tree $tree,
         UserService $user_service
     ) {
-        $this->tree                  = $tree;
-        $this->gedcomRepository      = new GedcomRepository($tree);
-        $this->individualRepository  = new IndividualRepository($tree);
-        $this->familyRepository      = new FamilyRepository($tree);
-        $this->familyDatesRepository = new FamilyDatesRepository($tree);
-        $this->mediaRepository       = new MediaRepository($tree);
-        $this->eventRepository       = new EventRepository($tree);
-        $this->userRepository        = new UserRepository($tree, $user_service);
-        $this->serverRepository      = new ServerRepository();
-        $this->browserRepository     = new BrowserRepository();
-        $this->hitCountRepository    = new HitCountRepository($tree, $user_service);
-        $this->latestUserRepository  = new LatestUserRepository($user_service);
-        $this->favoritesRepository   = new FavoritesRepository($tree, $module_service);
-        $this->newsRepository        = new NewsRepository($tree);
-        $this->messageRepository     = new MessageRepository();
-        $this->contactRepository     = new ContactRepository($tree, $user_service);
-        $this->placeRepository       = new PlaceRepository($tree);
-        $this->module_service        = $module_service;
+        $this->tree                    = $tree;
+        $this->gedcom_repository       = new GedcomRepository($tree);
+        $this->individual_repository   = new IndividualRepository($century_service, $color_service, $tree);
+        $this->family_repository       = new FamilyRepository($century_service, $color_service, $tree);
+        $this->family_dates_repository = new FamilyDatesRepository($tree);
+        $this->media_repository        = new MediaRepository($color_service, $tree);
+        $this->event_repository        = new EventRepository($tree);
+        $this->user_repository         = new UserRepository($tree, $user_service);
+        $this->server_repository       = new ServerRepository();
+        $this->browser_repository      = new BrowserRepository();
+        $this->hit_count_repository    = new HitCountRepository($tree, $user_service);
+        $this->latest_user_repository  = new LatestUserRepository($user_service);
+        $this->favorites_repository    = new FavoritesRepository($tree, $module_service);
+        $this->news_repository         = new NewsRepository($tree);
+        $this->message_repository      = new MessageRepository();
+        $this->contact_repository      = new ContactRepository($tree, $user_service);
+        $this->place_repository        = new PlaceRepository($tree, $country_service, $this->individual_repository);
+        $this->module_service          = $module_service;
     }
 
     /**
@@ -225,21 +178,17 @@ class Statistics implements
             $public_methods = $class->getMethods(ReflectionMethod::IS_PUBLIC);
 
             $examples = Collection::make($public_methods)
-                ->filter(static function (ReflectionMethod $method): bool {
-                    return !in_array($method->getName(), ['embedTags', 'getAllTagsTable'], true);
-                })
+                ->filter(static fn (ReflectionMethod $method): bool => !in_array($method->getName(), ['embedTags', 'getAllTagsTable'], true))
                 ->filter(static function (ReflectionMethod $method): bool {
                     $type = $method->getReturnType();
 
-                    return $type instanceof ReflectionType && $type->getName() === 'string';
+                    return $type instanceof ReflectionNamedType && $type->getName() === 'string';
                 })
-                ->sort(static function (ReflectionMethod $x, ReflectionMethod $y): int {
-                    return $x->getName() <=> $y->getName();
-                })
+                ->sort(static fn (ReflectionMethod $x, ReflectionMethod $y): int => $x->getName() <=> $y->getName())
                 ->map(function (ReflectionMethod $method): string {
                     $tag = $method->getName();
 
-                    return '<dt>#' . $tag . '#</dt><dd>' . call_user_func([$this, $tag]) . '</dd>';
+                    return '<dt>#' . $tag . '#</dt><dd>' . $this->$tag() . '</dd>';
                 });
 
             return '<dl>' . $examples->implode('') . '</dl>';
@@ -269,7 +218,7 @@ class Statistics implements
      */
     public function gedcomFilename(): string
     {
-        return $this->gedcomRepository->gedcomFilename();
+        return $this->gedcom_repository->gedcomFilename();
     }
 
     /**
@@ -277,7 +226,7 @@ class Statistics implements
      */
     public function gedcomId(): int
     {
-        return $this->gedcomRepository->gedcomId();
+        return $this->gedcom_repository->gedcomId();
     }
 
     /**
@@ -285,7 +234,7 @@ class Statistics implements
      */
     public function gedcomTitle(): string
     {
-        return $this->gedcomRepository->gedcomTitle();
+        return $this->gedcom_repository->gedcomTitle();
     }
 
     /**
@@ -293,7 +242,7 @@ class Statistics implements
      */
     public function gedcomCreatedSoftware(): string
     {
-        return $this->gedcomRepository->gedcomCreatedSoftware();
+        return $this->gedcom_repository->gedcomCreatedSoftware();
     }
 
     /**
@@ -301,7 +250,7 @@ class Statistics implements
      */
     public function gedcomCreatedVersion(): string
     {
-        return $this->gedcomRepository->gedcomCreatedVersion();
+        return $this->gedcom_repository->gedcomCreatedVersion();
     }
 
     /**
@@ -309,7 +258,7 @@ class Statistics implements
      */
     public function gedcomDate(): string
     {
-        return $this->gedcomRepository->gedcomDate();
+        return $this->gedcom_repository->gedcomDate();
     }
 
     /**
@@ -317,7 +266,7 @@ class Statistics implements
      */
     public function gedcomUpdated(): string
     {
-        return $this->gedcomRepository->gedcomUpdated();
+        return $this->gedcom_repository->gedcomUpdated();
     }
 
     /**
@@ -325,7 +274,7 @@ class Statistics implements
      */
     public function gedcomRootId(): string
     {
-        return $this->gedcomRepository->gedcomRootId();
+        return $this->gedcom_repository->gedcomRootId();
     }
 
     /**
@@ -333,7 +282,7 @@ class Statistics implements
      */
     public function totalRecords(): string
     {
-        return $this->individualRepository->totalRecords();
+        return $this->individual_repository->totalRecords();
     }
 
     /**
@@ -341,7 +290,7 @@ class Statistics implements
      */
     public function totalIndividuals(): string
     {
-        return $this->individualRepository->totalIndividuals();
+        return $this->individual_repository->totalIndividuals();
     }
 
     /**
@@ -349,7 +298,15 @@ class Statistics implements
      */
     public function totalIndisWithSources(): string
     {
-        return $this->individualRepository->totalIndisWithSources();
+        return $this->individual_repository->totalIndisWithSources();
+    }
+
+    /**
+     * @return string
+     */
+    public function totalIndisWithSourcesPercentage(): string
+    {
+        return $this->individual_repository->totalIndisWithSourcesPercentage();
     }
 
     /**
@@ -359,10 +316,10 @@ class Statistics implements
      * @return string
      */
     public function chartIndisWithSources(
-        string $color_from = null,
-        string $color_to = null
+        string|null $color_from = null,
+        string|null $color_to = null
     ): string {
-        return $this->individualRepository->chartIndisWithSources($color_from, $color_to);
+        return $this->individual_repository->chartIndisWithSources($color_from, $color_to);
     }
 
     /**
@@ -370,7 +327,7 @@ class Statistics implements
      */
     public function totalIndividualsPercentage(): string
     {
-        return $this->individualRepository->totalIndividualsPercentage();
+        return $this->individual_repository->totalIndividualsPercentage();
     }
 
     /**
@@ -378,7 +335,7 @@ class Statistics implements
      */
     public function totalFamilies(): string
     {
-        return $this->individualRepository->totalFamilies();
+        return $this->individual_repository->totalFamilies();
     }
 
     /**
@@ -386,7 +343,7 @@ class Statistics implements
      */
     public function totalFamiliesPercentage(): string
     {
-        return $this->individualRepository->totalFamiliesPercentage();
+        return $this->individual_repository->totalFamiliesPercentage();
     }
 
     /**
@@ -394,7 +351,15 @@ class Statistics implements
      */
     public function totalFamsWithSources(): string
     {
-        return $this->individualRepository->totalFamsWithSources();
+        return $this->individual_repository->totalFamsWithSources();
+    }
+
+    /**
+     * @return string
+     */
+    public function totalFamsWithSourcesPercentage(): string
+    {
+        return $this->individual_repository->totalFamsWithSourcesPercentage();
     }
 
     /**
@@ -404,10 +369,10 @@ class Statistics implements
      * @return string
      */
     public function chartFamsWithSources(
-        string $color_from = null,
-        string $color_to = null
+        string|null $color_from = null,
+        string|null $color_to = null
     ): string {
-        return $this->individualRepository->chartFamsWithSources($color_from, $color_to);
+        return $this->individual_repository->chartFamsWithSources($color_from, $color_to);
     }
 
     /**
@@ -415,7 +380,7 @@ class Statistics implements
      */
     public function totalSources(): string
     {
-        return $this->individualRepository->totalSources();
+        return $this->individual_repository->totalSources();
     }
 
     /**
@@ -423,7 +388,7 @@ class Statistics implements
      */
     public function totalSourcesPercentage(): string
     {
-        return $this->individualRepository->totalSourcesPercentage();
+        return $this->individual_repository->totalSourcesPercentage();
     }
 
     /**
@@ -431,7 +396,7 @@ class Statistics implements
      */
     public function totalNotes(): string
     {
-        return $this->individualRepository->totalNotes();
+        return $this->individual_repository->totalNotes();
     }
 
     /**
@@ -439,7 +404,7 @@ class Statistics implements
      */
     public function totalNotesPercentage(): string
     {
-        return $this->individualRepository->totalNotesPercentage();
+        return $this->individual_repository->totalNotesPercentage();
     }
 
     /**
@@ -447,7 +412,7 @@ class Statistics implements
      */
     public function totalRepositories(): string
     {
-        return $this->individualRepository->totalRepositories();
+        return $this->individual_repository->totalRepositories();
     }
 
     /**
@@ -455,37 +420,37 @@ class Statistics implements
      */
     public function totalRepositoriesPercentage(): string
     {
-        return $this->individualRepository->totalRepositoriesPercentage();
+        return $this->individual_repository->totalRepositoriesPercentage();
     }
 
     /**
-     * @param string[] ...$params
+     * @param array<string> ...$params
      *
      * @return string
      */
     public function totalSurnames(...$params): string
     {
-        return $this->individualRepository->totalSurnames(...$params);
+        return $this->individual_repository->totalSurnames(...$params);
     }
 
     /**
-     * @param string[] ...$params
+     * @param array<string> ...$params
      *
      * @return string
      */
     public function totalGivennames(...$params): string
     {
-        return $this->individualRepository->totalGivennames(...$params);
+        return $this->individual_repository->totalGivennames(...$params);
     }
 
     /**
-     * @param string[] $events
+     * @param array<string> $events
      *
      * @return string
      */
     public function totalEvents(array $events = []): string
     {
-        return $this->eventRepository->totalEvents($events);
+        return $this->event_repository->totalEvents($events);
     }
 
     /**
@@ -493,7 +458,7 @@ class Statistics implements
      */
     public function totalEventsBirth(): string
     {
-        return $this->eventRepository->totalEventsBirth();
+        return $this->event_repository->totalEventsBirth();
     }
 
     /**
@@ -501,7 +466,7 @@ class Statistics implements
      */
     public function totalBirths(): string
     {
-        return $this->eventRepository->totalBirths();
+        return $this->event_repository->totalBirths();
     }
 
     /**
@@ -509,7 +474,7 @@ class Statistics implements
      */
     public function totalEventsDeath(): string
     {
-        return $this->eventRepository->totalEventsDeath();
+        return $this->event_repository->totalEventsDeath();
     }
 
     /**
@@ -517,7 +482,7 @@ class Statistics implements
      */
     public function totalDeaths(): string
     {
-        return $this->eventRepository->totalDeaths();
+        return $this->event_repository->totalDeaths();
     }
 
     /**
@@ -525,7 +490,7 @@ class Statistics implements
      */
     public function totalEventsMarriage(): string
     {
-        return $this->eventRepository->totalEventsMarriage();
+        return $this->event_repository->totalEventsMarriage();
     }
 
     /**
@@ -533,7 +498,7 @@ class Statistics implements
      */
     public function totalMarriages(): string
     {
-        return $this->eventRepository->totalMarriages();
+        return $this->event_repository->totalMarriages();
     }
 
     /**
@@ -541,7 +506,7 @@ class Statistics implements
      */
     public function totalEventsDivorce(): string
     {
-        return $this->eventRepository->totalEventsDivorce();
+        return $this->event_repository->totalEventsDivorce();
     }
 
     /**
@@ -549,7 +514,7 @@ class Statistics implements
      */
     public function totalDivorces(): string
     {
-        return $this->eventRepository->totalDivorces();
+        return $this->event_repository->totalDivorces();
     }
 
     /**
@@ -557,7 +522,7 @@ class Statistics implements
      */
     public function totalEventsOther(): string
     {
-        return $this->eventRepository->totalEventsOther();
+        return $this->event_repository->totalEventsOther();
     }
 
     /**
@@ -565,7 +530,7 @@ class Statistics implements
      */
     public function totalSexMales(): string
     {
-        return $this->individualRepository->totalSexMales();
+        return $this->individual_repository->totalSexMales();
     }
 
     /**
@@ -573,7 +538,7 @@ class Statistics implements
      */
     public function totalSexMalesPercentage(): string
     {
-        return $this->individualRepository->totalSexMalesPercentage();
+        return $this->individual_repository->totalSexMalesPercentage();
     }
 
     /**
@@ -581,7 +546,7 @@ class Statistics implements
      */
     public function totalSexFemales(): string
     {
-        return $this->individualRepository->totalSexFemales();
+        return $this->individual_repository->totalSexFemales();
     }
 
     /**
@@ -589,7 +554,7 @@ class Statistics implements
      */
     public function totalSexFemalesPercentage(): string
     {
-        return $this->individualRepository->totalSexFemalesPercentage();
+        return $this->individual_repository->totalSexFemalesPercentage();
     }
 
     /**
@@ -597,7 +562,7 @@ class Statistics implements
      */
     public function totalSexUnknown(): string
     {
-        return $this->individualRepository->totalSexUnknown();
+        return $this->individual_repository->totalSexUnknown();
     }
 
     /**
@@ -605,7 +570,7 @@ class Statistics implements
      */
     public function totalSexUnknownPercentage(): string
     {
-        return $this->individualRepository->totalSexUnknownPercentage();
+        return $this->individual_repository->totalSexUnknownPercentage();
     }
 
     /**
@@ -616,11 +581,11 @@ class Statistics implements
      * @return string
      */
     public function chartSex(
-        string $color_female = null,
-        string $color_male = null,
-        string $color_unknown = null
+        string|null $color_female = null,
+        string|null $color_male = null,
+        string|null $color_unknown = null
     ): string {
-        return $this->individualRepository->chartSex($color_female, $color_male, $color_unknown);
+        return $this->individual_repository->chartSex($color_female, $color_male, $color_unknown);
     }
 
     /**
@@ -628,7 +593,7 @@ class Statistics implements
      */
     public function totalLiving(): string
     {
-        return $this->individualRepository->totalLiving();
+        return $this->individual_repository->totalLiving();
     }
 
     /**
@@ -636,7 +601,7 @@ class Statistics implements
      */
     public function totalLivingPercentage(): string
     {
-        return $this->individualRepository->totalLivingPercentage();
+        return $this->individual_repository->totalLivingPercentage();
     }
 
     /**
@@ -644,7 +609,7 @@ class Statistics implements
      */
     public function totalDeceased(): string
     {
-        return $this->individualRepository->totalDeceased();
+        return $this->individual_repository->totalDeceased();
     }
 
     /**
@@ -652,7 +617,7 @@ class Statistics implements
      */
     public function totalDeceasedPercentage(): string
     {
-        return $this->individualRepository->totalDeceasedPercentage();
+        return $this->individual_repository->totalDeceasedPercentage();
     }
 
     /**
@@ -661,9 +626,9 @@ class Statistics implements
      *
      * @return string
      */
-    public function chartMortality(string $color_living = null, string $color_dead = null): string
+    public function chartMortality(string|null $color_living = null, string|null $color_dead = null): string
     {
-        return $this->individualRepository->chartMortality($color_living, $color_dead);
+        return $this->individual_repository->chartMortality($color_living, $color_dead);
     }
 
     /**
@@ -671,7 +636,7 @@ class Statistics implements
      */
     public function totalMedia(): string
     {
-        return $this->mediaRepository->totalMedia();
+        return $this->media_repository->totalMedia();
     }
 
     /**
@@ -679,7 +644,7 @@ class Statistics implements
      */
     public function totalMediaAudio(): string
     {
-        return $this->mediaRepository->totalMediaAudio();
+        return $this->media_repository->totalMediaAudio();
     }
 
     /**
@@ -687,7 +652,7 @@ class Statistics implements
      */
     public function totalMediaBook(): string
     {
-        return $this->mediaRepository->totalMediaBook();
+        return $this->media_repository->totalMediaBook();
     }
 
     /**
@@ -695,7 +660,7 @@ class Statistics implements
      */
     public function totalMediaCard(): string
     {
-        return $this->mediaRepository->totalMediaCard();
+        return $this->media_repository->totalMediaCard();
     }
 
     /**
@@ -703,7 +668,7 @@ class Statistics implements
      */
     public function totalMediaCertificate(): string
     {
-        return $this->mediaRepository->totalMediaCertificate();
+        return $this->media_repository->totalMediaCertificate();
     }
 
     /**
@@ -711,7 +676,7 @@ class Statistics implements
      */
     public function totalMediaCoatOfArms(): string
     {
-        return $this->mediaRepository->totalMediaCoatOfArms();
+        return $this->media_repository->totalMediaCoatOfArms();
     }
 
     /**
@@ -719,7 +684,7 @@ class Statistics implements
      */
     public function totalMediaDocument(): string
     {
-        return $this->mediaRepository->totalMediaDocument();
+        return $this->media_repository->totalMediaDocument();
     }
 
     /**
@@ -727,7 +692,7 @@ class Statistics implements
      */
     public function totalMediaElectronic(): string
     {
-        return $this->mediaRepository->totalMediaElectronic();
+        return $this->media_repository->totalMediaElectronic();
     }
 
     /**
@@ -735,7 +700,7 @@ class Statistics implements
      */
     public function totalMediaMagazine(): string
     {
-        return $this->mediaRepository->totalMediaMagazine();
+        return $this->media_repository->totalMediaMagazine();
     }
 
     /**
@@ -743,7 +708,7 @@ class Statistics implements
      */
     public function totalMediaManuscript(): string
     {
-        return $this->mediaRepository->totalMediaManuscript();
+        return $this->media_repository->totalMediaManuscript();
     }
 
     /**
@@ -751,7 +716,7 @@ class Statistics implements
      */
     public function totalMediaMap(): string
     {
-        return $this->mediaRepository->totalMediaMap();
+        return $this->media_repository->totalMediaMap();
     }
 
     /**
@@ -759,7 +724,7 @@ class Statistics implements
      */
     public function totalMediaFiche(): string
     {
-        return $this->mediaRepository->totalMediaFiche();
+        return $this->media_repository->totalMediaFiche();
     }
 
     /**
@@ -767,7 +732,7 @@ class Statistics implements
      */
     public function totalMediaFilm(): string
     {
-        return $this->mediaRepository->totalMediaFilm();
+        return $this->media_repository->totalMediaFilm();
     }
 
     /**
@@ -775,7 +740,7 @@ class Statistics implements
      */
     public function totalMediaNewspaper(): string
     {
-        return $this->mediaRepository->totalMediaNewspaper();
+        return $this->media_repository->totalMediaNewspaper();
     }
 
     /**
@@ -783,7 +748,7 @@ class Statistics implements
      */
     public function totalMediaPainting(): string
     {
-        return $this->mediaRepository->totalMediaPainting();
+        return $this->media_repository->totalMediaPainting();
     }
 
     /**
@@ -791,7 +756,7 @@ class Statistics implements
      */
     public function totalMediaPhoto(): string
     {
-        return $this->mediaRepository->totalMediaPhoto();
+        return $this->media_repository->totalMediaPhoto();
     }
 
     /**
@@ -799,7 +764,7 @@ class Statistics implements
      */
     public function totalMediaTombstone(): string
     {
-        return $this->mediaRepository->totalMediaTombstone();
+        return $this->media_repository->totalMediaTombstone();
     }
 
     /**
@@ -807,7 +772,7 @@ class Statistics implements
      */
     public function totalMediaVideo(): string
     {
-        return $this->mediaRepository->totalMediaVideo();
+        return $this->media_repository->totalMediaVideo();
     }
 
     /**
@@ -815,7 +780,7 @@ class Statistics implements
      */
     public function totalMediaOther(): string
     {
-        return $this->mediaRepository->totalMediaOther();
+        return $this->media_repository->totalMediaOther();
     }
 
     /**
@@ -823,7 +788,7 @@ class Statistics implements
      */
     public function totalMediaUnknown(): string
     {
-        return $this->mediaRepository->totalMediaUnknown();
+        return $this->media_repository->totalMediaUnknown();
     }
 
     /**
@@ -832,22 +797,9 @@ class Statistics implements
      *
      * @return string
      */
-    public function chartMedia(string $color_from = null, string $color_to = null): string
+    public function chartMedia(string|null $color_from = null, string|null $color_to = null): string
     {
-        return $this->mediaRepository->chartMedia($color_from, $color_to);
-    }
-
-    /**
-     * @param string $what
-     * @param string $fact
-     * @param int    $parent
-     * @param bool   $country
-     *
-     * @return stdClass[]
-     */
-    public function statsPlaces(string $what = 'ALL', string $fact = '', int $parent = 0, bool $country = false): array
-    {
-        return $this->placeRepository->statsPlaces($what, $fact, $parent, $country);
+        return $this->media_repository->chartMedia($color_from, $color_to);
     }
 
     /**
@@ -855,7 +807,7 @@ class Statistics implements
      */
     public function totalPlaces(): string
     {
-        return $this->placeRepository->totalPlaces();
+        return $this->place_repository->totalPlaces();
     }
 
     /**
@@ -870,7 +822,7 @@ class Statistics implements
         string $chart_type = '',
         string $surname = ''
     ): string {
-        return $this->placeRepository->chartDistribution($chart_shows, $chart_type, $surname);
+        return $this->place_repository->chartDistribution($chart_shows, $chart_type, $surname);
     }
 
     /**
@@ -878,7 +830,7 @@ class Statistics implements
      */
     public function commonCountriesList(): string
     {
-        return $this->placeRepository->commonCountriesList();
+        return $this->place_repository->commonCountriesList();
     }
 
     /**
@@ -886,7 +838,7 @@ class Statistics implements
      */
     public function commonBirthPlacesList(): string
     {
-        return $this->placeRepository->commonBirthPlacesList();
+        return $this->place_repository->commonBirthPlacesList();
     }
 
     /**
@@ -894,7 +846,7 @@ class Statistics implements
      */
     public function commonDeathPlacesList(): string
     {
-        return $this->placeRepository->commonDeathPlacesList();
+        return $this->place_repository->commonDeathPlacesList();
     }
 
     /**
@@ -902,7 +854,7 @@ class Statistics implements
      */
     public function commonMarriagePlacesList(): string
     {
-        return $this->placeRepository->commonMarriagePlacesList();
+        return $this->place_repository->commonMarriagePlacesList();
     }
 
     /**
@@ -910,7 +862,7 @@ class Statistics implements
      */
     public function firstBirth(): string
     {
-        return $this->familyDatesRepository->firstBirth();
+        return $this->family_dates_repository->firstBirth();
     }
 
     /**
@@ -918,7 +870,7 @@ class Statistics implements
      */
     public function firstBirthYear(): string
     {
-        return $this->familyDatesRepository->firstBirthYear();
+        return $this->family_dates_repository->firstBirthYear();
     }
 
     /**
@@ -926,7 +878,7 @@ class Statistics implements
      */
     public function firstBirthName(): string
     {
-        return $this->familyDatesRepository->firstBirthName();
+        return $this->family_dates_repository->firstBirthName();
     }
 
     /**
@@ -934,7 +886,7 @@ class Statistics implements
      */
     public function firstBirthPlace(): string
     {
-        return $this->familyDatesRepository->firstBirthPlace();
+        return $this->family_dates_repository->firstBirthPlace();
     }
 
     /**
@@ -942,7 +894,7 @@ class Statistics implements
      */
     public function lastBirth(): string
     {
-        return $this->familyDatesRepository->lastBirth();
+        return $this->family_dates_repository->lastBirth();
     }
 
     /**
@@ -950,7 +902,7 @@ class Statistics implements
      */
     public function lastBirthYear(): string
     {
-        return $this->familyDatesRepository->lastBirthYear();
+        return $this->family_dates_repository->lastBirthYear();
     }
 
     /**
@@ -958,7 +910,7 @@ class Statistics implements
      */
     public function lastBirthName(): string
     {
-        return $this->familyDatesRepository->lastBirthName();
+        return $this->family_dates_repository->lastBirthName();
     }
 
     /**
@@ -966,7 +918,7 @@ class Statistics implements
      */
     public function lastBirthPlace(): string
     {
-        return $this->familyDatesRepository->lastBirthPlace();
+        return $this->family_dates_repository->lastBirthPlace();
     }
 
     /**
@@ -977,7 +929,7 @@ class Statistics implements
      */
     public function statsBirthQuery(int $year1 = -1, int $year2 = -1): Builder
     {
-        return $this->individualRepository->statsBirthQuery($year1, $year2);
+        return $this->individual_repository->statsBirthQuery($year1, $year2);
     }
 
     /**
@@ -988,7 +940,7 @@ class Statistics implements
      */
     public function statsBirthBySexQuery(int $year1 = -1, int $year2 = -1): Builder
     {
-        return $this->individualRepository->statsBirthBySexQuery($year1, $year2);
+        return $this->individual_repository->statsBirthBySexQuery($year1, $year2);
     }
 
     /**
@@ -997,9 +949,9 @@ class Statistics implements
      *
      * @return string
      */
-    public function statsBirth(string $color_from = null, string $color_to = null): string
+    public function statsBirth(string|null $color_from = null, string|null $color_to = null): string
     {
-        return $this->individualRepository->statsBirth($color_from, $color_to);
+        return $this->individual_repository->statsBirth($color_from, $color_to);
     }
 
     /**
@@ -1007,7 +959,7 @@ class Statistics implements
      */
     public function firstDeath(): string
     {
-        return $this->familyDatesRepository->firstDeath();
+        return $this->family_dates_repository->firstDeath();
     }
 
     /**
@@ -1015,7 +967,7 @@ class Statistics implements
      */
     public function firstDeathYear(): string
     {
-        return $this->familyDatesRepository->firstDeathYear();
+        return $this->family_dates_repository->firstDeathYear();
     }
 
     /**
@@ -1023,7 +975,7 @@ class Statistics implements
      */
     public function firstDeathName(): string
     {
-        return $this->familyDatesRepository->firstDeathName();
+        return $this->family_dates_repository->firstDeathName();
     }
 
     /**
@@ -1031,7 +983,7 @@ class Statistics implements
      */
     public function firstDeathPlace(): string
     {
-        return $this->familyDatesRepository->firstDeathPlace();
+        return $this->family_dates_repository->firstDeathPlace();
     }
 
     /**
@@ -1039,7 +991,7 @@ class Statistics implements
      */
     public function lastDeath(): string
     {
-        return $this->familyDatesRepository->lastDeath();
+        return $this->family_dates_repository->lastDeath();
     }
 
     /**
@@ -1047,7 +999,7 @@ class Statistics implements
      */
     public function lastDeathYear(): string
     {
-        return $this->familyDatesRepository->lastDeathYear();
+        return $this->family_dates_repository->lastDeathYear();
     }
 
     /**
@@ -1055,7 +1007,7 @@ class Statistics implements
      */
     public function lastDeathName(): string
     {
-        return $this->familyDatesRepository->lastDeathName();
+        return $this->family_dates_repository->lastDeathName();
     }
 
     /**
@@ -1063,7 +1015,7 @@ class Statistics implements
      */
     public function lastDeathPlace(): string
     {
-        return $this->familyDatesRepository->lastDeathPlace();
+        return $this->family_dates_repository->lastDeathPlace();
     }
 
     /**
@@ -1074,7 +1026,7 @@ class Statistics implements
      */
     public function statsDeathQuery(int $year1 = -1, int $year2 = -1): Builder
     {
-        return $this->individualRepository->statsDeathQuery($year1, $year2);
+        return $this->individual_repository->statsDeathQuery($year1, $year2);
     }
 
     /**
@@ -1085,7 +1037,7 @@ class Statistics implements
      */
     public function statsDeathBySexQuery(int $year1 = -1, int $year2 = -1): Builder
     {
-        return $this->individualRepository->statsDeathBySexQuery($year1, $year2);
+        return $this->individual_repository->statsDeathBySexQuery($year1, $year2);
     }
 
     /**
@@ -1094,9 +1046,9 @@ class Statistics implements
      *
      * @return string
      */
-    public function statsDeath(string $color_from = null, string $color_to = null): string
+    public function statsDeath(string|null $color_from = null, string|null $color_to = null): string
     {
-        return $this->individualRepository->statsDeath($color_from, $color_to);
+        return $this->individual_repository->statsDeath($color_from, $color_to);
     }
 
     /**
@@ -1107,11 +1059,11 @@ class Statistics implements
      * @param int    $year1
      * @param int    $year2
      *
-     * @return array|string
+     * @return array<array<stdClass>>
      */
-    public function statsAgeQuery(string $related = 'BIRT', string $sex = 'BOTH', int $year1 = -1, int $year2 = -1)
+    public function statsAgeQuery(string $related = 'BIRT', string $sex = 'BOTH', int $year1 = -1, int $year2 = -1): array
     {
-        return $this->individualRepository->statsAgeQuery($related, $sex, $year1, $year2);
+        return $this->individual_repository->statsAgeQuery($related, $sex, $year1, $year2);
     }
 
     /**
@@ -1119,7 +1071,7 @@ class Statistics implements
      */
     public function statsAge(): string
     {
-        return $this->individualRepository->statsAge();
+        return $this->individual_repository->statsAge();
     }
 
     /**
@@ -1127,7 +1079,7 @@ class Statistics implements
      */
     public function longestLife(): string
     {
-        return $this->individualRepository->longestLife();
+        return $this->individual_repository->longestLife();
     }
 
     /**
@@ -1135,7 +1087,7 @@ class Statistics implements
      */
     public function longestLifeAge(): string
     {
-        return $this->individualRepository->longestLifeAge();
+        return $this->individual_repository->longestLifeAge();
     }
 
     /**
@@ -1143,7 +1095,7 @@ class Statistics implements
      */
     public function longestLifeName(): string
     {
-        return $this->individualRepository->longestLifeName();
+        return $this->individual_repository->longestLifeName();
     }
 
     /**
@@ -1151,7 +1103,7 @@ class Statistics implements
      */
     public function longestLifeFemale(): string
     {
-        return $this->individualRepository->longestLifeFemale();
+        return $this->individual_repository->longestLifeFemale();
     }
 
     /**
@@ -1159,7 +1111,7 @@ class Statistics implements
      */
     public function longestLifeFemaleAge(): string
     {
-        return $this->individualRepository->longestLifeFemaleAge();
+        return $this->individual_repository->longestLifeFemaleAge();
     }
 
     /**
@@ -1167,7 +1119,7 @@ class Statistics implements
      */
     public function longestLifeFemaleName(): string
     {
-        return $this->individualRepository->longestLifeFemaleName();
+        return $this->individual_repository->longestLifeFemaleName();
     }
 
     /**
@@ -1175,7 +1127,7 @@ class Statistics implements
      */
     public function longestLifeMale(): string
     {
-        return $this->individualRepository->longestLifeMale();
+        return $this->individual_repository->longestLifeMale();
     }
 
     /**
@@ -1183,7 +1135,7 @@ class Statistics implements
      */
     public function longestLifeMaleAge(): string
     {
-        return $this->individualRepository->longestLifeMaleAge();
+        return $this->individual_repository->longestLifeMaleAge();
     }
 
     /**
@@ -1191,7 +1143,7 @@ class Statistics implements
      */
     public function longestLifeMaleName(): string
     {
-        return $this->individualRepository->longestLifeMaleName();
+        return $this->individual_repository->longestLifeMaleName();
     }
 
     /**
@@ -1201,7 +1153,7 @@ class Statistics implements
      */
     public function topTenOldest(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldest((int) $total);
+        return $this->individual_repository->topTenOldest((int) $total);
     }
 
     /**
@@ -1211,7 +1163,7 @@ class Statistics implements
      */
     public function topTenOldestList(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldestList((int) $total);
+        return $this->individual_repository->topTenOldestList((int) $total);
     }
 
     /**
@@ -1221,7 +1173,7 @@ class Statistics implements
      */
     public function topTenOldestFemale(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldestFemale((int) $total);
+        return $this->individual_repository->topTenOldestFemale((int) $total);
     }
 
     /**
@@ -1231,7 +1183,7 @@ class Statistics implements
      */
     public function topTenOldestFemaleList(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldestFemaleList((int) $total);
+        return $this->individual_repository->topTenOldestFemaleList((int) $total);
     }
 
     /**
@@ -1241,7 +1193,7 @@ class Statistics implements
      */
     public function topTenOldestMale(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldestMale((int) $total);
+        return $this->individual_repository->topTenOldestMale((int) $total);
     }
 
     /**
@@ -1251,7 +1203,7 @@ class Statistics implements
      */
     public function topTenOldestMaleList(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldestMaleList((int) $total);
+        return $this->individual_repository->topTenOldestMaleList((int) $total);
     }
 
     /**
@@ -1261,7 +1213,7 @@ class Statistics implements
      */
     public function topTenOldestAlive(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldestAlive((int) $total);
+        return $this->individual_repository->topTenOldestAlive((int) $total);
     }
 
     /**
@@ -1271,7 +1223,7 @@ class Statistics implements
      */
     public function topTenOldestListAlive(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldestListAlive((int) $total);
+        return $this->individual_repository->topTenOldestListAlive((int) $total);
     }
 
     /**
@@ -1281,7 +1233,7 @@ class Statistics implements
      */
     public function topTenOldestFemaleAlive(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldestFemaleAlive((int) $total);
+        return $this->individual_repository->topTenOldestFemaleAlive((int) $total);
     }
 
     /**
@@ -1291,7 +1243,7 @@ class Statistics implements
      */
     public function topTenOldestFemaleListAlive(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldestFemaleListAlive((int) $total);
+        return $this->individual_repository->topTenOldestFemaleListAlive((int) $total);
     }
 
     /**
@@ -1301,7 +1253,7 @@ class Statistics implements
      */
     public function topTenOldestMaleAlive(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldestMaleAlive((int) $total);
+        return $this->individual_repository->topTenOldestMaleAlive((int) $total);
     }
 
     /**
@@ -1311,37 +1263,37 @@ class Statistics implements
      */
     public function topTenOldestMaleListAlive(string $total = '10'): string
     {
-        return $this->individualRepository->topTenOldestMaleListAlive((int) $total);
+        return $this->individual_repository->topTenOldestMaleListAlive((int) $total);
     }
 
     /**
-     * @param bool $show_years
+     * @param string $show_years
      *
      * @return string
      */
-    public function averageLifespan(bool $show_years = false): string
+    public function averageLifespan(string $show_years = ''): string
     {
-        return $this->individualRepository->averageLifespan($show_years);
+        return $this->individual_repository->averageLifespan((bool) $show_years);
     }
 
     /**
-     * @param bool $show_years
+     * @param string $show_years
      *
      * @return string
      */
-    public function averageLifespanFemale(bool $show_years = false): string
+    public function averageLifespanFemale(string $show_years = ''): string
     {
-        return $this->individualRepository->averageLifespanFemale($show_years);
+        return $this->individual_repository->averageLifespanFemale((bool) $show_years);
     }
 
     /**
-     * @param bool $show_years
+     * @param string $show_years
      *
      * @return string
      */
-    public function averageLifespanMale(bool $show_years = false): string
+    public function averageLifespanMale(string $show_years = ''): string
     {
-        return $this->individualRepository->averageLifespanMale($show_years);
+        return $this->individual_repository->averageLifespanMale((bool) $show_years);
     }
 
     /**
@@ -1349,7 +1301,7 @@ class Statistics implements
      */
     public function firstEvent(): string
     {
-        return $this->eventRepository->firstEvent();
+        return $this->event_repository->firstEvent();
     }
 
     /**
@@ -1357,7 +1309,7 @@ class Statistics implements
      */
     public function firstEventYear(): string
     {
-        return $this->eventRepository->firstEventYear();
+        return $this->event_repository->firstEventYear();
     }
 
     /**
@@ -1365,7 +1317,7 @@ class Statistics implements
      */
     public function firstEventType(): string
     {
-        return $this->eventRepository->firstEventType();
+        return $this->event_repository->firstEventType();
     }
 
     /**
@@ -1373,7 +1325,7 @@ class Statistics implements
      */
     public function firstEventName(): string
     {
-        return $this->eventRepository->firstEventName();
+        return $this->event_repository->firstEventName();
     }
 
     /**
@@ -1381,7 +1333,7 @@ class Statistics implements
      */
     public function firstEventPlace(): string
     {
-        return $this->eventRepository->firstEventPlace();
+        return $this->event_repository->firstEventPlace();
     }
 
     /**
@@ -1389,7 +1341,7 @@ class Statistics implements
      */
     public function lastEvent(): string
     {
-        return $this->eventRepository->lastEvent();
+        return $this->event_repository->lastEvent();
     }
 
     /**
@@ -1397,7 +1349,7 @@ class Statistics implements
      */
     public function lastEventYear(): string
     {
-        return $this->eventRepository->lastEventYear();
+        return $this->event_repository->lastEventYear();
     }
 
     /**
@@ -1405,7 +1357,7 @@ class Statistics implements
      */
     public function lastEventType(): string
     {
-        return $this->eventRepository->lastEventType();
+        return $this->event_repository->lastEventType();
     }
 
     /**
@@ -1413,7 +1365,7 @@ class Statistics implements
      */
     public function lastEventName(): string
     {
-        return $this->eventRepository->lastEventName();
+        return $this->event_repository->lastEventName();
     }
 
     /**
@@ -1421,7 +1373,7 @@ class Statistics implements
      */
     public function lastEventPlace(): string
     {
-        return $this->eventRepository->lastEventType();
+        return $this->event_repository->lastEventPlace();
     }
 
     /**
@@ -1429,7 +1381,7 @@ class Statistics implements
      */
     public function firstMarriage(): string
     {
-        return $this->familyDatesRepository->firstMarriage();
+        return $this->family_dates_repository->firstMarriage();
     }
 
     /**
@@ -1437,7 +1389,7 @@ class Statistics implements
      */
     public function firstMarriageYear(): string
     {
-        return $this->familyDatesRepository->firstMarriageYear();
+        return $this->family_dates_repository->firstMarriageYear();
     }
 
     /**
@@ -1445,7 +1397,7 @@ class Statistics implements
      */
     public function firstMarriageName(): string
     {
-        return $this->familyDatesRepository->firstMarriageName();
+        return $this->family_dates_repository->firstMarriageName();
     }
 
     /**
@@ -1453,7 +1405,7 @@ class Statistics implements
      */
     public function firstMarriagePlace(): string
     {
-        return $this->familyDatesRepository->firstMarriagePlace();
+        return $this->family_dates_repository->firstMarriagePlace();
     }
 
     /**
@@ -1461,7 +1413,7 @@ class Statistics implements
      */
     public function lastMarriage(): string
     {
-        return $this->familyDatesRepository->lastMarriage();
+        return $this->family_dates_repository->lastMarriage();
     }
 
     /**
@@ -1469,7 +1421,7 @@ class Statistics implements
      */
     public function lastMarriageYear(): string
     {
-        return $this->familyDatesRepository->lastMarriageYear();
+        return $this->family_dates_repository->lastMarriageYear();
     }
 
     /**
@@ -1477,7 +1429,7 @@ class Statistics implements
      */
     public function lastMarriageName(): string
     {
-        return $this->familyDatesRepository->lastMarriageName();
+        return $this->family_dates_repository->lastMarriageName();
     }
 
     /**
@@ -1485,7 +1437,7 @@ class Statistics implements
      */
     public function lastMarriagePlace(): string
     {
-        return $this->familyDatesRepository->lastMarriagePlace();
+        return $this->family_dates_repository->lastMarriagePlace();
     }
 
     /**
@@ -1496,7 +1448,7 @@ class Statistics implements
      */
     public function statsMarriageQuery(int $year1 = -1, int $year2 = -1): Builder
     {
-        return $this->familyRepository->statsMarriageQuery($year1, $year2);
+        return $this->family_repository->statsMarriageQuery($year1, $year2);
     }
 
     /**
@@ -1507,7 +1459,7 @@ class Statistics implements
      */
     public function statsFirstMarriageQuery(int $year1 = -1, int $year2 = -1): Builder
     {
-        return $this->familyRepository->statsFirstMarriageQuery($year1, $year2);
+        return $this->family_repository->statsFirstMarriageQuery($year1, $year2);
     }
 
     /**
@@ -1516,9 +1468,9 @@ class Statistics implements
      *
      * @return string
      */
-    public function statsMarr(string $color_from = null, string $color_to = null): string
+    public function statsMarr(string|null $color_from = null, string|null $color_to = null): string
     {
-        return $this->familyRepository->statsMarr($color_from, $color_to);
+        return $this->family_repository->statsMarr($color_from, $color_to);
     }
 
     /**
@@ -1526,7 +1478,7 @@ class Statistics implements
      */
     public function firstDivorce(): string
     {
-        return $this->familyDatesRepository->firstDivorce();
+        return $this->family_dates_repository->firstDivorce();
     }
 
     /**
@@ -1534,7 +1486,7 @@ class Statistics implements
      */
     public function firstDivorceYear(): string
     {
-        return $this->familyDatesRepository->firstDivorceYear();
+        return $this->family_dates_repository->firstDivorceYear();
     }
 
     /**
@@ -1542,7 +1494,7 @@ class Statistics implements
      */
     public function firstDivorceName(): string
     {
-        return $this->familyDatesRepository->firstDivorceName();
+        return $this->family_dates_repository->firstDivorceName();
     }
 
     /**
@@ -1550,7 +1502,7 @@ class Statistics implements
      */
     public function firstDivorcePlace(): string
     {
-        return $this->familyDatesRepository->firstDivorcePlace();
+        return $this->family_dates_repository->firstDivorcePlace();
     }
 
     /**
@@ -1558,7 +1510,7 @@ class Statistics implements
      */
     public function lastDivorce(): string
     {
-        return $this->familyDatesRepository->lastDivorce();
+        return $this->family_dates_repository->lastDivorce();
     }
 
     /**
@@ -1566,7 +1518,7 @@ class Statistics implements
      */
     public function lastDivorceYear(): string
     {
-        return $this->familyDatesRepository->lastDivorceYear();
+        return $this->family_dates_repository->lastDivorceYear();
     }
 
     /**
@@ -1574,7 +1526,7 @@ class Statistics implements
      */
     public function lastDivorceName(): string
     {
-        return $this->familyDatesRepository->lastDivorceName();
+        return $this->family_dates_repository->lastDivorceName();
     }
 
     /**
@@ -1582,7 +1534,7 @@ class Statistics implements
      */
     public function lastDivorcePlace(): string
     {
-        return $this->familyDatesRepository->lastDivorcePlace();
+        return $this->family_dates_repository->lastDivorcePlace();
     }
 
     /**
@@ -1591,9 +1543,9 @@ class Statistics implements
      *
      * @return string
      */
-    public function statsDiv(string $color_from = null, string $color_to = null): string
+    public function statsDiv(string|null $color_from = null, string|null $color_to = null): string
     {
-        return $this->familyRepository->statsDiv($color_from, $color_to);
+        return $this->family_repository->statsDiv($color_from, $color_to);
     }
 
     /**
@@ -1601,7 +1553,7 @@ class Statistics implements
      */
     public function youngestMarriageFemale(): string
     {
-        return $this->familyRepository->youngestMarriageFemale();
+        return $this->family_repository->youngestMarriageFemale();
     }
 
     /**
@@ -1609,7 +1561,7 @@ class Statistics implements
      */
     public function youngestMarriageFemaleName(): string
     {
-        return $this->familyRepository->youngestMarriageFemaleName();
+        return $this->family_repository->youngestMarriageFemaleName();
     }
 
     /**
@@ -1619,7 +1571,7 @@ class Statistics implements
      */
     public function youngestMarriageFemaleAge(string $show_years = ''): string
     {
-        return $this->familyRepository->youngestMarriageFemaleAge($show_years);
+        return $this->family_repository->youngestMarriageFemaleAge($show_years);
     }
 
     /**
@@ -1627,7 +1579,7 @@ class Statistics implements
      */
     public function oldestMarriageFemale(): string
     {
-        return $this->familyRepository->oldestMarriageFemale();
+        return $this->family_repository->oldestMarriageFemale();
     }
 
     /**
@@ -1635,7 +1587,7 @@ class Statistics implements
      */
     public function oldestMarriageFemaleName(): string
     {
-        return $this->familyRepository->oldestMarriageFemaleName();
+        return $this->family_repository->oldestMarriageFemaleName();
     }
 
     /**
@@ -1645,7 +1597,7 @@ class Statistics implements
      */
     public function oldestMarriageFemaleAge(string $show_years = ''): string
     {
-        return $this->familyRepository->oldestMarriageFemaleAge($show_years);
+        return $this->family_repository->oldestMarriageFemaleAge($show_years);
     }
 
     /**
@@ -1653,7 +1605,7 @@ class Statistics implements
      */
     public function youngestMarriageMale(): string
     {
-        return $this->familyRepository->youngestMarriageMale();
+        return $this->family_repository->youngestMarriageMale();
     }
 
     /**
@@ -1661,7 +1613,7 @@ class Statistics implements
      */
     public function youngestMarriageMaleName(): string
     {
-        return $this->familyRepository->youngestMarriageMaleName();
+        return $this->family_repository->youngestMarriageMaleName();
     }
 
     /**
@@ -1671,7 +1623,7 @@ class Statistics implements
      */
     public function youngestMarriageMaleAge(string $show_years = ''): string
     {
-        return $this->familyRepository->youngestMarriageMaleAge($show_years);
+        return $this->family_repository->youngestMarriageMaleAge($show_years);
     }
 
     /**
@@ -1679,7 +1631,7 @@ class Statistics implements
      */
     public function oldestMarriageMale(): string
     {
-        return $this->familyRepository->oldestMarriageMale();
+        return $this->family_repository->oldestMarriageMale();
     }
 
     /**
@@ -1687,7 +1639,7 @@ class Statistics implements
      */
     public function oldestMarriageMaleName(): string
     {
-        return $this->familyRepository->oldestMarriageMaleName();
+        return $this->family_repository->oldestMarriageMaleName();
     }
 
     /**
@@ -1697,7 +1649,7 @@ class Statistics implements
      */
     public function oldestMarriageMaleAge(string $show_years = ''): string
     {
-        return $this->familyRepository->oldestMarriageMaleAge($show_years);
+        return $this->family_repository->oldestMarriageMaleAge($show_years);
     }
 
     /**
@@ -1705,11 +1657,11 @@ class Statistics implements
      * @param int    $year1
      * @param int    $year2
      *
-     * @return array
+     * @return array<stdClass>
      */
     public function statsMarrAgeQuery(string $sex, int $year1 = -1, int $year2 = -1): array
     {
-        return $this->familyRepository->statsMarrAgeQuery($sex, $year1, $year2);
+        return $this->family_repository->statsMarrAgeQuery($sex, $year1, $year2);
     }
 
     /**
@@ -1717,7 +1669,7 @@ class Statistics implements
      */
     public function statsMarrAge(): string
     {
-        return $this->familyRepository->statsMarrAge();
+        return $this->family_repository->statsMarrAge();
     }
 
     /**
@@ -1727,7 +1679,7 @@ class Statistics implements
      */
     public function ageBetweenSpousesMF(string $total = '10'): string
     {
-        return $this->familyRepository->ageBetweenSpousesMF((int) $total);
+        return $this->family_repository->ageBetweenSpousesMF((int) $total);
     }
 
     /**
@@ -1737,7 +1689,7 @@ class Statistics implements
      */
     public function ageBetweenSpousesMFList(string $total = '10'): string
     {
-        return $this->familyRepository->ageBetweenSpousesMFList((int) $total);
+        return $this->family_repository->ageBetweenSpousesMFList((int) $total);
     }
 
     /**
@@ -1747,7 +1699,7 @@ class Statistics implements
      */
     public function ageBetweenSpousesFM(string $total = '10'): string
     {
-        return $this->familyRepository->ageBetweenSpousesFM((int) $total);
+        return $this->family_repository->ageBetweenSpousesFM((int) $total);
     }
 
     /**
@@ -1757,7 +1709,7 @@ class Statistics implements
      */
     public function ageBetweenSpousesFMList(string $total = '10'): string
     {
-        return $this->familyRepository->ageBetweenSpousesFMList((int) $total);
+        return $this->family_repository->ageBetweenSpousesFMList((int) $total);
     }
 
     /**
@@ -1765,7 +1717,7 @@ class Statistics implements
      */
     public function topAgeOfMarriageFamily(): string
     {
-        return $this->familyRepository->topAgeOfMarriageFamily();
+        return $this->family_repository->topAgeOfMarriageFamily();
     }
 
     /**
@@ -1773,7 +1725,7 @@ class Statistics implements
      */
     public function topAgeOfMarriage(): string
     {
-        return $this->familyRepository->topAgeOfMarriage();
+        return $this->family_repository->topAgeOfMarriage();
     }
 
     /**
@@ -1783,7 +1735,7 @@ class Statistics implements
      */
     public function topAgeOfMarriageFamilies(string $total = '10'): string
     {
-        return $this->familyRepository->topAgeOfMarriageFamilies((int) $total);
+        return $this->family_repository->topAgeOfMarriageFamilies((int) $total);
     }
 
     /**
@@ -1793,7 +1745,7 @@ class Statistics implements
      */
     public function topAgeOfMarriageFamiliesList(string $total = '10'): string
     {
-        return $this->familyRepository->topAgeOfMarriageFamiliesList((int) $total);
+        return $this->family_repository->topAgeOfMarriageFamiliesList((int) $total);
     }
 
     /**
@@ -1801,7 +1753,7 @@ class Statistics implements
      */
     public function minAgeOfMarriageFamily(): string
     {
-        return $this->familyRepository->minAgeOfMarriageFamily();
+        return $this->family_repository->minAgeOfMarriageFamily();
     }
 
     /**
@@ -1809,7 +1761,7 @@ class Statistics implements
      */
     public function minAgeOfMarriage(): string
     {
-        return $this->familyRepository->minAgeOfMarriage();
+        return $this->family_repository->minAgeOfMarriage();
     }
 
     /**
@@ -1819,7 +1771,7 @@ class Statistics implements
      */
     public function minAgeOfMarriageFamilies(string $total = '10'): string
     {
-        return $this->familyRepository->minAgeOfMarriageFamilies((int) $total);
+        return $this->family_repository->minAgeOfMarriageFamilies((int) $total);
     }
 
     /**
@@ -1829,7 +1781,7 @@ class Statistics implements
      */
     public function minAgeOfMarriageFamiliesList(string $total = '10'): string
     {
-        return $this->familyRepository->minAgeOfMarriageFamiliesList((int) $total);
+        return $this->family_repository->minAgeOfMarriageFamiliesList((int) $total);
     }
 
     /**
@@ -1837,7 +1789,7 @@ class Statistics implements
      */
     public function youngestMother(): string
     {
-        return $this->familyRepository->youngestMother();
+        return $this->family_repository->youngestMother();
     }
 
     /**
@@ -1845,7 +1797,7 @@ class Statistics implements
      */
     public function youngestMotherName(): string
     {
-        return $this->familyRepository->youngestMotherName();
+        return $this->family_repository->youngestMotherName();
     }
 
     /**
@@ -1855,7 +1807,7 @@ class Statistics implements
      */
     public function youngestMotherAge(string $show_years = ''): string
     {
-        return $this->familyRepository->youngestMotherAge($show_years);
+        return $this->family_repository->youngestMotherAge($show_years);
     }
 
     /**
@@ -1863,7 +1815,7 @@ class Statistics implements
      */
     public function oldestMother(): string
     {
-        return $this->familyRepository->oldestMother();
+        return $this->family_repository->oldestMother();
     }
 
     /**
@@ -1871,7 +1823,7 @@ class Statistics implements
      */
     public function oldestMotherName(): string
     {
-        return $this->familyRepository->oldestMotherName();
+        return $this->family_repository->oldestMotherName();
     }
 
     /**
@@ -1881,7 +1833,7 @@ class Statistics implements
      */
     public function oldestMotherAge(string $show_years = ''): string
     {
-        return $this->familyRepository->oldestMotherAge($show_years);
+        return $this->family_repository->oldestMotherAge($show_years);
     }
 
     /**
@@ -1889,7 +1841,7 @@ class Statistics implements
      */
     public function youngestFather(): string
     {
-        return $this->familyRepository->youngestFather();
+        return $this->family_repository->youngestFather();
     }
 
     /**
@@ -1897,7 +1849,7 @@ class Statistics implements
      */
     public function youngestFatherName(): string
     {
-        return $this->familyRepository->youngestFatherName();
+        return $this->family_repository->youngestFatherName();
     }
 
     /**
@@ -1907,7 +1859,7 @@ class Statistics implements
      */
     public function youngestFatherAge(string $show_years = ''): string
     {
-        return $this->familyRepository->youngestFatherAge($show_years);
+        return $this->family_repository->youngestFatherAge($show_years);
     }
 
     /**
@@ -1915,7 +1867,7 @@ class Statistics implements
      */
     public function oldestFather(): string
     {
-        return $this->familyRepository->oldestFather();
+        return $this->family_repository->oldestFather();
     }
 
     /**
@@ -1923,7 +1875,7 @@ class Statistics implements
      */
     public function oldestFatherName(): string
     {
-        return $this->familyRepository->oldestFatherName();
+        return $this->family_repository->oldestFatherName();
     }
 
     /**
@@ -1933,7 +1885,7 @@ class Statistics implements
      */
     public function oldestFatherAge(string $show_years = ''): string
     {
-        return $this->familyRepository->oldestFatherAge($show_years);
+        return $this->family_repository->oldestFatherAge($show_years);
     }
 
     /**
@@ -1941,7 +1893,7 @@ class Statistics implements
      */
     public function totalMarriedMales(): string
     {
-        return $this->familyRepository->totalMarriedMales();
+        return $this->family_repository->totalMarriedMales();
     }
 
     /**
@@ -1949,7 +1901,7 @@ class Statistics implements
      */
     public function totalMarriedFemales(): string
     {
-        return $this->familyRepository->totalMarriedFemales();
+        return $this->family_repository->totalMarriedFemales();
     }
 
     /**
@@ -1960,7 +1912,7 @@ class Statistics implements
      */
     public function monthFirstChildQuery(int $year1 = -1, int $year2 = -1): Builder
     {
-        return $this->familyRepository->monthFirstChildQuery($year1, $year2);
+        return $this->family_repository->monthFirstChildQuery($year1, $year2);
     }
 
     /**
@@ -1971,7 +1923,7 @@ class Statistics implements
      */
     public function monthFirstChildBySexQuery(int $year1 = -1, int $year2 = -1): Builder
     {
-        return $this->familyRepository->monthFirstChildBySexQuery($year1, $year2);
+        return $this->family_repository->monthFirstChildBySexQuery($year1, $year2);
     }
 
     /**
@@ -1979,7 +1931,7 @@ class Statistics implements
      */
     public function largestFamily(): string
     {
-        return $this->familyRepository->largestFamily();
+        return $this->family_repository->largestFamily();
     }
 
     /**
@@ -1987,7 +1939,7 @@ class Statistics implements
      */
     public function largestFamilySize(): string
     {
-        return $this->familyRepository->largestFamilySize();
+        return $this->family_repository->largestFamilySize();
     }
 
     /**
@@ -1995,7 +1947,7 @@ class Statistics implements
      */
     public function largestFamilyName(): string
     {
-        return $this->familyRepository->largestFamilyName();
+        return $this->family_repository->largestFamilyName();
     }
 
     /**
@@ -2005,7 +1957,7 @@ class Statistics implements
      */
     public function topTenLargestFamily(string $total = '10'): string
     {
-        return $this->familyRepository->topTenLargestFamily((int) $total);
+        return $this->family_repository->topTenLargestFamily((int) $total);
     }
 
     /**
@@ -2015,7 +1967,7 @@ class Statistics implements
      */
     public function topTenLargestFamilyList(string $total = '10'): string
     {
-        return $this->familyRepository->topTenLargestFamilyList((int) $total);
+        return $this->family_repository->topTenLargestFamilyList((int) $total);
     }
 
     /**
@@ -2026,11 +1978,11 @@ class Statistics implements
      * @return string
      */
     public function chartLargestFamilies(
-        string $color_from = null,
-        string $color_to = null,
+        string|null $color_from = null,
+        string|null $color_to = null,
         string $total = '10'
     ): string {
-        return $this->familyRepository->chartLargestFamilies($color_from, $color_to, (int) $total);
+        return $this->family_repository->chartLargestFamilies($color_from, $color_to, (int) $total);
     }
 
     /**
@@ -2038,7 +1990,7 @@ class Statistics implements
      */
     public function totalChildren(): string
     {
-        return $this->familyRepository->totalChildren();
+        return $this->family_repository->totalChildren();
     }
 
     /**
@@ -2046,18 +1998,18 @@ class Statistics implements
      */
     public function averageChildren(): string
     {
-        return $this->familyRepository->averageChildren();
+        return $this->family_repository->averageChildren();
     }
 
     /**
      * @param int $year1
      * @param int $year2
      *
-     * @return array
+     * @return array<stdClass>
      */
     public function statsChildrenQuery(int $year1 = -1, int $year2 = -1): array
     {
-        return $this->familyRepository->statsChildrenQuery($year1, $year2);
+        return $this->family_repository->statsChildrenQuery($year1, $year2);
     }
 
     /**
@@ -2065,7 +2017,7 @@ class Statistics implements
      */
     public function statsChildren(): string
     {
-        return $this->familyRepository->statsChildren();
+        return $this->family_repository->statsChildren();
     }
 
     /**
@@ -2075,7 +2027,7 @@ class Statistics implements
      */
     public function topAgeBetweenSiblingsName(string $total = '10'): string
     {
-        return $this->familyRepository->topAgeBetweenSiblingsName((int) $total);
+        return $this->family_repository->topAgeBetweenSiblingsName((int) $total);
     }
 
     /**
@@ -2085,7 +2037,7 @@ class Statistics implements
      */
     public function topAgeBetweenSiblings(string $total = '10'): string
     {
-        return $this->familyRepository->topAgeBetweenSiblings((int) $total);
+        return $this->family_repository->topAgeBetweenSiblings((int) $total);
     }
 
     /**
@@ -2095,7 +2047,7 @@ class Statistics implements
      */
     public function topAgeBetweenSiblingsFullName(string $total = '10'): string
     {
-        return $this->familyRepository->topAgeBetweenSiblingsFullName((int) $total);
+        return $this->family_repository->topAgeBetweenSiblingsFullName((int) $total);
     }
 
     /**
@@ -2106,7 +2058,7 @@ class Statistics implements
      */
     public function topAgeBetweenSiblingsList(string $total = '10', string $one = ''): string
     {
-        return $this->familyRepository->topAgeBetweenSiblingsList((int) $total, $one);
+        return $this->family_repository->topAgeBetweenSiblingsList((int) $total, $one);
     }
 
     /**
@@ -2114,7 +2066,7 @@ class Statistics implements
      */
     public function noChildrenFamilies(): string
     {
-        return $this->familyRepository->noChildrenFamilies();
+        return $this->family_repository->noChildrenFamilies();
     }
 
     /**
@@ -2124,7 +2076,7 @@ class Statistics implements
      */
     public function noChildrenFamiliesList(string $type = 'list'): string
     {
-        return $this->familyRepository->noChildrenFamiliesList($type);
+        return $this->family_repository->noChildrenFamiliesList($type);
     }
 
     /**
@@ -2137,7 +2089,7 @@ class Statistics implements
         string $year1 = '-1',
         string $year2 = '-1'
     ): string {
-        return $this->familyRepository->chartNoChildrenFamilies((int) $year1, (int) $year2);
+        return $this->family_repository->chartNoChildrenFamilies((int) $year1, (int) $year2);
     }
 
     /**
@@ -2147,7 +2099,7 @@ class Statistics implements
      */
     public function topTenLargestGrandFamily(string $total = '10'): string
     {
-        return $this->familyRepository->topTenLargestGrandFamily((int) $total);
+        return $this->family_repository->topTenLargestGrandFamily((int) $total);
     }
 
     /**
@@ -2157,7 +2109,7 @@ class Statistics implements
      */
     public function topTenLargestGrandFamilyList(string $total = '10'): string
     {
-        return $this->familyRepository->topTenLargestGrandFamilyList((int) $total);
+        return $this->family_repository->topTenLargestGrandFamilyList((int) $total);
     }
 
     /**
@@ -2165,7 +2117,7 @@ class Statistics implements
      */
     public function getCommonSurname(): string
     {
-        return $this->individualRepository->getCommonSurname();
+        return $this->individual_repository->getCommonSurname();
     }
 
     /**
@@ -2180,7 +2132,7 @@ class Statistics implements
         string $number_of_surnames = '10',
         string $sorting = 'alpha'
     ): string {
-        return $this->individualRepository->commonSurnames((int) $threshold, (int) $number_of_surnames, $sorting);
+        return $this->individual_repository->commonSurnames((int) $threshold, (int) $number_of_surnames, $sorting);
     }
 
     /**
@@ -2195,7 +2147,7 @@ class Statistics implements
         string $number_of_surnames = '10',
         string $sorting = 'count'
     ): string {
-        return $this->individualRepository->commonSurnamesTotals((int) $threshold, (int) $number_of_surnames, $sorting);
+        return $this->individual_repository->commonSurnamesTotals((int) $threshold, (int) $number_of_surnames, $sorting);
     }
 
     /**
@@ -2210,7 +2162,7 @@ class Statistics implements
         string $number_of_surnames = '10',
         string $sorting = 'alpha'
     ): string {
-        return $this->individualRepository->commonSurnamesList((int) $threshold, (int) $number_of_surnames, $sorting);
+        return $this->individual_repository->commonSurnamesList((int) $threshold, (int) $number_of_surnames, $sorting);
     }
 
     /**
@@ -2225,7 +2177,7 @@ class Statistics implements
         string $number_of_surnames = '10',
         string $sorting = 'count'
     ): string {
-        return $this->individualRepository
+        return $this->individual_repository
             ->commonSurnamesListTotals((int) $threshold, (int) $number_of_surnames, $sorting);
     }
 
@@ -2237,11 +2189,11 @@ class Statistics implements
      * @return string
      */
     public function chartCommonSurnames(
-        string $color_from = null,
-        string $color_to = null,
+        string|null $color_from = null,
+        string|null $color_to = null,
         string $number_of_surnames = '10'
     ): string {
-        return $this->individualRepository
+        return $this->individual_repository
             ->chartCommonSurnames($color_from, $color_to, (int) $number_of_surnames);
     }
 
@@ -2253,7 +2205,7 @@ class Statistics implements
      */
     public function commonGiven(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGiven((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGiven((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2264,7 +2216,7 @@ class Statistics implements
      */
     public function commonGivenTotals(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenTotals((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenTotals((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2275,7 +2227,7 @@ class Statistics implements
      */
     public function commonGivenList(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenList((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenList((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2286,7 +2238,7 @@ class Statistics implements
      */
     public function commonGivenListTotals(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenListTotals((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenListTotals((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2297,7 +2249,7 @@ class Statistics implements
      */
     public function commonGivenTable(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenTable((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenTable((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2308,7 +2260,7 @@ class Statistics implements
      */
     public function commonGivenFemale(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenFemale((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenFemale((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2319,7 +2271,7 @@ class Statistics implements
      */
     public function commonGivenFemaleTotals(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenFemaleTotals((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenFemaleTotals((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2330,7 +2282,7 @@ class Statistics implements
      */
     public function commonGivenFemaleList(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenFemaleList((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenFemaleList((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2341,7 +2293,7 @@ class Statistics implements
      */
     public function commonGivenFemaleListTotals(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenFemaleListTotals((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenFemaleListTotals((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2352,7 +2304,7 @@ class Statistics implements
      */
     public function commonGivenFemaleTable(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenFemaleTable((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenFemaleTable((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2363,7 +2315,7 @@ class Statistics implements
      */
     public function commonGivenMale(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenMale((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenMale((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2374,7 +2326,7 @@ class Statistics implements
      */
     public function commonGivenMaleTotals(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenMaleTotals((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenMaleTotals((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2385,7 +2337,7 @@ class Statistics implements
      */
     public function commonGivenMaleList(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenMaleList((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenMaleList((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2396,7 +2348,7 @@ class Statistics implements
      */
     public function commonGivenMaleListTotals(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenMaleListTotals((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenMaleListTotals((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2407,7 +2359,7 @@ class Statistics implements
      */
     public function commonGivenMaleTable(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenMaleTable((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenMaleTable((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2418,7 +2370,7 @@ class Statistics implements
      */
     public function commonGivenUnknown(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenUnknown((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenUnknown((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2429,7 +2381,7 @@ class Statistics implements
      */
     public function commonGivenUnknownTotals(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenUnknownTotals((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenUnknownTotals((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2440,7 +2392,7 @@ class Statistics implements
      */
     public function commonGivenUnknownList(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenUnknownList((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenUnknownList((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2451,7 +2403,7 @@ class Statistics implements
      */
     public function commonGivenUnknownListTotals(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenUnknownListTotals((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenUnknownListTotals((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2462,7 +2414,7 @@ class Statistics implements
      */
     public function commonGivenUnknownTable(string $threshold = '1', string $maxtoshow = '10'): string
     {
-        return $this->individualRepository->commonGivenUnknownTable((int) $threshold, (int) $maxtoshow);
+        return $this->individual_repository->commonGivenUnknownTable((int) $threshold, (int) $maxtoshow);
     }
 
     /**
@@ -2473,11 +2425,11 @@ class Statistics implements
      * @return string
      */
     public function chartCommonGiven(
-        string $color_from = null,
-        string $color_to = null,
+        string|null $color_from = null,
+        string|null $color_to = null,
         string $maxtoshow = '7'
     ): string {
-        return $this->individualRepository->chartCommonGiven($color_from, $color_to, (int) $maxtoshow);
+        return $this->individual_repository->chartCommonGiven($color_from, $color_to, (int) $maxtoshow);
     }
 
     /**
@@ -2485,7 +2437,7 @@ class Statistics implements
      */
     public function usersLoggedIn(): string
     {
-        return $this->userRepository->usersLoggedIn();
+        return $this->user_repository->usersLoggedIn();
     }
 
     /**
@@ -2493,7 +2445,7 @@ class Statistics implements
      */
     public function usersLoggedInList(): string
     {
-        return $this->userRepository->usersLoggedInList();
+        return $this->user_repository->usersLoggedInList();
     }
 
     /**
@@ -2501,7 +2453,7 @@ class Statistics implements
      */
     public function usersLoggedInTotal(): int
     {
-        return $this->userRepository->usersLoggedInTotal();
+        return $this->user_repository->usersLoggedInTotal();
     }
 
     /**
@@ -2509,7 +2461,7 @@ class Statistics implements
      */
     public function usersLoggedInTotalAnon(): int
     {
-        return $this->userRepository->usersLoggedInTotalAnon();
+        return $this->user_repository->usersLoggedInTotalAnon();
     }
 
     /**
@@ -2517,7 +2469,7 @@ class Statistics implements
      */
     public function usersLoggedInTotalVisible(): int
     {
-        return $this->userRepository->usersLoggedInTotalVisible();
+        return $this->user_repository->usersLoggedInTotalVisible();
     }
 
     /**
@@ -2525,7 +2477,7 @@ class Statistics implements
      */
     public function userId(): string
     {
-        return $this->userRepository->userId();
+        return $this->user_repository->userId();
     }
 
     /**
@@ -2535,7 +2487,7 @@ class Statistics implements
      */
     public function userName(string $visitor_text = ''): string
     {
-        return $this->userRepository->userName($visitor_text);
+        return $this->user_repository->userName($visitor_text);
     }
 
     /**
@@ -2543,7 +2495,7 @@ class Statistics implements
      */
     public function userFullName(): string
     {
-        return $this->userRepository->userFullName();
+        return $this->user_repository->userFullName();
     }
 
     /**
@@ -2551,7 +2503,7 @@ class Statistics implements
      */
     public function totalUsers(): string
     {
-        return $this->userRepository->totalUsers();
+        return $this->user_repository->totalUsers();
     }
 
     /**
@@ -2559,7 +2511,7 @@ class Statistics implements
      */
     public function totalAdmins(): string
     {
-        return $this->userRepository->totalAdmins();
+        return $this->user_repository->totalAdmins();
     }
 
     /**
@@ -2567,7 +2519,7 @@ class Statistics implements
      */
     public function totalNonAdmins(): string
     {
-        return $this->userRepository->totalNonAdmins();
+        return $this->user_repository->totalNonAdmins();
     }
 
     /**
@@ -2575,7 +2527,7 @@ class Statistics implements
      */
     public function latestUserId(): string
     {
-        return $this->latestUserRepository->latestUserId();
+        return $this->latest_user_repository->latestUserId();
     }
 
     /**
@@ -2583,7 +2535,7 @@ class Statistics implements
      */
     public function latestUserName(): string
     {
-        return $this->latestUserRepository->latestUserName();
+        return $this->latest_user_repository->latestUserName();
     }
 
     /**
@@ -2591,7 +2543,7 @@ class Statistics implements
      */
     public function latestUserFullName(): string
     {
-        return $this->latestUserRepository->latestUserFullName();
+        return $this->latest_user_repository->latestUserFullName();
     }
 
     /**
@@ -2599,9 +2551,9 @@ class Statistics implements
      *
      * @return string
      */
-    public function latestUserRegDate(string $format = null): string
+    public function latestUserRegDate(string|null $format = null): string
     {
-        return $this->latestUserRepository->latestUserRegDate($format);
+        return $this->latest_user_repository->latestUserRegDate($format);
     }
 
     /**
@@ -2609,9 +2561,9 @@ class Statistics implements
      *
      * @return string
      */
-    public function latestUserRegTime(string $format = null): string
+    public function latestUserRegTime(string|null $format = null): string
     {
-        return $this->latestUserRepository->latestUserRegTime($format);
+        return $this->latest_user_repository->latestUserRegTime($format);
     }
 
     /**
@@ -2620,9 +2572,9 @@ class Statistics implements
      *
      * @return string
      */
-    public function latestUserLoggedin(string $yes = null, string $no = null): string
+    public function latestUserLoggedin(string|null $yes = null, string|null $no = null): string
     {
-        return $this->latestUserRepository->latestUserLoggedin($yes, $no);
+        return $this->latest_user_repository->latestUserLoggedin($yes, $no);
     }
 
     /**
@@ -2630,7 +2582,7 @@ class Statistics implements
      */
     public function contactWebmaster(): string
     {
-        return $this->contactRepository->contactWebmaster();
+        return $this->contact_repository->contactWebmaster();
     }
 
     /**
@@ -2638,7 +2590,7 @@ class Statistics implements
      */
     public function contactGedcom(): string
     {
-        return $this->contactRepository->contactGedcom();
+        return $this->contact_repository->contactGedcom();
     }
 
     /**
@@ -2646,7 +2598,7 @@ class Statistics implements
      */
     public function serverDate(): string
     {
-        return $this->serverRepository->serverDate();
+        return $this->server_repository->serverDate();
     }
 
     /**
@@ -2654,7 +2606,7 @@ class Statistics implements
      */
     public function serverTime(): string
     {
-        return $this->serverRepository->serverTime();
+        return $this->server_repository->serverTime();
     }
 
     /**
@@ -2662,7 +2614,7 @@ class Statistics implements
      */
     public function serverTime24(): string
     {
-        return $this->serverRepository->serverTime24();
+        return $this->server_repository->serverTime24();
     }
 
     /**
@@ -2672,7 +2624,7 @@ class Statistics implements
      */
     public function serverTimezone(): string
     {
-        return $this->serverRepository->serverTimezone();
+        return $this->server_repository->serverTimezone();
     }
 
     /**
@@ -2680,7 +2632,7 @@ class Statistics implements
      */
     public function browserDate(): string
     {
-        return $this->browserRepository->browserDate();
+        return $this->browser_repository->browserDate();
     }
 
     /**
@@ -2688,7 +2640,7 @@ class Statistics implements
      */
     public function browserTime(): string
     {
-        return $this->browserRepository->browserTime();
+        return $this->browser_repository->browserTime();
     }
 
     /**
@@ -2696,7 +2648,7 @@ class Statistics implements
      */
     public function browserTimezone(): string
     {
-        return $this->browserRepository->browserTimezone();
+        return $this->browser_repository->browserTimezone();
     }
 
     /**
@@ -2706,7 +2658,7 @@ class Statistics implements
      */
     public function hitCount(string $page_parameter = ''): string
     {
-        return $this->hitCountRepository->hitCount($page_parameter);
+        return $this->hit_count_repository->hitCount($page_parameter);
     }
 
     /**
@@ -2716,7 +2668,7 @@ class Statistics implements
      */
     public function hitCountUser(string $page_parameter = ''): string
     {
-        return $this->hitCountRepository->hitCountUser($page_parameter);
+        return $this->hit_count_repository->hitCountUser($page_parameter);
     }
 
     /**
@@ -2726,7 +2678,7 @@ class Statistics implements
      */
     public function hitCountIndi(string $page_parameter = ''): string
     {
-        return $this->hitCountRepository->hitCountIndi($page_parameter);
+        return $this->hit_count_repository->hitCountIndi($page_parameter);
     }
 
     /**
@@ -2736,7 +2688,7 @@ class Statistics implements
      */
     public function hitCountFam(string $page_parameter = ''): string
     {
-        return $this->hitCountRepository->hitCountFam($page_parameter);
+        return $this->hit_count_repository->hitCountFam($page_parameter);
     }
 
     /**
@@ -2746,7 +2698,7 @@ class Statistics implements
      */
     public function hitCountSour(string $page_parameter = ''): string
     {
-        return $this->hitCountRepository->hitCountSour($page_parameter);
+        return $this->hit_count_repository->hitCountSour($page_parameter);
     }
 
     /**
@@ -2756,7 +2708,7 @@ class Statistics implements
      */
     public function hitCountRepo(string $page_parameter = ''): string
     {
-        return $this->hitCountRepository->hitCountRepo($page_parameter);
+        return $this->hit_count_repository->hitCountRepo($page_parameter);
     }
 
     /**
@@ -2766,7 +2718,7 @@ class Statistics implements
      */
     public function hitCountNote(string $page_parameter = ''): string
     {
-        return $this->hitCountRepository->hitCountNote($page_parameter);
+        return $this->hit_count_repository->hitCountNote($page_parameter);
     }
 
     /**
@@ -2776,7 +2728,7 @@ class Statistics implements
      */
     public function hitCountObje(string $page_parameter = ''): string
     {
-        return $this->hitCountRepository->hitCountObje($page_parameter);
+        return $this->hit_count_repository->hitCountObje($page_parameter);
     }
 
     /**
@@ -2784,7 +2736,7 @@ class Statistics implements
      */
     public function gedcomFavorites(): string
     {
-        return $this->favoritesRepository->gedcomFavorites();
+        return $this->favorites_repository->gedcomFavorites();
     }
 
     /**
@@ -2792,7 +2744,7 @@ class Statistics implements
      */
     public function userFavorites(): string
     {
-        return $this->favoritesRepository->userFavorites();
+        return $this->favorites_repository->userFavorites();
     }
 
     /**
@@ -2800,7 +2752,7 @@ class Statistics implements
      */
     public function totalGedcomFavorites(): string
     {
-        return $this->favoritesRepository->totalGedcomFavorites();
+        return $this->favorites_repository->totalGedcomFavorites();
     }
 
     /**
@@ -2808,7 +2760,7 @@ class Statistics implements
      */
     public function totalUserFavorites(): string
     {
-        return $this->favoritesRepository->totalUserFavorites();
+        return $this->favorites_repository->totalUserFavorites();
     }
 
     /**
@@ -2816,7 +2768,7 @@ class Statistics implements
      */
     public function totalUserMessages(): string
     {
-        return $this->messageRepository->totalUserMessages();
+        return $this->message_repository->totalUserMessages();
     }
 
     /**
@@ -2824,7 +2776,7 @@ class Statistics implements
      */
     public function totalUserJournal(): string
     {
-        return $this->newsRepository->totalUserJournal();
+        return $this->news_repository->totalUserJournal();
     }
 
     /**
@@ -2832,7 +2784,7 @@ class Statistics implements
      */
     public function totalGedcomNews(): string
     {
-        return $this->newsRepository->totalGedcomNews();
+        return $this->news_repository->totalGedcomNews();
     }
 
     /**
@@ -2844,14 +2796,12 @@ class Statistics implements
      *
      * @return string|null
      */
-    public function callBlock(string $block = '', ...$params): ?string
+    public function callBlock(string $block = '', ...$params): string|null
     {
         /** @var ModuleBlockInterface|null $module */
         $module = $this->module_service
             ->findByComponent(ModuleBlockInterface::class, $this->tree, Auth::user())
-            ->first(static function (ModuleInterface $module) use ($block): bool {
-                return $module->name() === $block && $module->name() !== 'html';
-            });
+            ->first(static fn (ModuleInterface $module): bool => $module->name() === $block && $module->name() !== 'html');
 
         if ($module === null) {
             return '';
@@ -2902,7 +2852,7 @@ class Statistics implements
             $method = array_shift($params);
 
             if (method_exists($this, $method)) {
-                $tags[$match[0] . '#'] = call_user_func([$this, $method], ...$params);
+                $tags[$match[0] . '#'] = $this->$method(...$params);
             }
         }
 

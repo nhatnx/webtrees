@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,16 +19,11 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees;
 
-/**
- * Test harness for the class Menu
- */
+use PHPUnit\Framework\Attributes\CoversClass;
+
+#[CoversClass(Menu::class)]
 class MenuTest extends TestCase
 {
-    /**
-     * @covers \Fisharebest\Webtrees\Menu::__construct
-     *
-     * @return void
-     */
     public function testConstructorDefaults(): void
     {
         $menu = new Menu('Test!');
@@ -40,11 +35,6 @@ class MenuTest extends TestCase
         self::assertSame([], $menu->getSubmenus());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Menu::__construct
-     *
-     * @return void
-     */
     public function testConstructorNonDefaults(): void
     {
         $submenus = [new Menu('Submenu')];
@@ -57,12 +47,6 @@ class MenuTest extends TestCase
         self::assertSame($submenus, $menu->getSubmenus());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Menu::getLabel
-     * @covers \Fisharebest\Webtrees\Menu::setLabel
-     *
-     * @return void
-     */
     public function testGetterSetterLabel(): void
     {
         $menu = new Menu('Test!');
@@ -73,12 +57,6 @@ class MenuTest extends TestCase
         self::assertSame('Label', $menu->getLabel());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Menu::getLink
-     * @covers \Fisharebest\Webtrees\Menu::setLink
-     *
-     * @return void
-     */
     public function testGetterSetterLink(): void
     {
         $menu = new Menu('Test!');
@@ -89,12 +67,6 @@ class MenuTest extends TestCase
         self::assertSame('link.html', $menu->getLink());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Menu::getClass
-     * @covers \Fisharebest\Webtrees\Menu::setClass
-     *
-     * @return void
-     */
     public function testGetterSetterId(): void
     {
         $menu = new Menu('Test!');
@@ -105,12 +77,6 @@ class MenuTest extends TestCase
         self::assertSame('link-class', $menu->getClass());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Menu::getAttrs
-     * @covers \Fisharebest\Webtrees\Menu::setAttrs
-     *
-     * @return void
-     */
     public function testGetterSetterAttrs(): void
     {
         $menu = new Menu('Test!');
@@ -121,12 +87,6 @@ class MenuTest extends TestCase
         self::assertSame(['foo' => 'bar'], $menu->getAttrs());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Menu::getSubmenus
-     * @covers \Fisharebest\Webtrees\Menu::setSubmenus
-     *
-     * @return void
-     */
     public function testGetterSetterSubmenus(): void
     {
         $menu     = new Menu('Test!');

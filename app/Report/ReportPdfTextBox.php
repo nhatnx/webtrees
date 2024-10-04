@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -40,7 +40,7 @@ class ReportPdfTextBox extends ReportBaseTextbox
      *
      * @return void
      */
-    public function render($renderer)
+    public function render($renderer): void
     {
         $newelements      = [];
         $lastelement      = '';
@@ -52,23 +52,19 @@ class ReportPdfTextBox extends ReportBaseTextbox
             $element = $this->elements[$i];
             if ($element instanceof ReportBaseElement) {
                 if ($element instanceof ReportBaseText) {
-                    if (!empty($footnote_element)) {
-                        ksort($footnote_element);
-                        foreach ($footnote_element as $links) {
-                            $newelements[] = $links;
-                        }
-                        $footnote_element = [];
+                    ksort($footnote_element);
+                    foreach ($footnote_element as $links) {
+                        $newelements[] = $links;
                     }
+                    $footnote_element = [];
                     if (empty($lastelement)) {
                         $lastelement = $element;
-                    } else {
+                    } elseif ($element->getStyleName() === $lastelement->getStyleName()) {
                         // Checking if the Text has the same style
-                        if ($element->getStyleName() == $lastelement->getStyleName()) {
-                            $lastelement->addText(str_replace("\n", '<br>', $element->getValue()));
-                        } elseif (!empty($lastelement)) {
-                            $newelements[] = $lastelement;
-                            $lastelement   = $element;
-                        }
+                        $lastelement->addText(str_replace("\n", '<br>', $element->getValue()));
+                    } else {
+                        $newelements[] = $lastelement;
+                        $lastelement   = $element;
                     }
                 } elseif ($element instanceof ReportPdfFootnote) {
                     // Check if the Footnote has been set with it’s link number
@@ -80,7 +76,7 @@ class ReportPdfTextBox extends ReportBaseTextbox
                     }
                     // Save the Footnote with it’s link number as key for sorting later
                     $footnote_element[$element->num] = $element;
-                } elseif (!($element instanceof ReportPdfFootnote) || trim($element->getValue()) != '') {
+                } elseif (!$element instanceof ReportPdfFootnote || trim($element->getValue()) !== '') {
                     // Do not keep empty footnotes
                     if (!empty($footnote_element)) {
                         ksort($footnote_element);
@@ -138,11 +134,11 @@ class ReportPdfTextBox extends ReportBaseTextbox
             $cY = $renderer->tcpdf->GetY();
         } else {
             $cY = $this->top;
-            $renderer->tcpdf->SetY($cY);
+            $renderer->tcpdf->setY($cY);
         }
 
         // Check the width if set to page wide OR set by xml to larger then page width (margin)
-        if ($this->width == 0 || $this->width > $renderer->getRemainingWidthPDF()) {
+        if ($this->width === 0.0 || $this->width > $renderer->getRemainingWidthPDF()) {
             $cW = $renderer->getRemainingWidthPDF();
         } else {
             $cW = $this->width;
@@ -155,10 +151,10 @@ class ReportPdfTextBox extends ReportBaseTextbox
         if (is_array($cM['cell'])) {
             $cWT = $cW - ($cM['padding_left'] + $cM['padding_right']);
         } else {
-            $cWT = $cW - ($cM['cell'] * 2);
+            $cWT = $cW - $cM['cell'] * 2;
         }
-        // Element height (exept text)
-        $eH = 0;
+        // Element height (except text)
+        $eH = 0.0;
         $w  = 0;
         // Temp Height
         $cHT = 0;
@@ -173,15 +169,15 @@ class ReportPdfTextBox extends ReportBaseTextbox
         for ($i = 0; $i < $cE; $i++) {
             if (is_object($this->elements[$i])) {
                 $ew = $this->elements[$i]->setWrapWidth($cWT - $w, $cWT);
-                if ($ew == $cWT) {
+                if ($ew === $cWT) {
                     $w = 0;
                 }
                 $lw = $this->elements[$i]->getWidth($renderer);
                 // Text is already gets the # LF
                 $cHT += $lw[2];
-                if ($lw[1] == 1) {
+                if ($lw[1] === 1) {
                     $w = $lw[0];
-                } elseif ($lw[1] == 2) {
+                } elseif ($lw[1] === 2) {
                     $w = 0;
                 } else {
                     $w += $lw[0];
@@ -201,17 +197,17 @@ class ReportPdfTextBox extends ReportBaseTextbox
         // If any element exist
         if ($cE > 0) {
             // Check if this is text or some other element, like images
-            if ($eH == 0) {
+            if ($eH === 0.0) {
                 // This is text elements. Number of LF but at least one line
                 $cHT = ($cHT + 1) * $renderer->tcpdf->getCellHeightRatio();
-                // Calculate the cell hight with the largest font size used within this Box
+                // Calculate the cell height with the largest font size used within this Box
                 $cHT *= $renderer->largestFontHeight;
                 // Add cell padding
                 if ($this->padding) {
                     if (is_array($cM['cell'])) {
-                        $cHT += ($cM['padding_bottom'] + $cM['padding_top']);
+                        $cHT += $cM['padding_bottom'] + $cM['padding_top'];
                     } else {
-                        $cHT += ($cM['cell'] * 2);
+                        $cHT += $cM['cell'] * 2;
                     }
                 }
                 if ($cH < $cHT) {
@@ -222,7 +218,7 @@ class ReportPdfTextBox extends ReportBaseTextbox
                 $cH = $eH;
             }
         }
-        // Finaly, check the last cells height
+        // Finally, check the last cells height
         if ($cH < $renderer->lastCellHeight) {
             $cH = $renderer->lastCellHeight;
         }
@@ -248,7 +244,7 @@ class ReportPdfTextBox extends ReportBaseTextbox
                 $r  = hexdec($match[1]);
                 $g  = hexdec($match[2]);
                 $b  = hexdec($match[3]);
-                $renderer->tcpdf->SetFillColor($r, $g, $b);
+                $renderer->tcpdf->setFillColor($r, $g, $b);
             }
         }
         // Clean up a bit
@@ -266,9 +262,9 @@ class ReportPdfTextBox extends ReportBaseTextbox
         if ($this->padding) {
             if ($cHT > 0) {
                 if (is_array($cM['cell'])) {
-                    $renderer->tcpdf->SetY($cY + $cM['padding_top']);
+                    $renderer->tcpdf->setY($cY + $cM['padding_top']);
                 } else {
-                    $renderer->tcpdf->SetY($cY + $cM['cell']);
+                    $renderer->tcpdf->setY($cY + $cM['cell']);
                 }
             }
         }
@@ -276,27 +272,24 @@ class ReportPdfTextBox extends ReportBaseTextbox
         if (!$renderer->tcpdf->getRTL()) {
             if ($this->padding) {
                 if (is_array($cM['cell'])) {
-                    $renderer->tcpdf->SetLeftMargin($cX + $cM['padding_left']);
+                    $renderer->tcpdf->setLeftMargin($cX + $cM['padding_left']);
                 } else {
-                    $renderer->tcpdf->SetLeftMargin($cX + $cM['cell']);
+                    $renderer->tcpdf->setLeftMargin($cX + $cM['cell']);
                 }
-                $renderer->tcpdf->SetRightMargin($renderer->getRemainingWidthPDF() - $cW + $cM['right']);
             } else {
-                $renderer->tcpdf->SetLeftMargin($cX);
-                $renderer->tcpdf->SetRightMargin($renderer->getRemainingWidthPDF() - $cW + $cM['right']);
+                $renderer->tcpdf->setLeftMargin($cX);
             }
+            $renderer->tcpdf->setRightMargin($renderer->getRemainingWidthPDF() - $cW + $cM['right']);
+        } elseif ($this->padding) {
+            if (is_array($cM['cell'])) {
+                $renderer->tcpdf->setRightMargin($cX + $cM['padding_right']);
+            } else {
+                $renderer->tcpdf->setRightMargin($cX + $cM['cell']);
+            }
+            $renderer->tcpdf->setLeftMargin($renderer->getRemainingWidthPDF() - $cW + $cM['left']);
         } else {
-            if ($this->padding) {
-                if (is_array($cM['cell'])) {
-                    $renderer->tcpdf->SetRightMargin($cX + $cM['padding_right']);
-                } else {
-                    $renderer->tcpdf->SetRightMargin($cX + $cM['cell']);
-                }
-                $renderer->tcpdf->SetLeftMargin($renderer->getRemainingWidthPDF() - $cW + $cM['left']);
-            } else {
-                $renderer->tcpdf->SetRightMargin($cX);
-                $renderer->tcpdf->SetLeftMargin($renderer->getRemainingWidthPDF() - $cW + $cM['left']);
-            }
+            $renderer->tcpdf->setRightMargin($cX);
+            $renderer->tcpdf->setLeftMargin($renderer->getRemainingWidthPDF() - $cW + $cM['left']);
         }
         // Save the current page number
         $cPN = $renderer->tcpdf->getPage();
@@ -312,25 +305,25 @@ class ReportPdfTextBox extends ReportBaseTextbox
             }
         }
         // Restore the margins
-        $renderer->tcpdf->SetLeftMargin($cM['left']);
-        $renderer->tcpdf->SetRightMargin($cM['right']);
+        $renderer->tcpdf->setLeftMargin($cM['left']);
+        $renderer->tcpdf->setRightMargin($cM['right']);
 
         // This will be mostly used to trick the multiple images last height
         if ($this->reseth) {
             $cH = 0;
             // This can only happen with multiple images and with pagebreak
-            if ($cPN != $renderer->tcpdf->getPage()) {
+            if ($cPN !== $renderer->tcpdf->getPage()) {
                 $renderer->tcpdf->setPage($cPN);
             }
         }
         // New line and some clean up
         if (!$this->newline) {
-            $renderer->tcpdf->SetXY($cX + $cW, $cY);
+            $renderer->tcpdf->setXY($cX + $cW, $cY);
             $renderer->lastCellHeight = $cH;
         } else {
             // addMarginX() also updates X
             $renderer->addMarginX(0);
-            $renderer->tcpdf->SetY($cY + $cH);
+            $renderer->tcpdf->setY($cY + $cH);
             $renderer->lastCellHeight = 0;
         }
     }

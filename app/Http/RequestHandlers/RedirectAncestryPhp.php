@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,17 +21,18 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Exceptions\HttpNotFoundException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpGoneException;
 use Fisharebest\Webtrees\Module\AncestorsChartModule;
+use Fisharebest\Webtrees\Module\ModuleChartInterface;
 use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-
-use function redirect;
 
 /**
  * Redirect URLs created by webtrees 1.x (and PhpGedView).
@@ -39,54 +40,45 @@ use function redirect;
 class RedirectAncestryPhp implements RequestHandlerInterface
 {
     private const CHART_STYLES = [
-        '0' => 'tree',
-        '1' => 'tree',
-        '2' => 'individuals',
-        '3' => 'families',
+        0 => AncestorsChartModule::CHART_STYLE_TREE,
+        1 => AncestorsChartModule::CHART_STYLE_TREE,
+        2 => AncestorsChartModule::CHART_STYLE_INDIVIDUALS,
+        3 => AncestorsChartModule::CHART_STYLE_FAMILIES,
     ];
 
-    /** @var TreeService */
-    private $tree_service;
-
-    /** @var AncestorsChartModule */
-    private $chart;
-
-    /**
-     * @param AncestorsChartModule $chart
-     * @param TreeService          $tree_service
-     */
-    public function __construct(AncestorsChartModule $chart, TreeService $tree_service)
-    {
-        $this->chart        = $chart;
-        $this->tree_service = $tree_service;
+    public function __construct(
+        private readonly ModuleService $module_service,
+        private readonly TreeService $tree_service,
+    ) {
     }
 
-    /**
-     * @param ServerRequestInterface $request
-     *
-     * @return ResponseInterface
-     */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $query       = $request->getQueryParams();
-        $ged         = $query['ged'] ?? Site::getPreference('DEFAULT_GEDCOM');
-        $root_id     = $query['rootid'] ?? '';
-        $generations = $query['PEDIGREE_GENERATIONS'] ?? '4';
-        $chart_style = $query['chart_style'] ?? '';
-
+        $ged  = Validator::queryParams($request)->string('ged', Site::getPreference('DEFAULT_GEDCOM'));
         $tree = $this->tree_service->all()->get($ged);
 
         if ($tree instanceof Tree) {
-            $individual = Registry::individualFactory()->make($root_id, $tree) ?? $tree->significantIndividual(Auth::user());
+            $module = $this->module_service
+                ->findByComponent(ModuleChartInterface::class, $tree, Auth::user())
+                ->first(static fn (ModuleChartInterface $module): bool => $module instanceof AncestorsChartModule);
 
-            $url = $this->chart->chartUrl($individual, [
-                'generations' => $generations,
-                'style'       => self::CHART_STYLES[$chart_style] ?? 'tree',
-            ]);
+            if ($module instanceof AncestorsChartModule) {
+                $xref        = Validator::queryParams($request)->string('rootid', '');
+                $generations = Validator::queryParams($request)->string('PEDIGREE_GENERATIONS', AncestorsChartModule::DEFAULT_GENERATIONS);
+                $chart_style = Validator::queryParams($request)->string('chart_style', '');
+                $individual  = Registry::individualFactory()->make($xref, $tree) ?? $tree->significantIndividual(Auth::user());
 
-            return redirect($url, StatusCodeInterface::STATUS_MOVED_PERMANENTLY);
+                $url = $module->chartUrl($individual, [
+                    'generations' => $generations,
+                    'style'       => self::CHART_STYLES[$chart_style] ?? AncestorsChartModule::DEFAULT_STYLE,
+                ]);
+
+                return Registry::responseFactory()
+                    ->redirectUrl($url, StatusCodeInterface::STATUS_MOVED_PERMANENTLY)
+                    ->withHeader('Link', '<' . $url . '>; rel="canonical"');
+            }
         }
 
-        throw new HttpNotFoundException();
+        throw new HttpGoneException();
     }
 }

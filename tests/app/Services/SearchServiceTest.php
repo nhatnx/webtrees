@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,22 +21,16 @@ namespace Fisharebest\Webtrees\Services;
 
 use Fisharebest\Webtrees\TestCase;
 use Illuminate\Support\Collection;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class SearchService
- *
- * @covers \Fisharebest\Webtrees\Services\SearchService
- */
+#[CoversClass(SearchService::class)]
 class SearchServiceTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @return void
-     */
     public function testSearchesReturnCollections(): void
     {
-        $tree_service = new TreeService();
+        $tree_service = new TreeService(new GedcomImportService());
         $search_service = new SearchService($tree_service);
         $tree = $this->importTree('demo.ged');
 

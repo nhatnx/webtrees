@@ -1,14 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\View;
 use Illuminate\Support\Collection;
 
 /**
- * @var int                  $id
- * @var int                  $limit_low
- * @var int                  $limit_high
- * @var Collection<stdClass> $yahrzeits
+ * @var int                    $id
+ * @var int                    $limit_low
+ * @var int                    $limit_high
+ * @var Collection<int,object> $yahrzeits
  */
 
 ?>
@@ -31,17 +33,17 @@ use Illuminate\Support\Collection;
                 ev.target.parentNode.removeChild(ev.target);
             });
         </script>
-        <?php View::endPush() ?>
+        <?php View::endpush() ?>
     <?php endif ?>
 
     <div class="<?= $n >= $limit_low && $yahrzeits->count() > $limit_high ? 'd-none' : '' ?>">
-        <a href="<?= e($yahrzeit->individual->url()) ?>" class="list_item name2">
+        <a href="<?= e($yahrzeit->individual->url()) ?>" class="list_item">
             <?= $yahrzeit->individual->fullName() ?>
         </a>
         <small><?= view('icons/sex', ['sex' => $yahrzeit->individual->sex()]) ?></small>
         <div class="indent">
-            <?= $yahrzeit->fact->date()->display(true, null, false) ?>,
-            <?= $yahrzeit->yahrzeit_date->display(true, null, false) ?>,
+            <?= $yahrzeit->fact->date()->display($yahrzeit->individual->tree()) ?>,
+            <?= $yahrzeit->yahrzeit_date->display($yahrzeit->individual->tree()) ?>,
             <?= I18N::translate('%s year anniversary', $yahrzeit->fact->anniv) ?>
         </div>
     </div>

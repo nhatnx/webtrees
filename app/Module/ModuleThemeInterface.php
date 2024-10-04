@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -33,7 +33,7 @@ interface ModuleThemeInterface extends ModuleInterface
      *
      * @param Individual $individual
      *
-     * @return Menu[]
+     * @return array<Menu>
      */
     public function individualBoxMenu(Individual $individual): array;
 
@@ -42,34 +42,25 @@ interface ModuleThemeInterface extends ModuleInterface
      *
      * @return Menu|null
      */
-    public function menuThemes(): ?Menu;
-
-    /**
-     * Miscellaneous dimensions, fonts, styles, etc.
-     *
-     * @param string $parameter_name
-     *
-     * @return string|int|float
-     */
-    public function parameter($parameter_name);
+    public function menuThemes(): Menu|null;
 
     /**
      * Generate a list of items for the main menu.
      *
      * @param Tree|null $tree
      *
-     * @return Menu[]
+     * @return array<Menu>
      */
-    public function genealogyMenu(?Tree $tree): array;
+    public function genealogyMenu(Tree|null $tree): array;
 
     /**
      * Generate a list of items for the user menu.
      *
      * @param Tree|null $tree
      *
-     * @return Menu[]
+     * @return array<Menu>
      */
-    public function userMenu(?Tree $tree): array;
+    public function userMenu(Tree|null $tree): array;
 
     /**
      * A list of CSS files to include for this page.

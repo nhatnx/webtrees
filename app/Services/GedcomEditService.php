@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,423 +19,95 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Services;
 
+use Fisharebest\Webtrees\Elements\AbstractXrefElement;
+use Fisharebest\Webtrees\Fact;
+use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Gedcom;
+use Fisharebest\Webtrees\GedcomRecord;
+use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Note;
 use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
-use Psr\Http\Message\ServerRequestInterface;
+use Illuminate\Support\Collection;
 
+use function array_diff;
+use function array_filter;
+use function array_keys;
 use function array_merge;
-use function array_unique;
+use function array_shift;
+use function array_slice;
+use function array_values;
 use function assert;
 use function count;
-use function preg_match_all;
+use function explode;
+use function implode;
+use function max;
+use function preg_replace;
+use function preg_split;
+use function str_ends_with;
+use function str_repeat;
 use function str_replace;
+use function str_starts_with;
+use function substr_count;
 use function trim;
+
+use const ARRAY_FILTER_USE_BOTH;
+use const ARRAY_FILTER_USE_KEY;
+use const PHP_INT_MAX;
 
 /**
  * Utilities to edit/save GEDCOM data.
  */
 class GedcomEditService
 {
-    /** @var string[] */
-    public $glevels = [];
-
-    /** @var string[] */
-    public $tag = [];
-
-    /** @var string[] */
-    public $islink = [];
-
-    /** @var string[] */
-    public $text = [];
-
-    /** @var string[] */
-    protected $glevelsSOUR = [];
-
-    /** @var string[] */
-    protected $tagSOUR = [];
-
-    /** @var string[] */
-    protected $islinkSOUR = [];
-
-    /** @var string[] */
-    protected $textSOUR = [];
-
-    /** @var string[] */
-    protected $glevelsRest = [];
-
-    /** @var string[] */
-    protected $tagRest = [];
-
-    /** @var string[] */
-    protected $islinkRest = [];
-
-    /** @var string[] */
-    protected $textRest = [];
-
     /**
-     * This function splits the $glevels, $tag, $islink, and $text arrays so that the
-     * entries associated with a SOUR record are separate from everything else.
+     * @param Tree $tree
      *
-     * Input arrays:
-     * - $glevels[] - an array of the gedcom level for each line that was edited
-     * - $tag[] - an array of the tags for each gedcom line that was edited
-     * - $islink[] - an array of 1 or 0 values to indicate when the text is a link element
-     * - $text[] - an array of the text data for each line
-     *
-     * Output arrays:
-     * ** For the SOUR record:
-     * - $glevelsSOUR[] - an array of the gedcom level for each line that was edited
-     * - $tagSOUR[] - an array of the tags for each gedcom line that was edited
-     * - $islinkSOUR[] - an array of 1 or 0 values to indicate when the text is a link element
-     * - $textSOUR[] - an array of the text data for each line
-     * ** For the remaining records:
-     * - $glevelsRest[] - an array of the gedcom level for each line that was edited
-     * - $tagRest[] - an array of the tags for each gedcom line that was edited
-     * - $islinkRest[] - an array of 1 or 0 values to indicate when the text is a link element
-     * - $textRest[] - an array of the text data for each line
-     *
-     * @return void
+     * @return Collection<int,Fact>
      */
-    public function splitSource(): void
+    public function newFamilyFacts(Tree $tree): Collection
     {
-        $this->glevelsSOUR = [];
-        $this->tagSOUR     = [];
-        $this->islinkSOUR  = [];
-        $this->textSOUR    = [];
+        $dummy = Registry::familyFactory()->new('', '0 @@ FAM', null, $tree);
+        $tags  = (new Collection(explode(',', $tree->getPreference('QUICK_REQUIRED_FAMFACTS'))))
+            ->filter(static fn (string $tag): bool => $tag !== '');
+        $facts = $tags->map(fn (string $tag): Fact => $this->createNewFact($dummy, $tag));
 
-        $this->glevelsRest = [];
-        $this->tagRest     = [];
-        $this->islinkRest  = [];
-        $this->textRest    = [];
-
-        $inSOUR    = false;
-        $levelSOUR = 0;
-
-        // Assume all arrays are the same size.
-        $count = count($this->glevels);
-
-        for ($i = 0; $i < $count; $i++) {
-            if ($inSOUR) {
-                if ($levelSOUR < $this->glevels[$i]) {
-                    $dest = 'S';
-                } else {
-                    $inSOUR = false;
-                    $dest   = 'R';
-                }
-            } elseif ($this->tag[$i] === 'SOUR') {
-                $inSOUR    = true;
-                $levelSOUR = $this->glevels[$i];
-                $dest      = 'S';
-            } else {
-                $dest = 'R';
-            }
-
-            if ($dest === 'S') {
-                $this->glevelsSOUR[] = $this->glevels[$i];
-                $this->tagSOUR[]     = $this->tag[$i];
-                $this->islinkSOUR[]  = $this->islink[$i];
-                $this->textSOUR[]    = $this->text[$i];
-            } else {
-                $this->glevelsRest[] = $this->glevels[$i];
-                $this->tagRest[]     = $this->tag[$i];
-                $this->islinkRest[]  = $this->islink[$i];
-                $this->textRest[]    = $this->text[$i];
-            }
-        }
+        return Fact::sortFacts($facts);
     }
 
     /**
-     * Add new GEDCOM lines from the $xxxRest interface update arrays, which
-     * were produced by the splitSOUR() function.
-     * See the FunctionsEdit::handle_updatesges() function for details.
+     * @param Tree          $tree
+     * @param string        $sex
+     * @param array<string> $names
      *
-     * @param string $inputRec
-     *
-     * @return string
+     * @return Collection<int,Fact>
      */
-    public function updateRest(string $inputRec): string
+    public function newIndividualFacts(Tree $tree, string $sex, array $names): Collection
     {
-        if (count($this->tagRest) === 0) {
-            return $inputRec; // No update required
-        }
+        $dummy      = Registry::individualFactory()->new('', '0 @@ INDI', null, $tree);
+        $tags       = (new Collection(explode(',', $tree->getPreference('QUICK_REQUIRED_FACTS'))))
+            ->filter(static fn (string $tag): bool => $tag !== '');
+        $facts      = $tags->map(fn (string $tag): Fact => $this->createNewFact($dummy, $tag));
+        $sex_fact   = new Collection([new Fact('1 SEX ' . $sex, $dummy, '')]);
+        $name_facts = Collection::make($names)->map(static fn (string $gedcom): Fact => new Fact($gedcom, $dummy, ''));
 
-        // Save original interface update arrays before replacing them with the xxxRest ones
-        $glevelsSave = $this->glevels;
-        $tagSave     = $this->tag;
-        $islinkSave  = $this->islink;
-        $textSave    = $this->text;
-
-        $this->glevels = $this->glevelsRest;
-        $this->tag     = $this->tagRest;
-        $this->islink  = $this->islinkRest;
-        $this->text    = $this->textRest;
-
-        $myRecord = $this->handleUpdates($inputRec, 'no'); // Now do the update
-
-        // Restore the original interface update arrays (just in case ...)
-        $this->glevels = $glevelsSave;
-        $this->tag     = $tagSave;
-        $this->islink  = $islinkSave;
-        $this->text    = $textSave;
-
-        return $myRecord;
+        return $sex_fact->concat($name_facts)->concat(Fact::sortFacts($facts));
     }
 
     /**
-     * Add new gedcom lines from interface update arrays
-     * The edit_interface and FunctionsEdit::add_simple_tag function produce the following
-     * arrays incoming from the $_POST form
-     * - $glevels[] - an array of the gedcom level for each line that was edited
-     * - $tag[] - an array of the tags for each gedcom line that was edited
-     * - $islink[] - an array of 1 or 0 values to tell whether the text is a link element and should be surrounded by @@
-     * - $text[] - an array of the text data for each line
-     * With these arrays you can recreate the gedcom lines like this
-     * <code>$glevel[0].' '.$tag[0].' '.$text[0]</code>
-     * There will be an index in each of these arrays for each line of the gedcom
-     * fact that is being edited.
-     * If the $text[] array is empty for the given line, then it means that the
-     * user removed that line during editing or that the line is supposed to be
-     * empty (1 DEAT, 1 BIRT) for example. To know if the line should be removed
-     * there is a section of code that looks ahead to the next lines to see if there
-     * are sub lines. For example we don't want to remove the 1 DEAT line if it has
-     * a 2 PLAC or 2 DATE line following it. If there are no sub lines, then the line
-     * can be safely removed.
+     * @param GedcomRecord $record
+     * @param string       $tag
      *
-     * @param string $newged        the new gedcom record to add the lines to
-     * @param string $levelOverride Override GEDCOM level specified in $glevels[0]
-     *
-     * @return string The updated gedcom record
+     * @return Fact
      */
-    public function handleUpdates(string $newged, $levelOverride = 'no'): string
+    private function createNewFact(GedcomRecord $record, string $tag): Fact
     {
-        if ($levelOverride === 'no') {
-            $levelAdjust = 0;
-        } else {
-            $levelAdjust = 1;
-        }
+        $element = Registry::elementFactory()->make($record->tag() . ':' . $tag);
+        $default = $element->default($record->tree());
+        $gedcom  = trim('1 ' . $tag . ' ' . $default);
 
-        // Assert all arrays are the same size.
-        assert(count($this->glevels) === count($this->tag));
-        assert(count($this->glevels) === count($this->text));
-        assert(count($this->glevels) === count($this->islink));
-
-        $count = count($this->glevels);
-
-        for ($j = 0; $j < $count; $j++) {
-            // Look for empty SOUR reference with non-empty sub-records.
-            // This can happen when the SOUR entry is deleted but its sub-records
-            // were incorrectly left intact.
-            // The sub-records should be deleted.
-            if ($this->tag[$j] === 'SOUR' && ($this->text[$j] === '@@' || $this->text[$j] === '')) {
-                $this->text[$j] = '';
-                $k              = $j + 1;
-                while ($k < $count && $this->glevels[$k] > $this->glevels[$j]) {
-                    $this->text[$k] = '';
-                    $k++;
-                }
-            }
-
-            if (trim($this->text[$j]) !== '') {
-                $pass = true;
-            } else {
-                //-- for facts with empty values they must have sub records
-                //-- this section checks if they have subrecords
-                $k    = $j + 1;
-                $pass = false;
-                while ($k < $count && $this->glevels[$k] > $this->glevels[$j]) {
-                    if ($this->text[$k] !== '') {
-                        if ($this->tag[$j] !== 'OBJE' || $this->tag[$k] === 'FILE') {
-                            $pass = true;
-                            break;
-                        }
-                    }
-                    $k++;
-                }
-            }
-
-            //-- if the value is not empty or it has sub lines
-            //--- then write the line to the gedcom record
-            //-- we have to let some emtpy text lines pass through... (DEAT, BIRT, etc)
-            if ($pass) {
-                $newline = (int) $this->glevels[$j] + $levelAdjust . ' ' . $this->tag[$j];
-                if ($this->text[$j] !== '') {
-                    if ($this->islink[$j]) {
-                        $newline .= ' @' . trim($this->text[$j], '@') . '@';
-                    } else {
-                        $newline .= ' ' . $this->text[$j];
-                    }
-                }
-                $next_level = 1 + (int) $this->glevels[$j] + $levelAdjust;
-
-                $newged .= "\n" . str_replace("\n", "\n" . $next_level . ' CONT ', $newline);
-            }
-        }
-
-        return $newged;
-    }
-
-    /**
-     * Create a form to add a new fact.
-     *
-     * @param ServerRequestInterface $request
-     * @param Tree                   $tree
-     * @param string                 $fact
-     *
-     * @return string
-     */
-    public function addNewFact(ServerRequestInterface $request, Tree $tree, string $fact): string
-    {
-        $params = (array) $request->getParsedBody();
-
-        $FACT = $params[$fact];
-        $DATE = $params[$fact . '_DATE'] ?? '';
-        $PLAC = $params[$fact . '_PLAC'] ?? '';
-
-        if ($DATE !== '' || $PLAC !== '' || $FACT !== '' && $FACT !== 'Y') {
-            if ($FACT !== '' && $FACT !== 'Y') {
-                $gedrec = "\n1 " . $fact . ' ' . $FACT;
-            } else {
-                $gedrec = "\n1 " . $fact;
-            }
-            if ($DATE !== '') {
-                $gedrec .= "\n2 DATE " . $DATE;
-            }
-            if ($PLAC !== '') {
-                $gedrec .= "\n2 PLAC " . $PLAC;
-
-                if (preg_match_all('/(' . Gedcom::REGEX_TAG . ')/', $tree->getPreference('ADVANCED_PLAC_FACTS'), $match)) {
-                    foreach ($match[1] as $tag) {
-                        $TAG = $params[$fact . '_' . $tag];
-                        if ($TAG !== '') {
-                            $gedrec .= "\n3 " . $tag . ' ' . $TAG;
-                        }
-                    }
-                }
-                $LATI = $params[$fact . '_LATI'] ?? '';
-                $LONG = $params[$fact . '_LONG'] ?? '';
-                if ($LATI !== '' || $LONG !== '') {
-                    $gedrec .= "\n3 MAP\n4 LATI " . $LATI . "\n4 LONG " . $LONG;
-                }
-            }
-            if ((bool) ($params['SOUR_' . $fact] ?? false)) {
-                return $this->updateSource($gedrec, 'yes');
-            }
-
-            return $gedrec;
-        }
-
-        if ($FACT === 'Y') {
-            if ((bool) ($params['SOUR_' . $fact] ?? false)) {
-                return $this->updateSource("\n1 " . $fact . ' Y', 'yes');
-            }
-
-            return "\n1 " . $fact . ' Y';
-        }
-
-        return '';
-    }
-
-    /**
-     * Add new GEDCOM lines from the $xxxSOUR interface update arrays, which
-     * were produced by the splitSOUR() function.
-     * See the FunctionsEdit::handle_updatesges() function for details.
-     *
-     * @param string $inputRec
-     * @param string $levelOverride
-     *
-     * @return string
-     */
-    public function updateSource(string $inputRec, string $levelOverride = 'no'): string
-    {
-        if (count($this->tagSOUR) === 0) {
-            return $inputRec; // No update required
-        }
-
-        // Save original interface update arrays before replacing them with the xxxSOUR ones
-        $glevelsSave = $this->glevels;
-        $tagSave     = $this->tag;
-        $islinkSave  = $this->islink;
-        $textSave    = $this->text;
-
-        $this->glevels = $this->glevelsSOUR;
-        $this->tag     = $this->tagSOUR;
-        $this->islink  = $this->islinkSOUR;
-        $this->text    = $this->textSOUR;
-
-        $myRecord = $this->handleUpdates($inputRec, $levelOverride); // Now do the update
-
-        // Restore the original interface update arrays (just in case ...)
-        $this->glevels = $glevelsSave;
-        $this->tag     = $tagSave;
-        $this->islink  = $islinkSave;
-        $this->text    = $textSave;
-
-        return $myRecord;
-    }
-
-    /**
-     * Create a form to add a sex record.
-     *
-     * @param ServerRequestInterface $request
-     *
-     * @return string
-     */
-    public function addNewSex(ServerRequestInterface $request): string
-    {
-        $params = (array) $request->getParsedBody();
-
-        switch ($params['SEX']) {
-            case 'M':
-                return "\n1 SEX M";
-            case 'F':
-                return "\n1 SEX F";
-            default:
-                return "\n1 SEX U";
-        }
-    }
-
-    /**
-     * Assemble the pieces of a newly created record into gedcom
-     *
-     * @param ServerRequestInterface $request
-     * @param Tree                   $tree
-     *
-     * @return string
-     */
-    public function addNewName(ServerRequestInterface $request, Tree $tree): string
-    {
-        $params = (array) $request->getParsedBody();
-        $gedrec = "\n1 NAME " . $params['NAME'];
-
-        $tags = [
-            'NPFX',
-            'GIVN',
-            'SPFX',
-            'SURN',
-            'NSFX',
-            'NICK',
-        ];
-
-        if (preg_match_all('/(' . Gedcom::REGEX_TAG . ')/', $tree->getPreference('ADVANCED_NAME_FACTS'), $match)) {
-            $tags = array_merge($tags, $match[1]);
-        }
-
-        // Paternal and Polish and Lithuanian surname traditions can also create a _MARNM
-        $SURNAME_TRADITION = $tree->getPreference('SURNAME_TRADITION');
-        if ($SURNAME_TRADITION === 'paternal' || $SURNAME_TRADITION === 'polish' || $SURNAME_TRADITION === 'lithuanian') {
-            $tags[] = '_MARNM';
-        }
-
-        foreach (array_unique($tags) as $tag) {
-            $TAG = $params[$tag];
-
-            if ($TAG !== '') {
-                $gedrec .= "\n2 " . $tag . ' ' . $TAG;
-            }
-        }
-
-        return $gedrec;
+        return new Fact($gedcom, $record, '');
     }
 
     /**
@@ -445,10 +117,11 @@ class GedcomEditService
      * @param array<string> $levels
      * @param array<string> $tags
      * @param array<string> $values
+     * @param bool          $append Are we appending to a level 0 record, or replacing a level 1 record?
      *
      * @return string
      */
-    public function editLinesToGedcom(string $record_type, array $levels, array $tags, array $values): string
+    public function editLinesToGedcom(string $record_type, array $levels, array $tags, array $values, bool $append = true): string
     {
         // Assert all arrays are the same size.
         $count = count($levels);
@@ -476,24 +149,199 @@ class GedcomEditService
                 }
             }
 
-            // Include this line if there is a value - or if there is a child record with a value.
-            $include = $values[$i] !== '';
-
-            for ($j = $i + 1; !$include && $j < $count && $levels[$j] > $levels[$i]; $j++) {
-                $include = $values[$j] !== '';
+            // Find the next tag at the same level.  Check if any child tags have values.
+            $children_with_values = false;
+            for ($j = $i + 1; $j < $count && $levels[$j] > $levels[$i]; $j++) {
+                if ($values[$j] !== '') {
+                    $children_with_values = true;
+                }
             }
 
-            if ($include) {
+            if ($values[$i] !== '' || $children_with_values  && !$element instanceof AbstractXrefElement) {
                 if ($values[$i] === '') {
                     $gedcom_lines[] = $levels[$i] . ' ' . $tags[$i];
                 } else {
-                    $next_level = 1 + (int) $levels[$i];
+                    // We use CONC for editing NOTE records.
+                    if ($tags[$i] === 'CONC') {
+                        $next_level = (int) $levels[$i];
+                    } else {
+                        $next_level = 1 + (int) $levels[$i];
+                    }
 
                     $gedcom_lines[] = $levels[$i] . ' ' . $tags[$i] . ' ' . str_replace("\n", "\n" . $next_level . ' CONT ', $values[$i]);
                 }
+            } else {
+                $i = $j - 1;
             }
         }
 
-        return implode("\n", $gedcom_lines);
+        $gedcom = implode("\n", $gedcom_lines);
+
+        if ($append && $gedcom !== '') {
+            $gedcom = "\n" . $gedcom;
+        }
+
+        return $gedcom;
+    }
+
+    /**
+     * Add blank lines, to allow a user to add/edit new values.
+     *
+     * @param Fact $fact
+     * @param bool $include_hidden
+     *
+     * @return string
+     */
+    public function insertMissingFactSubtags(Fact $fact, bool $include_hidden): string
+    {
+        // Merge CONT records onto their parent line.
+        $gedcom = preg_replace('/\n\d CONT ?/', "\r", $fact->gedcom());
+
+        return $this->insertMissingLevels($fact->record()->tree(), $fact->tag(), $gedcom, $include_hidden);
+    }
+
+    /**
+     * Add blank lines, to allow a user to add/edit new values.
+     *
+     * @param GedcomRecord $record
+     * @param bool         $include_hidden
+     *
+     * @return string
+     */
+    public function insertMissingRecordSubtags(GedcomRecord $record, bool $include_hidden): string
+    {
+        // Merge CONT records onto their parent line.
+        $gedcom = preg_replace('/\n\d CONT ?/', "\r", $record->gedcom());
+
+        $gedcom = $this->insertMissingLevels($record->tree(), $record->tag(), $gedcom, $include_hidden);
+
+        // NOTE records have data at level 0.  Move it to 1 CONC.
+        if ($record instanceof Note) {
+            return preg_replace('/^0 @[^@]+@ NOTE/', '1 CONC', $gedcom);
+        }
+
+        return preg_replace('/^0.*\n/', '', $gedcom);
+    }
+
+    /**
+     * List of facts/events to add to families and individuals.
+     *
+     * @param Family|Individual $record
+     * @param bool              $include_hidden
+     *
+     * @return array<string>
+     */
+    public function factsToAdd(Family|Individual $record, bool $include_hidden): array
+    {
+        $subtags = Registry::elementFactory()->make($record->tag())->subtags();
+
+        $subtags = array_filter($subtags, static fn (string $v, string $k) => !str_ends_with($v, ':1') || $record->facts([$k])->isEmpty(), ARRAY_FILTER_USE_BOTH);
+
+        $subtags = array_keys($subtags);
+
+        // Don't include facts/events that we have hidden in the control panel.
+        $subtags = array_filter($subtags, fn (string $subtag): bool => !$this->isHiddenTag($record->tag() . ':' . $subtag));
+
+        if (!$include_hidden) {
+            $fn_hidden = fn (string $t): bool => !$this->isHiddenTag($record->tag() . ':' . $t);
+            $subtags   = array_filter($subtags, $fn_hidden);
+        }
+
+        return array_diff($subtags, ['HUSB', 'WIFE', 'CHIL', 'FAMC', 'FAMS', 'CHAN']);
+    }
+
+    /**
+     * @param Tree   $tree
+     * @param string $tag
+     * @param string $gedcom
+     * @param bool   $include_hidden
+     *
+     * @return string
+     */
+    protected function insertMissingLevels(Tree $tree, string $tag, string $gedcom, bool $include_hidden): string
+    {
+        $next_level = substr_count($tag, ':') + 1;
+        $factory    = Registry::elementFactory();
+        $subtags    = $factory->make($tag)->subtags();
+
+        // The first part is level N.  The remainder are level N+1.
+        $parts  = preg_split('/\n(?=' . $next_level . ')/', $gedcom);
+        $return = array_shift($parts) ?? '';
+
+        foreach ($subtags as $subtag => $occurrences) {
+            $hidden = str_ends_with($occurrences, ':?') || $this->isHiddenTag($tag . ':' . $subtag);
+
+            if (!$include_hidden && $hidden) {
+                continue;
+            }
+
+            [$min, $max] = explode(':', $occurrences);
+
+            $min = (int) $min;
+
+            if ($max === 'M') {
+                $max = PHP_INT_MAX;
+            } else {
+                $max = (int) $max;
+            }
+
+            $count = 0;
+
+            // Add expected subtags in our preferred order.
+            foreach ($parts as $n => $part) {
+                if (str_starts_with($part, $next_level . ' ' . $subtag)) {
+                    $return .= "\n" . $this->insertMissingLevels($tree, $tag . ':' . $subtag, $part, $include_hidden);
+                    $count++;
+                    unset($parts[$n]);
+                }
+            }
+
+            // Allowed to have more of this subtag?
+            if ($count < $max) {
+                // Create a new one.
+                $gedcom  = $next_level . ' ' . $subtag;
+                $default = $factory->make($tag . ':' . $subtag)->default($tree);
+                if ($default !== '') {
+                    $gedcom .= ' ' . $default;
+                }
+
+                $number_to_add = max(1, $min - $count);
+                $gedcom_to_add = "\n" . $this->insertMissingLevels($tree, $tag . ':' . $subtag, $gedcom, $include_hidden);
+
+                $return .= str_repeat($gedcom_to_add, $number_to_add);
+            }
+        }
+
+        // Now add any unexpected/existing data.
+        if ($parts !== []) {
+            $return .= "\n" . implode("\n", $parts);
+        }
+
+        return $return;
+    }
+
+    /**
+     * List of tags to exclude when creating new data.
+     *
+     * @param string $tag
+     *
+     * @return bool
+     */
+    private function isHiddenTag(string $tag): bool
+    {
+        // Function to filter hidden tags.
+        $fn_hide = static fn (string $x): bool => (bool) Site::getPreference('HIDE_' . $x);
+
+        $preferences = array_filter(Gedcom::HIDDEN_TAGS, $fn_hide, ARRAY_FILTER_USE_KEY);
+        $preferences = array_values($preferences);
+        $hidden_tags = array_merge(...$preferences);
+
+        foreach ($hidden_tags as $hidden_tag) {
+            if (str_contains($tag, $hidden_tag)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

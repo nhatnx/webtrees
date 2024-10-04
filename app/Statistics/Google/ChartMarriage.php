@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,65 +19,49 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Statistics\Google;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
-use Fisharebest\Webtrees\Module\ModuleThemeInterface;
 use Fisharebest\Webtrees\Statistics\Service\CenturyService;
 use Fisharebest\Webtrees\Statistics\Service\ColorService;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Collection;
 use stdClass;
 
-use function app;
 use function count;
+use function view;
 
 /**
  * A chart showing the marriages by century.
  */
 class ChartMarriage
 {
-    /**
-     * @var Tree
-     */
-    private $tree;
+    private Tree $tree;
+
+    private CenturyService $century_service;
+
+    private ColorService $color_service;
 
     /**
-     * @var ModuleThemeInterface
+     * @param CenturyService $century_service
+     * @param ColorService   $color_service
+     * @param Tree           $tree
      */
-    private $theme;
-
-    /**
-     * @var CenturyService
-     */
-    private $century_service;
-
-    /**
-     * @var ColorService
-     */
-    private $color_service;
-
-    /**
-     * Constructor.
-     *
-     * @param Tree $tree
-     */
-    public function __construct(Tree $tree)
+    public function __construct(CenturyService $century_service, ColorService $color_service, Tree $tree)
     {
         $this->tree            = $tree;
-        $this->theme           = app(ModuleThemeInterface::class);
-        $this->century_service = new CenturyService();
-        $this->color_service   = new ColorService();
+        $this->century_service = $century_service;
+        $this->color_service   = $color_service;
     }
 
     /**
      * Returns the related database records.
      *
-     * @return Collection<stdClass>
+     * @return Collection<array-key,stdClass>
      */
     private function queryRecords(): Collection
     {
         return DB::table('dates')
-            ->selectRaw('ROUND((d_year + 49) / 100) AS century')
+            ->selectRaw('ROUND((d_year + 49) / 100, 0) AS century')
             ->selectRaw('COUNT(*) AS total')
             ->where('d_file', '=', $this->tree->id())
             ->where('d_year', '<>', 0)
@@ -86,12 +70,10 @@ class ChartMarriage
             ->groupBy(['century'])
             ->orderBy('century')
             ->get()
-            ->map(static function (stdClass $row): stdClass {
-                return (object) [
-                    'century' => (int) $row->century,
-                    'total'   => (float) $row->total,
-                ];
-            });
+            ->map(static fn (object $row): object => (object) [
+                'century' => (int) $row->century,
+                'total'   => (float) $row->total,
+            ]);
     }
 
     /**
@@ -102,12 +84,10 @@ class ChartMarriage
      *
      * @return string
      */
-    public function chartMarriage(string $color_from = null, string $color_to = null): string
+    public function chartMarriage(string|null $color_from = null, string|null $color_to = null): string
     {
-        $chart_color1 = (string) $this->theme->parameter('distribution-chart-no-values');
-        $chart_color2 = (string) $this->theme->parameter('distribution-chart-high-values');
-        $color_from   = $color_from ?? $chart_color1;
-        $color_to     = $color_to   ?? $chart_color2;
+        $color_from ??= 'ffffff';
+        $color_to ??= '84beff';
 
         $data = [
             [

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,30 +21,28 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Exceptions\HttpNotFoundException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Session;
 use Fisharebest\Webtrees\TestCase;
 use Fisharebest\Webtrees\User;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\Masquerade
- */
+#[CoversClass(Masquerade::class)]
 class MasqueradeTest extends TestCase
 {
-    /**
-     * @return void
-     */
+    protected static bool $uses_database = true;
+
     public function testMasqueradeAsUser(): void
     {
-        $user1 = self::createMock(User::class);
+        $user1 = $this->createMock(User::class);
         $user1->method('id')->willReturn(1);
 
-        $user2 = self::createMock(User::class);
+        $user2 = $this->createMock(User::class);
         $user2->method('id')->willReturn(2);
 
-        $user_service = self::createMock(UserService::class);
-        $user_service->expects(self::once())->method('find')->willReturn($user2);
+        $user_service = $this->createMock(UserService::class);
+        $user_service->expects($this->once())->method('find')->willReturn($user2);
 
         $request = self::createRequest()
             ->withAttribute('user', $user1)
@@ -58,16 +56,13 @@ class MasqueradeTest extends TestCase
         self::assertSame('1', Session::get('masquerade'));
     }
 
-    /**
-     * @return void
-     */
     public function testCannotMasqueradeAsSelf(): void
     {
-        $user = self::createMock(User::class);
+        $user = $this->createMock(User::class);
         $user->method('id')->willReturn(1);
 
-        $user_service = self::createMock(UserService::class);
-        $user_service->expects(self::once())->method('find')->willReturn($user);
+        $user_service = $this->createMock(UserService::class);
+        $user_service->expects($this->once())->method('find')->willReturn($user);
 
         $request = self::createRequest()
             ->withAttribute('user', $user)
@@ -80,19 +75,16 @@ class MasqueradeTest extends TestCase
         self::assertNull(Session::get('masquerade'));
     }
 
-    /**
-     * @return void
-     */
     public function testMasqueradeAsNonExistingUser(): void
     {
         $this->expectException(HttpNotFoundException::class);
         $this->expectExceptionMessage('User ID 2 not found');
 
-        $user = self::createMock(User::class);
+        $user = $this->createMock(User::class);
         $user->method('id')->willReturn(1);
 
-        $user_service = self::createMock(UserService::class);
-        $user_service->expects(self::once())->method('find')->willReturn(null);
+        $user_service = $this->createMock(UserService::class);
+        $user_service->expects($this->once())->method('find')->willReturn(null);
 
         $request = self::createRequest()
             ->withAttribute('user', $user)

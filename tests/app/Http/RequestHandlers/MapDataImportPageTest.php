@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,19 +21,13 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test the location import.
- *
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\MapDataImportPage
- */
+#[CoversClass(MapDataImportPage::class)]
 class MapDataImportPageTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @return void
-     */
     public function testImportPage(): void
     {
         $handler  = new MapDataImportPage();
@@ -41,6 +35,6 @@ class MapDataImportPageTest extends TestCase
         $response = $handler->handle($request);
 
         self::assertSame(StatusCodeInterface::STATUS_OK, $response->getStatusCode());
-        self::assertSame($response->getHeaderLine('Content-Type'), 'text/html; charset=UTF-8');
+        self::assertSame($response->getHeaderLine('content-type'), 'text/html; charset=UTF-8');
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -30,14 +30,8 @@ interface GedcomRecordFactoryInterface
 {
     /**
      * Create a GedcomRecord object.
-     *
-     * @param string      $xref
-     * @param Tree        $tree
-     * @param string|null $gedcom
-     *
-     * @return GedcomRecord|null
      */
-    public function make(string $xref, Tree $tree, string $gedcom = null): ?GedcomRecord;
+    public function make(string $xref, Tree $tree, string|null $gedcom = null): GedcomRecord|null;
 
     /**
      * Create a GedcomRecord object from raw GEDCOM data.
@@ -50,14 +44,14 @@ interface GedcomRecordFactoryInterface
      *
      * @return GedcomRecord
      */
-    public function new(string $xref, string $gedcom, ?string $pending, Tree $tree): GedcomRecord;
+    public function new(string $xref, string $gedcom, string|null $pending, Tree $tree): GedcomRecord;
 
     /**
      * Create a GedcomRecord object from a row in the database.
      *
      * @param Tree $tree
      *
-     * @return Closure
+     * @return Closure(object):GedcomRecord
      */
     public function mapper(Tree $tree): Closure;
 }

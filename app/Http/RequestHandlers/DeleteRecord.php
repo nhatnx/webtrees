@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -26,24 +26,33 @@ use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Services\LinkedRecordService;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function e;
-use function is_string;
 use function preg_match_all;
 use function preg_replace;
 use function response;
 use function sprintf;
 
 /**
- * Controller for edit forms and responses.
+ * Delete a record.
  */
 class DeleteRecord implements RequestHandlerInterface
 {
+    private LinkedRecordService $linked_record_service;
+
+    /**
+     * @param LinkedRecordService $linked_record_service
+     */
+    public function __construct(LinkedRecordService $linked_record_service)
+    {
+        $this->linked_record_service = $linked_record_service;
+    }
+
     /**
      * Delete a record.
      *
@@ -53,23 +62,23 @@ class DeleteRecord implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getAttribute('xref');
-        assert(is_string($xref));
-
+        $tree   = Validator::attributes($request)->tree();
+        $xref   = Validator::attributes($request)->isXref()->string('xref');
         $record = Registry::gedcomRecordFactory()->make($xref, $tree);
         $record = Auth::checkRecordAccess($record, true);
 
-        if ($record && Auth::isEditor($record->tree()) && $record->canShow() && $record->canEdit()) {
+        if (Auth::isEditor($record->tree()) && $record->canShow() && $record->canEdit()) {
             // Delete links to this record
-            foreach ($record->linkingRecords() as $linker) {
+            foreach ($this->linked_record_service->allLinkedRecords($record) as $linker) {
                 $old_gedcom = $linker->gedcom();
                 $new_gedcom = $this->removeLinks($old_gedcom, $record->xref());
                 if ($old_gedcom !== $new_gedcom) {
-                    // If we have removed a link from a family to an individual, and it now has only one member
-                    if ($linker instanceof Family && preg_match_all('/\n1 (HUSB|WIFE|CHIL) @(' . Gedcom::REGEX_XREF . ')@/', $new_gedcom, $match) === 1) {
+                    // If we have removed a link from a family to an individual, and it now has only one member and no genealogy facts
+                    if (
+                        $linker instanceof Family &&
+                        preg_match('/\n1 (ANUL|CENS|DIV|DIVF|ENGA|MAR[BCLRS]|RESI|EVEN)/', $new_gedcom, $match) !== 1 &&
+                        preg_match_all('/\n1 (HUSB|WIFE|CHIL) @(' . Gedcom::REGEX_XREF . ')@/', $new_gedcom, $match) === 1
+                    ) {
                         // Delete the family
                         /* I18N: %s is the name of a family group, e.g. “Husband name + Wife name” */
                         FlashMessages::addMessage(I18N::translate('The family “%s” has been deleted because it only has one member.', $linker->fullName()));

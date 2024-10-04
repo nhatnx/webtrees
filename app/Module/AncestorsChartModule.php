@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,24 +19,18 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
-use Aura\Router\RouterContainer;
 use Fig\Http\Message\RequestMethodInterface;
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Menu;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ChartService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function app;
-use function assert;
-use function is_string;
-use function max;
-use function min;
 use function route;
 
 /**
@@ -46,7 +40,7 @@ class AncestorsChartModule extends AbstractModule implements ModuleChartInterfac
 {
     use ModuleChartTrait;
 
-    protected const ROUTE_URL  = '/tree/{tree}/ancestors-{style}-{generations}/{xref}';
+    protected const ROUTE_URL = '/tree/{tree}/ancestors-{style}-{generations}/{xref}';
 
     // Chart styles
     public const CHART_STYLE_TREE        = 'tree';
@@ -54,8 +48,8 @@ class AncestorsChartModule extends AbstractModule implements ModuleChartInterfac
     public const CHART_STYLE_FAMILIES    = 'families';
 
     // Defaults
-    protected const DEFAULT_GENERATIONS = '4';
-    protected const DEFAULT_STYLE       = self::CHART_STYLE_TREE;
+    public const DEFAULT_GENERATIONS = '4';
+    public const DEFAULT_STYLE       = self::CHART_STYLE_TREE;
     protected const DEFAULT_PARAMETERS  = [
         'generations' => self::DEFAULT_GENERATIONS,
         'style'       => self::DEFAULT_STYLE,
@@ -65,12 +59,9 @@ class AncestorsChartModule extends AbstractModule implements ModuleChartInterfac
     protected const MINIMUM_GENERATIONS = 2;
     protected const MAXIMUM_GENERATIONS = 10;
 
-    /** @var ChartService */
-    private $chart_service;
+    private ChartService $chart_service;
 
     /**
-     * CompactTreeChartModule constructor.
-     *
      * @param ChartService $chart_service
      */
     public function __construct(ChartService $chart_service)
@@ -85,10 +76,7 @@ class AncestorsChartModule extends AbstractModule implements ModuleChartInterfac
      */
     public function boot(): void
     {
-        $router_container = app(RouterContainer::class);
-        assert($router_container instanceof RouterContainer);
-
-        $router_container->getMap()
+        Registry::routeFactory()->routeMap()
             ->get(static::class, static::ROUTE_URL, $this)
             ->allows(RequestMethodInterface::METHOD_POST)
             ->tokens([
@@ -131,12 +119,8 @@ class AncestorsChartModule extends AbstractModule implements ModuleChartInterfac
 
     /**
      * Return a menu item for this chart - for use in individual boxes.
-     *
-     * @param Individual $individual
-     *
-     * @return Menu|null
      */
-    public function chartBoxMenu(Individual $individual): ?Menu
+    public function chartBoxMenu(Individual $individual): Menu|null
     {
         return $this->chartMenu($individual);
     }
@@ -157,8 +141,8 @@ class AncestorsChartModule extends AbstractModule implements ModuleChartInterfac
     /**
      * The URL for a page showing chart options.
      *
-     * @param Individual $individual
-     * @param mixed[]    $parameters
+     * @param Individual                                $individual
+     * @param array<bool|int|string|array<string>|null> $parameters
      *
      * @return string
      */
@@ -177,39 +161,29 @@ class AncestorsChartModule extends AbstractModule implements ModuleChartInterfac
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree        = Validator::attributes($request)->tree();
+        $user        = Validator::attributes($request)->user();
+        $style       = Validator::attributes($request)->isInArrayKeys($this->styles())->string('style');
+        $xref        = Validator::attributes($request)->isXref()->string('xref');
+        $generations = Validator::attributes($request)->isBetween(self::MINIMUM_GENERATIONS, self::MAXIMUM_GENERATIONS)->integer('generations');
+        $ajax        = Validator::queryParams($request)->boolean('ajax', false);
 
-        $xref = $request->getAttribute('xref');
-        assert(is_string($xref));
+        // Convert POST requests into GET requests for pretty URLs.
+        if ($request->getMethod() === RequestMethodInterface::METHOD_POST) {
+            return redirect(route(static::class, [
+                'tree'        => $tree->name(),
+                'xref'        => Validator::parsedBody($request)->isXref()->string('xref'),
+                'style'       => Validator::parsedBody($request)->isInArrayKeys($this->styles())->string('style'),
+                'generations' => Validator::parsedBody($request)->isBetween(self::MINIMUM_GENERATIONS, self::MAXIMUM_GENERATIONS)->integer('generations'),
+            ]));
+        }
+
+        Auth::checkComponentAccess($this, ModuleChartInterface::class, $tree, $user);
 
         $individual  = Registry::individualFactory()->make($xref, $tree);
         $individual  = Auth::checkIndividualAccess($individual, false, true);
 
-        $ajax        = $request->getQueryParams()['ajax'] ?? '';
-        $generations = (int) $request->getAttribute('generations');
-        $style       = $request->getAttribute('style');
-        $user        = $request->getAttribute('user');
-
-        Auth::checkComponentAccess($this, ModuleChartInterface::class, $tree, $user);
-
-
-        // Convert POST requests into GET requests for pretty URLs.
-        if ($request->getMethod() === RequestMethodInterface::METHOD_POST) {
-            $params = (array) $request->getParsedBody();
-
-            return redirect(route(static::class, [
-                'tree'        => $tree->name(),
-                'xref'        => $params['xref'],
-                'style'       => $params['style'],
-                'generations' => $params['generations'],
-            ]));
-        }
-
-        $generations = min($generations, self::MAXIMUM_GENERATIONS);
-        $generations = max($generations, self::MINIMUM_GENERATIONS);
-
-        if ($ajax === '1') {
+        if ($ajax) {
             $this->layout = 'layouts/ajax';
 
             $ancestors = $this->chart_service->sosaStradonitzAncestors($individual, $generations);

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,13 +20,14 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\ExtCalendar\JewishCalendar;
-use Fisharebest\Webtrees\Carbon;
 use Fisharebest\Webtrees\Date;
 use Fisharebest\Webtrees\Date\GregorianDate;
 use Fisharebest\Webtrees\Date\JewishDate;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\CalendarService;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Psr\Http\Message\ServerRequestInterface;
@@ -80,10 +81,10 @@ class YahrzeitModule extends AbstractModule implements ModuleBlockInterface
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
@@ -98,8 +99,8 @@ class YahrzeitModule extends AbstractModule implements ModuleBlockInterface
         extract($config, EXTR_OVERWRITE);
 
         $jewish_calendar = new JewishCalendar();
-        $startjd         = Carbon::now()->julianDay();
-        $endjd           = $startjd + $days - 1;
+        $startjd         = Registry::timestampFactory()->now()->julianDay();
+        $endjd           = Registry::timestampFactory()->now()->addDays($days - 1)->julianDay();
 
         // The standard anniversary rules cover most of the Yahrzeit rules, we just
         // need to handle a few special cases.
@@ -118,7 +119,7 @@ class YahrzeitModule extends AbstractModule implements ModuleBlockInterface
                         $hd1       = new JewishDate($hd);
                         ++$hd1->year;
                         $hd1->setJdFromYmd();
-                        // Special rules. See http://www.hebcal.com/help/anniv.html
+                        // Special rules. See https://www.hebcal.com/help/anniv.html
                         // Everything else is taken care of by our standard anniversary rules.
                         if ($hd->day === 30 && $hd->month === 2 && $hd->year !== 0 && $hd1->daysInMonth() < 30) {
                             // 30 CSH - Last day in CSH
@@ -231,11 +232,13 @@ class YahrzeitModule extends AbstractModule implements ModuleBlockInterface
      */
     public function saveBlockConfiguration(ServerRequestInterface $request, int $block_id): void
     {
-        $params = (array) $request->getParsedBody();
+        $days       = Validator::parsedBody($request)->string('days', self::DEFAULT_DAYS);
+        $info_style = Validator::parsedBody($request)->string('infoStyle', self::DEFAULT_STYLE);
+        $calendar   = Validator::parsedBody($request)->string('calendar', self::DEFAULT_CALENDAR);
 
-        $this->setBlockSetting($block_id, 'days', $params['days'] ?? self::DEFAULT_DAYS);
-        $this->setBlockSetting($block_id, 'infoStyle', $params['infoStyle'] ?? self::DEFAULT_STYLE);
-        $this->setBlockSetting($block_id, 'calendar', $params['calendar'] ?? self::DEFAULT_CALENDAR);
+        $this->setBlockSetting($block_id, 'days', $days);
+        $this->setBlockSetting($block_id, 'infoStyle', $info_style);
+        $this->setBlockSetting($block_id, 'calendar', $calendar);
     }
 
     /**

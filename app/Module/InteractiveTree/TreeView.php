@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,13 +19,15 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module\InteractiveTree;
 
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
 use Illuminate\Support\Collection;
+
+use function count;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -34,8 +36,8 @@ use const JSON_THROW_ON_ERROR;
  */
 class TreeView
 {
-    /** @var string HTML element name */
-    private $name;
+    // HTML element name
+    private string $name;
 
     /**
      * Treeview Constructor
@@ -82,7 +84,8 @@ class TreeView
     public function getIndividuals(Tree $tree, string $request): string
     {
         $json_requests = explode(';', $request);
-        $r    = [];
+        $r             = [];
+
         foreach ($json_requests as $json_request) {
             $firstLetter = substr($json_request, 0, 1);
             $json_request = substr($json_request, 1);
@@ -90,9 +93,7 @@ class TreeView
             switch ($firstLetter) {
                 case 'c':
                     $families = Collection::make(explode(',', $json_request))
-                        ->map(static function (string $xref) use ($tree): ?Family {
-                            return Registry::familyFactory()->make($xref, $tree);
-                        })
+                        ->map(static fn (string $xref): Family|null => Registry::familyFactory()->make($xref, $tree))
                         ->filter();
 
                     $r[] = $this->drawChildren($families, 1, true);
@@ -146,7 +147,7 @@ class TreeView
      *
      * @return string
      */
-    private function getPersonDetails(Individual $individual, Family $family = null): string
+    private function getPersonDetails(Individual $individual, Family|null $family = null): string
     {
         $chart_url = route('module', [
             'module' => 'tree',
@@ -156,11 +157,11 @@ class TreeView
         ]);
 
         $hmtl = $this->getThumbnail($individual);
-        $hmtl .= '<a class="tv_link" href="' . e($individual->url()) . '">' . $individual->fullName() . '</a> <a href="' . e($chart_url) . '" title="' . I18N::translate('Interactive tree of %s', strip_tags($individual->fullName())) . '" class="wt-icon-individual tv_link tv_treelink"></a>';
+        $hmtl .= '<a class="tv_link" href="' . e($individual->url()) . '">' . $individual->fullName() . '</a> <a href="' . e($chart_url) . '" title="' . I18N::translate('Interactive tree of %s', strip_tags($individual->fullName())) . '" class="tv_link tv_treelink">' . view('icons/individual') . '</a>';
         foreach ($individual->facts(Gedcom::BIRTH_EVENTS, true) as $fact) {
             $hmtl .= $fact->summary();
         }
-        if ($family) {
+        if ($family instanceof Family) {
             foreach ($family->facts(Gedcom::MARRIAGE_EVENTS, true) as $fact) {
                 $hmtl .= $fact->summary();
             }
@@ -175,9 +176,9 @@ class TreeView
     /**
      * Draw the children for some families
      *
-     * @param Collection $familyList array of families to draw the children for
-     * @param int        $gen        number of generations to draw
-     * @param bool       $ajax       true for an ajax call
+     * @param Collection<int,Family> $familyList array of families to draw the children for
+     * @param int                    $gen        number of generations to draw
+     * @param bool                   $ajax       true for an ajax call
      *
      * @return string
      */
@@ -198,16 +199,16 @@ class TreeView
             }
         }
         $tc = count($children2draw);
-        if ($tc) {
+        if ($tc > 0) {
             $f2load = implode(',', $f2load);
             $nbc    = 0;
             foreach ($children2draw as $child) {
                 $nbc++;
-                if ($tc == 1) {
+                if ($tc === 1) {
                     $co = 'c'; // unique
-                } elseif ($nbc == 1) {
+                } elseif ($nbc === 1) {
                     $co = 't'; // first
-                } elseif ($nbc == $tc) {
+                } elseif ($nbc === $tc) {
                     $co = 'b'; //last
                 } else {
                     $co = 'h';
@@ -215,7 +216,7 @@ class TreeView
                 $html .= $this->drawPerson($child, $gen - 1, -1, null, $co, false);
             }
             if (!$ajax) {
-                $html = '<td align="right"' . ($gen == 0 ? ' abbr="c' . $f2load . '"' : '') . '>' . $html . '</td>' . $this->drawHorizontalLine();
+                $html = '<td align="right"' . ($gen === 0 ? ' abbr="c' . $f2load . '"' : '') . '>' . $html . '</td>' . $this->drawHorizontalLine();
             }
         }
 
@@ -234,7 +235,7 @@ class TreeView
      *
      * @return string
      */
-    private function drawPerson(Individual $person, int $gen, int $state, Family $pfamily = null, string $line = '', $isRoot = false): string
+    private function drawPerson(Individual $person, int $gen, int $state, Family|null $pfamily, string $line, bool $isRoot): string
     {
         if ($gen < 0) {
             return '';
@@ -297,29 +298,29 @@ class TreeView
             $parent = null;
         }
 
-        if ($parent instanceof Individual || !empty($fop) || $state < 0) {
+        if ($parent instanceof Individual || $fop !== [] || $state < 0) {
             $html .= $this->drawHorizontalLine();
         }
 
         /* draw the parents */
-        if ($state >= 0 && ($parent instanceof Individual || !empty($fop))) {
-            $unique = $parent === null || empty($fop);
+        if ($state >= 0 && ($parent instanceof Individual || $fop !== [])) {
+            $unique = $parent === null || $fop === [];
             $html .= '<td align="left"><table class="tv_tree"><tbody>';
 
             if ($parent instanceof Individual) {
                 $u = $unique ? 'c' : 't';
-                $html .= '<tr><td ' . ($gen == 0 ? ' abbr="p' . $primaryChildFamily->xref() . '@' . $u . '"' : '') . '>';
+                $html .= '<tr><td ' . ($gen === 0 ? ' abbr="p' . $primaryChildFamily->xref() . '@' . $u . '"' : '') . '>';
                 $html .= $this->drawPerson($parent, $gen - 1, 1, $primaryChildFamily, $u, false);
                 $html .= '</td></tr>';
             }
 
-            if (count($fop)) {
+            if ($fop !== []) {
                 $n  = 0;
                 $nb = count($fop);
                 foreach ($fop as $p) {
                     $n++;
-                    $u = $unique ? 'c' : ($n == $nb || empty($p[1]) ? 'b' : 'h');
-                    $html .= '<tr><td ' . ($gen == 0 ? ' abbr="p' . $p[1]->xref() . '@' . $u . '"' : '') . '>' . $this->drawPerson($p[0], $gen - 1, 1, $p[1], $u, false) . '</td></tr>';
+                    $u = $unique ? 'c' : ($n === $nb || empty($p[1]) ? 'b' : 'h');
+                    $html .= '<tr><td ' . ($gen === 0 ? ' abbr="p' . $p[1]->xref() . '@' . $u . '"' : '') . '>' . $this->drawPerson($p[0], $gen - 1, 1, $p[1], $u, false) . '</td></tr>';
                 }
             }
             $html .= '</tbody></table></td>';
@@ -382,7 +383,7 @@ class TreeView
      */
     private function getThumbnail(Individual $individual): string
     {
-        if ($individual->tree()->getPreference('SHOW_HIGHLIGHT_IMAGES')) {
+        if ($individual->tree()->getPreference('SHOW_HIGHLIGHT_IMAGES') !== '' && $individual->tree()->getPreference('SHOW_HIGHLIGHT_IMAGES') !== '0') {
             return $individual->displayImage(40, 50, 'crop', []);
         }
 

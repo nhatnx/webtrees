@@ -1,6 +1,6 @@
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -16,16 +16,21 @@
 /* The xenea theme */
 @import "_base.css";
 
-/* Colors for chart boxes, etc. */
 :root {
-  --sex-f-fg: #ff2080;
-  --sex-m-fg: #84beff;
-  --sex-u-fg: #008080;
-  --sex-f-bg: #fff0f0;
-  --sex-m-bg: #f0f9ff;
-  --sex-u-bg: #ffffff;
-    --chart-line: solid gray thin;
     --chart-line-radius: 1rem;
+    --chart-line: solid gray thin;
+    --link-color-hover: #f00;
+    --link-color: #00f;
+    --link-decoration-hover: none;
+    --link-decoration: none;
+    --sex-f-bg: #fff0f0;
+    --sex-f-fg: #ff2080;
+    --sex-m-bg: #f0f9ff;
+    --sex-m-fg: #84beff;
+    --sex-u-bg: #ffffff;
+    --sex-u-fg: #008080;
+    --sex-x-bg: #fceaa1;
+    --sex-x-fg: #ffab57;
 }
 
 /* Override Bootstrap formatting */
@@ -76,7 +81,7 @@ table {
  *     +---wt-footer wt-footer-xxxxx
  */
 
-.wt-global {
+::backdrop, .wt-global {
     color: #006;
 }
 
@@ -386,10 +391,6 @@ table {
 .wt-page-content {
 }
 
-.wt-page-options .form-group {
-    margin-bottom: 2px;
-}
-
 .wt-page-options-label {
     color: #006;
     background-color: #95b8e0;
@@ -486,17 +487,17 @@ table {
  * wt-route-individual
  * +---wt-header-wrapper
  */
-
-.wt-individual-silhouette {
-    content: url(images/individual-silhouette-unknown.png);
-}
-
 .wt-individual-silhouette-f {
     content: url(images/individual-silhouette-female.png);
 }
 
 .wt-individual-silhouette-m {
     content: url(images/individual-silhouette-male.png);
+}
+
+.wt-individual-silhouette-u,
+.wt-individual-silhouette-x {
+    content: url(images/individual-silhouette-unknown.png);
 }
 
 /*
@@ -517,16 +518,11 @@ table {
  * +--- wt-chart-box-facts
  *     +--- wt-chart-box-fact
  */
-.wt-chart-box,
-.wt-chart-box-menu {
-    background: var(--sex-u-bg);
-    border: dashed var(--sex-u-fg) thin;
-}
-
 .wt-chart-box {
     height: 5rem;
     padding: 2px;
     line-height: 1.1;
+    border: solid gray thin;
 }
 
 .wt-chart-box-f,
@@ -541,21 +537,23 @@ table {
     border: solid var(--sex-m-fg) thin;
 }
 
+.wt-chart-box-u,
+.wt-chart-box-u .wt-chart-box-dropdown {
+    background: var(--sex-u-bg);
+    border: solid var(--sex-u-fg) thin;
+}
+
+.wt-chart-box-x,
+.wt-chart-box-x .wt-chart-box-dropdown {
+    background: var(--sex-x-bg);
+    border: solid var(--sex-x-fg) thin;
+}
+
 #content #home-page {
     margin-left: 5px;
 }
 
 /* ====== Round Corners ======== */
-
-a {
-    color: #00f;
-    text-decoration: none;
-}
-
-a:hover {
-    color: #f00;
-    text-decoration: none;
-}
 
 :focus {
     outline-style: none;
@@ -570,15 +568,6 @@ img.block {
     border: 0;
     height: 25px;
     vertical-align: middle;
-}
-
-.topbottombar {
-    background-color: #c3dfff;
-    color: #fff;
-    font-size: 12px;
-    font-weight: bold;
-    padding: 4px;
-    text-align: center;
 }
 
 .button {
@@ -647,37 +636,35 @@ div.fact_SHARED_NOTE {
     color: #006;
     text-align: center;
     font-weight: normal;
+}
+
+.wt-facts-table > tbody > tr > th {
     min-width: 20%;
 }
 
 .wt-facts-table td {
     background-color: #ecf5ff;
-    border: solid #c3dfff 1px;
+    border: 1px solid #c3dfff;
 }
 
-.wt-facts-table .wt-gender-M td {
-    background-color: #f0f9ff;
-    border-color: #84beff;
+.wt-facts-table .wt-sex-m > td {
+    background-color: var(--sex-m-bg);
+    border: solid var(--sex-m-fg) thin;
 }
 
-.wt-facts-table .wt-gender-F td {
-    background-color: #fff0f0;
-    border-color: #ff2080;
+.wt-facts-table .wt-sex-f > td {
+    background-color: var(--sex-f-bg);
+    border: solid var(--sex-f-fg) thin;
 }
 
-.name1 {
-    font-weight: bold;
-    font-size: 12px;
+.wt-facts-table .wt-sex-u > td {
+    background-color: var(--sex-u-bg);
+    border: solid var(--sex-u-fg) thin;
 }
 
-.name2 {
-    font-size: 16px;
-    }
-
-a:hover .name1, a:hover .name2 {
-    color: #f00;
-    font-weight: bold;
-    font-size: 12px;
+.wt-facts-table .wt-sex-x > td {
+    background-color: var(--sex-x-bg);
+    border: solid var(--sex-x-fg) thin;
 }
 
 .details_label {
@@ -697,49 +684,13 @@ a:hover .name1, a:hover .name2 {
     font-weight: bold;
 }
 
-.largeError {
-    color: #d00;
-    font-size: large;
-    font-weight: bold;
-}
-
-.warning {
-    color: #f00;
-    font-weight: bold;
-}
-
 .indent {
     padding-left: 20px;
-}
-
-.thumbnail {
-    height: auto;
-    padding: 3px;
-}
-
-.icon {
-    border: 0;
-    padding: 0 5px;
-}
-
-.subheaders {
-    font-weight: bold;
-    font-size: 15px;
-    margin-top: 15px;
-    vertical-align: bottom;
 }
 
 .parentdeath {
     border: thin solid #888;
     padding: 1px;
-}
-
-.selected-option {
-    background-color: #edf7fd;
-}
-
-.border1 {
-    border: solid #000 1px;
 }
 
 .journal_box {
@@ -797,11 +748,6 @@ a:hover .name1, a:hover .name2 {
 .layout3 #childbox {
     top: auto;
     bottom: 20px;
-}
-
-#childbox a.name1 {
-    display: block;
-    margin-left: 5px;
 }
 
 .person0 {
@@ -869,6 +815,7 @@ a:hover .name1, a:hover .name2 {
     color: #f00;
 }
 
+.wt-associate-fact,
 .wt-relation-fact,
 .wt-historic-fact {
     opacity: 0.8;
@@ -886,14 +833,6 @@ a:hover .name1, a:hover .name2 {
 
 .wt-old {
     outline: solid red 1px;
-}
-
-.tag_cloud {
-    text-align: center;
-}
-
-.tag_cloud a {
-    white-space: nowrap;
 }
 
 .nowrap {
@@ -915,12 +854,6 @@ a:hover .name1, a:hover .name2 {
 #facts_content dd {
     float: left;
     width: 70%;
-}
-
-/* this keeps the tag color the same when it is a link as when not */
-
-.place {
-    padding-top: 5px;
 }
 
 .filtersH,
@@ -967,13 +900,6 @@ div.faq_body {
 
 .faq_top {
     float: right;
-}
-
-/* === Positioning edit, copy, delete links === */
-/* General use */
-.editfacts {
-    clear: left;
-    padding-top: 15px;
 }
 
 #indi_note {
@@ -1072,40 +998,6 @@ div.faq_body {
     margin: 0;
     padding: 0;
     white-space: nowrap;
-}
-
-/* Stories module */
-.story_title {
-    padding-top: 12px;
-    font-size: 13px;
-    height: 32px;
-    font-weight: bold;
-}
-
-.story_body {
-    padding: 20px;
-    white-space: normal;
-}
-
-.story_edit {
-    padding: 12px;
-}
-
-/* Stories module */
-.story_title {
-    padding-top: 12px;
-    font-size: 13px;
-    height: 32px;
-    font-weight: bold;
-}
-
-.story_body {
-    padding: 20px;
-    white-space: normal;
-}
-
-.story_edit {
-    padding: 12px;
 }
 
 /*-- Fan chart ---- */
@@ -1539,15 +1431,16 @@ a > .wt-icon-arrow-up:hover {
 }
 
 /* Silhouettes on charts */
-.icon-silhouette-F {
+.icon-silhouette-f {
     content: url(xenea/images/silhouette_female_small.png);
 }
 
-.icon-silhouette-M {
+.icon-silhouette-m {
     content: url(xenea/images/silhouette_male_small.png);
 }
 
-.icon-silhouette-U {
+.icon-silhouette-u,
+.icon-silhouette-x {
     content: url(xenea/images/silhouette_unknown_small.png);
 }
 
@@ -1590,27 +1483,6 @@ a > .wt-icon-arrow-up:hover {
 .wt-chart {
     overflow-x: auto;
     overflow-y: hidden;
-}
-
-/* Fit thumbnail into parent on charts */
-.select2-selection.select2-selection--single {
-    min-height: 36px;
-    height: auto;
-    padding: 2px 0;
-}
-
-.select2-container .select2-selection--single .select2-selection__rendered {
-    padding-left: 2px;
-}
-
-.select2-selection--single .NAME {
-    padding-left: 4px;
-}
-
-/* Some menus (e.g. languages) can be longer than a page */
-.dropdown-menu {
-    max-height: 30rem;
-    overflow-x: hidden;
 }
 
 /* Forms */

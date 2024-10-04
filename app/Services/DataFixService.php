@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,13 +20,13 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Services;
 
 use Fisharebest\Algorithm\MyersDiff;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Media;
 use Fisharebest\Webtrees\Note;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Repository;
 use Fisharebest\Webtrees\Source;
 use Fisharebest\Webtrees\Submitter;
@@ -45,14 +45,8 @@ class DataFixService
 {
     /**
      * Since we know the type, this is quicker than calling Registry::gedcomRecordFactory()->make().
-     *
-     * @param string $xref
-     * @param Tree   $tree
-     * @param string $type
-     *
-     * @return GedcomRecord|null
      */
-    public function getRecordByType(string $xref, Tree $tree, string $type): ?GedcomRecord
+    public function getRecordByType(string $xref, Tree $tree, string $type): GedcomRecord|null
     {
         switch ($type) {
             case Family::RECORD_TYPE:

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,16 +20,18 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\CommonMark;
 
 use Fisharebest\Webtrees\GedcomRecord;
-use League\CommonMark\Inline\Element\AbstractStringContainer;
+use League\CommonMark\Node\Node;
 
 /**
  * Convert XREFs within markdown text to links
  */
-class XrefNode extends AbstractStringContainer
+class XrefNode extends Node
 {
-    /** @var GedcomRecord */
-    private $record;
+    private GedcomRecord $record;
 
+    /**
+     * @param GedcomRecord $record
+     */
     public function __construct(GedcomRecord $record)
     {
         parent::__construct();
@@ -37,6 +39,9 @@ class XrefNode extends AbstractStringContainer
         $this->record = $record;
     }
 
+    /**
+     * @return GedcomRecord
+     */
     public function record(): GedcomRecord
     {
         return $this->record;

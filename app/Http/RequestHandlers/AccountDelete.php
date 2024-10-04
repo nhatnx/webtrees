@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -24,6 +24,7 @@ use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\User;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -36,12 +37,9 @@ use function route;
  */
 class AccountDelete implements RequestHandlerInterface
 {
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
     /**
-     * AccountController constructor.
-     *
      * @param UserService $user_service
      */
     public function __construct(UserService $user_service)
@@ -56,8 +54,8 @@ class AccountDelete implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        $user = $request->getAttribute('user');
+        $tree = Validator::attributes($request)->treeOptional();
+        $user = Validator::attributes($request)->user();
 
         // An administrator can only be deleted by another administrator
         if ($user instanceof User && $user->getPreference(UserInterface::PREF_IS_ADMINISTRATOR) !== '1') {
@@ -65,6 +63,6 @@ class AccountDelete implements RequestHandlerInterface
             Auth::logout();
         }
 
-        return redirect(route(AccountEdit::class, ['tree' => $tree instanceof Tree ? $tree->name() : null]));
+        return redirect(route(AccountEdit::class, ['tree' => $tree?->name()]));
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,20 +20,21 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Carbon;
-use Fisharebest\Webtrees\Exceptions\HttpAccessDeniedException;
+use Fisharebest\Webtrees\DB;
+use Fisharebest\Webtrees\Http\Exceptions\HttpAccessDeniedException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\Http\RequestHandlers\UserPage;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\HtmlService;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Str;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use stdClass;
 
-use function assert;
+use function redirect;
 
 /**
  * Class UserJournalModule
@@ -42,12 +43,9 @@ class UserJournalModule extends AbstractModule implements ModuleBlockInterface
 {
     use ModuleBlockTrait;
 
-    /** @var HtmlService */
-    private $html_service;
+    private HtmlService $html_service;
 
     /**
-     * HtmlBlockModule constructor.
-     *
      * @param HtmlService $html_service
      */
     public function __construct(HtmlService $html_service)
@@ -69,10 +67,10 @@ class UserJournalModule extends AbstractModule implements ModuleBlockInterface
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
@@ -82,8 +80,8 @@ class UserJournalModule extends AbstractModule implements ModuleBlockInterface
             ->where('user_id', '=', Auth::id())
             ->orderByDesc('updated')
             ->get()
-            ->map(static function (stdClass $row): stdClass {
-                $row->updated = Carbon::make($row->updated);
+            ->map(static function (object $row): object {
+                $row->updated = Registry::timestampFactory()->fromString($row->updated);
 
                 return $row;
             });
@@ -158,25 +156,26 @@ class UserJournalModule extends AbstractModule implements ModuleBlockInterface
      */
     public function getEditJournalAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree = Validator::attributes($request)->tree();
 
         if (!Auth::check()) {
             throw new HttpAccessDeniedException();
         }
 
-        $news_id = $request->getQueryParams()['news_id'] ?? '';
+        $news_id = Validator::queryParams($request)->integer('news_id', 0);
 
-        if ($news_id !== '') {
+        if ($news_id !== 0) {
             $row = DB::table('news')
                 ->where('news_id', '=', $news_id)
                 ->where('user_id', '=', Auth::id())
                 ->first();
+
+            // Record was deleted before we could read it?
+            if ($row === null) {
+                throw new HttpNotFoundException(I18N::translate('%s does not exist.', 'news_id:' . $news_id));
+            }
         } else {
-            $row = (object) [
-                'body'    => '',
-                'subject' => '',
-            ];
+            $row = (object)['body' => '', 'subject' => ''];
         }
 
         $title = I18N::translate('Add/edit a journal/news entry');
@@ -197,23 +196,20 @@ class UserJournalModule extends AbstractModule implements ModuleBlockInterface
      */
     public function postEditJournalAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree = Validator::attributes($request)->tree();
 
         if (!Auth::check()) {
             throw new HttpAccessDeniedException();
         }
 
-        $params = (array) $request->getParsedBody();
-
-        $news_id = $request->getQueryParams()['news_id'] ?? '';
-        $subject = $params['subject'];
-        $body    = $params['body'];
+        $news_id = Validator::queryParams($request)->integer('news_id', 0);
+        $subject = Validator::parsedBody($request)->string('subject');
+        $body    = Validator::parsedBody($request)->string('body');
 
         $subject = $this->html_service->sanitize($subject);
         $body    = $this->html_service->sanitize($body);
 
-        if ($news_id !== '') {
+        if ($news_id !== 0) {
             DB::table('news')
                 ->where('news_id', '=', $news_id)
                 ->where('user_id', '=', Auth::id())
@@ -242,10 +238,8 @@ class UserJournalModule extends AbstractModule implements ModuleBlockInterface
      */
     public function postDeleteJournalAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $news_id = $request->getQueryParams()['news_id'];
+        $tree    = Validator::attributes($request)->tree();
+        $news_id = Validator::queryParams($request)->integer('news_id');
 
         DB::table('news')
             ->where('news_id', '=', $news_id)

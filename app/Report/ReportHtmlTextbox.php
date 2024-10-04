@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -38,7 +38,7 @@ class ReportHtmlTextbox extends ReportBaseTextbox
      *
      * @return void
      */
-    public function render($renderer)
+    public function render($renderer): void
     {
         // checkFootnote
         $newelements      = [];
@@ -60,14 +60,12 @@ class ReportHtmlTextbox extends ReportBaseTextbox
                     }
                     if (empty($lastelement)) {
                         $lastelement = $element;
-                    } else {
+                    } elseif ($element->getStyleName() === $lastelement->getStyleName()) {
                         // Checking if the Text has the same style
-                        if ($element->getStyleName() === $lastelement->getStyleName()) {
-                            $lastelement->addText(str_replace("\n", '<br>', $element->getValue()));
-                        } elseif (!empty($lastelement)) {
-                            $newelements[] = $lastelement;
-                            $lastelement   = $element;
-                        }
+                        $lastelement->addText(str_replace("\n", '<br>', $element->getValue()));
+                    } else {
+                        $newelements[] = $lastelement;
+                        $lastelement   = $element;
                     }
                 } elseif ($element instanceof ReportHtmlFootnote) {
                     // Check if the Footnote has been set with it’s link number
@@ -141,7 +139,7 @@ class ReportHtmlTextbox extends ReportBaseTextbox
         }
 
         // Check the width if set to page wide OR set by xml to larger then page width (margin)
-        if ($this->width == 0 || $this->width > $renderer->getRemainingWidth()) {
+        if ($this->width === 0.0 || $this->width > $renderer->getRemainingWidth()) {
             $this->width = $renderer->getRemainingWidth();
         }
         // Setup the CellPadding
@@ -150,13 +148,13 @@ class ReportHtmlTextbox extends ReportBaseTextbox
         }
 
         // For padding, we have to use less wrap width
-        $cW = $this->width - ($cP * 2);
+        $cW = $this->width - $cP * 2.0;
 
         //-- calculate the text box height
         // Number of lines, will be converted to height
         $cHT = 0;
-        // Element height (exept text)
-        $eH = 0;
+        // Element height (except text)
+        $eH = 0.0;
         // Footnote height (in points)
         $fH = 0;
         $w  = 0;
@@ -170,15 +168,15 @@ class ReportHtmlTextbox extends ReportBaseTextbox
         for ($i = 0; $i < $cE; $i++) {
             if (is_object($this->elements[$i])) {
                 $ew = $this->elements[$i]->setWrapWidth($cW - $w - 2, $cW);
-                if ($ew == $cW) {
+                if ($ew === $cW) {
                     $w = 0;
                 }
                 $lw = $this->elements[$i]->getWidth($renderer);
                 // Text is already gets the # LF
                 $cHT += $lw[2];
-                if ($lw[1] == 1) {
+                if ($lw[1] === 1) {
                     $w = $lw[0];
-                } elseif ($lw[1] == 2) {
+                } elseif ($lw[1] === 2) {
                     $w = 0;
                 } else {
                     $w += $lw[0];
@@ -198,10 +196,10 @@ class ReportHtmlTextbox extends ReportBaseTextbox
         // If any element exist
         if ($cE > 0) {
             // Check if this is text or some other element, like images
-            if ($eH == 0) {
+            if ($eH === 0.0) {
                 // Number of LF but at least one line
                 $cHT = ($cHT + 1) * $renderer->cellHeightRatio;
-                // Calculate the cell hight with the largest font size used
+                // Calculate the cell height with the largest font size used
                 $cHT *= $renderer->largestFontHeight;
                 if ($cH < $cHT) {
                     $cH = $cHT;
@@ -218,11 +216,11 @@ class ReportHtmlTextbox extends ReportBaseTextbox
 
         unset($lw, $cHT, $fH, $w);
 
-        // Finaly, check the last cells height
+        // Finally, check the last cells height
         if ($cH < $renderer->lastCellHeight) {
             $cH = $renderer->lastCellHeight;
         }
-        // Update max Y incase of a pagebreak
+        // Update max Y in case of a pagebreak
         // We don't want to over write any images or other stuff
         $renderer->addMaxY($this->top + $cH);
 
@@ -242,9 +240,9 @@ class ReportHtmlTextbox extends ReportBaseTextbox
         // Border setup
         if ($this->border) {
             echo ' border:solid black 1pt;';
-            echo 'width:', ($this->width - 1 - ($cP * 2)), 'pt;height:', $cH - 1, 'pt;';
+            echo 'width:', $this->width - 1 - $cP * 2, 'pt;height:', $cH - 1, 'pt;';
         } else {
-            echo 'width:', ($this->width - ($cP * 2)), 'pt;height:', $cH, 'pt;';
+            echo 'width:', $this->width - $cP * 2, 'pt;height:', $cH, 'pt;';
         }
         echo '">';
 
@@ -279,7 +277,7 @@ class ReportHtmlTextbox extends ReportBaseTextbox
             $renderer->setXy($cX + $this->width, $this->top);
             $renderer->lastCellHeight = $cH;
         } else {
-            $renderer->setXy(0, $this->top + $cH + ($cP * 2));
+            $renderer->setXy(0, $this->top + $cH + $cP * 2);
             $renderer->lastCellHeight = 0;
         }
     }

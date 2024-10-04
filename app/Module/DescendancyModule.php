@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,16 +19,16 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\SearchService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
-use function assert;
+use function strlen;
 use function view;
 
 /**
@@ -38,12 +38,9 @@ class DescendancyModule extends AbstractModule implements ModuleSidebarInterface
 {
     use ModuleSidebarTrait;
 
-    /** @var SearchService */
-    private $search_service;
+    private SearchService $search_service;
 
     /**
-     * DescendancyModule constructor.
-     *
      * @param SearchService $search_service
      */
     public function __construct(SearchService $search_service)
@@ -90,19 +87,15 @@ class DescendancyModule extends AbstractModule implements ModuleSidebarInterface
      */
     public function getSearchAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $search = $request->getQueryParams()['search'];
+        $tree   = Validator::attributes($request)->tree();
+        $search = Validator::queryParams($request)->string('search');
 
         $html = '';
 
         if (strlen($search) >= 2) {
             $html = $this->search_service
                 ->searchIndividualNames([$tree], [$search])
-                ->map(function (Individual $individual): string {
-                    return $this->getPersonLi($individual);
-                })
+                ->map(fn (Individual $individual): string => $this->getPersonLi($individual))
                 ->implode('');
         }
 
@@ -120,10 +113,8 @@ class DescendancyModule extends AbstractModule implements ModuleSidebarInterface
      */
     public function getDescendantsAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getQueryParams()['xref'] ?? '';
+        $tree = Validator::attributes($request)->tree();
+        $xref = Validator::queryParams($request)->isXref()->string('xref');
 
         $individual = Registry::individualFactory()->make($xref, $tree);
 
@@ -169,7 +160,7 @@ class DescendancyModule extends AbstractModule implements ModuleSidebarInterface
      *
      * @return string
      */
-    public function getPersonLi(Individual $person, $generations = 0): string
+    public function getPersonLi(Individual $person, int $generations = 0): string
     {
         $icon     = $generations > 0 ? 'icon-minus' : 'icon-plus';
         $lifespan = $person->canShow() ? '(' . $person->lifespan() . ')' : '';
@@ -177,7 +168,7 @@ class DescendancyModule extends AbstractModule implements ModuleSidebarInterface
 
         return
             '<li class="sb_desc_indi_li">' .
-            '<a class="sb_desc_indi" href="' . e(route('module', [
+            '<a class="sb_desc_indi" href="#" data-wt-href="' . e(route('module', [
                 'module' => $this->name(),
                 'action' => 'Descendants',
                 'tree'    => $person->tree()->name(),
@@ -200,7 +191,7 @@ class DescendancyModule extends AbstractModule implements ModuleSidebarInterface
      *
      * @return string
      */
-    public function getFamilyLi(Family $family, Individual $person, $generations = 0): string
+    public function getFamilyLi(Family $family, Individual $person, int $generations = 0): string
     {
         $spouse = $family->spouse($person);
         if ($spouse instanceof Individual) {
@@ -218,7 +209,7 @@ class DescendancyModule extends AbstractModule implements ModuleSidebarInterface
 
         return
             '<li class="sb_desc_indi_li">' .
-            '<a class="sb_desc_indi" href="#"><i class="plusminus icon-minus"></i>' .
+            '<a class="sb_desc_indi" href="#" data-wt-href="#"><i class="plusminus icon-minus"></i>' .
             $spouse_name .
             $marr .
             '</a>' .
@@ -244,7 +235,7 @@ class DescendancyModule extends AbstractModule implements ModuleSidebarInterface
                 $out .= $this->getFamilyLi($family, $individual, $generations - 1);
             }
         }
-        if ($out) {
+        if ($out !== '') {
             return '<ul>' . $out . '</ul>';
         }
 
@@ -273,7 +264,7 @@ class DescendancyModule extends AbstractModule implements ModuleSidebarInterface
                 $out .= '<li class="sb_desc_none">' . I18N::translate('No children') . '</li>';
             }
         }
-        if ($out) {
+        if ($out !== '') {
             return '<ul>' . $out . '</ul>';
         }
 

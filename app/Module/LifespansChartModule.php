@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,38 +19,35 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
-use Aura\Router\RouterContainer;
 use Fig\Http\Message\RequestMethodInterface;
 use Fisharebest\ExtCalendar\GregorianCalendar;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\ColorGenerator;
 use Fisharebest\Webtrees\Date;
-use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\DB;
+use Fisharebest\Webtrees\Http\Exceptions\HttpBadRequestException;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Place;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Database\Query\JoinClause;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use stdClass;
 
-use function app;
 use function array_filter;
 use function array_intersect;
 use function array_map;
 use function array_merge;
 use function array_reduce;
 use function array_unique;
-use function assert;
 use function count;
 use function date;
 use function explode;
 use function implode;
 use function intdiv;
-use function is_array;
 use function max;
 use function md5;
 use function min;
@@ -91,10 +88,7 @@ class LifespansChartModule extends AbstractModule implements ModuleChartInterfac
      */
     public function boot(): void
     {
-        $router_container = app(RouterContainer::class);
-        assert($router_container instanceof RouterContainer);
-
-        $router_container->getMap()
+        Registry::routeFactory()->routeMap()
             ->get(static::class, static::ROUTE_URL, $this)
             ->allows(RequestMethodInterface::METHOD_POST);
     }
@@ -134,8 +128,8 @@ class LifespansChartModule extends AbstractModule implements ModuleChartInterfac
     /**
      * The URL for this chart.
      *
-     * @param Individual $individual
-     * @param mixed[]    $parameters
+     * @param Individual                                $individual
+     * @param array<bool|int|string|array<string>|null> $parameters
      *
      * @return string
      */
@@ -154,25 +148,28 @@ class LifespansChartModule extends AbstractModule implements ModuleChartInterfac
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree  = Validator::attributes($request)->tree();
+        $user  = Validator::attributes($request)->user();
+        $xrefs = Validator::queryParams($request)->string('xrefs', '');
+        $ajax  = Validator::queryParams($request)->boolean('ajax', false);
 
-        $user      = $request->getAttribute('user');
-        $xrefs     = $request->getQueryParams()['xrefs'] ?? [];
-        $ajax      = $request->getQueryParams()['ajax'] ?? '';
-
-        // URLs created by older versions may already contain an array.
-        if (!is_array($xrefs)) {
+        if ($xrefs === '') {
+            try {
+                // URLs created by webtrees 2.0 and earlier used an array.
+                $xrefs = Validator::queryParams($request)->array('xrefs');
+            } catch (HttpBadRequestException) {
+                // Not a 2.0 request, just an empty parameter.
+                $xrefs = [];
+            }
+        } else {
             $xrefs = explode(self::SEPARATOR, $xrefs);
         }
 
-        $params = (array) $request->getParsedBody();
-
-        $addxref   = $params['addxref'] ?? '';
-        $addfam    = (bool) ($params['addfam'] ?? false);
-        $place_id  = (int) ($params['place_id'] ?? 0);
-        $start     = $params['start'] ?? '';
-        $end       = $params['end'] ?? '';
+        $addxref   = Validator::parsedBody($request)->string('addxref', '');
+        $addfam    = Validator::parsedBody($request)->boolean('addfam', false);
+        $place_id  = Validator::parsedBody($request)->integer('place_id', 0);
+        $start     = Validator::parsedBody($request)->string('start', '');
+        $end       = Validator::parsedBody($request)->string('end', '');
 
         $place      = Place::find($place_id, $tree);
         $start_date = new Date($start);
@@ -218,7 +215,7 @@ class LifespansChartModule extends AbstractModule implements ModuleChartInterfac
 
         Auth::checkComponentAccess($this, ModuleChartInterface::class, $tree, $user);
 
-        if ($ajax === '1') {
+        if ($ajax) {
             $this->layout = 'layouts/ajax';
 
             return $this->chart($tree, $xrefs);
@@ -243,21 +240,17 @@ class LifespansChartModule extends AbstractModule implements ModuleChartInterfac
     }
 
     /**
-     * @param Tree  $tree
-     * @param array $xrefs
+     * @param Tree          $tree
+     * @param array<string> $xrefs
      *
      * @return ResponseInterface
      */
     protected function chart(Tree $tree, array $xrefs): ResponseInterface
     {
         /** @var Individual[] $individuals */
-        $individuals = array_map(static function (string $xref) use ($tree): ?Individual {
-            return Registry::individualFactory()->make($xref, $tree);
-        }, $xrefs);
+        $individuals = array_map(static fn (string $xref): Individual|null => Registry::individualFactory()->make($xref, $tree), $xrefs);
 
-        $individuals = array_filter($individuals, static function (?Individual $individual): bool {
-            return $individual instanceof Individual && $individual->canShow();
-        });
+        $individuals = array_filter($individuals, static fn (Individual|null $individual): bool => $individual instanceof Individual && $individual->canShow());
 
         // Sort the array in order of birth year
         usort($individuals, Individual::birthDateComparator());
@@ -268,9 +261,8 @@ class LifespansChartModule extends AbstractModule implements ModuleChartInterfac
 
         $lifespans = $this->layoutIndividuals($individuals);
 
-        $max_rows = array_reduce($lifespans, static function ($carry, stdClass $item) {
-            return max($carry, $item->row);
-        }, 0);
+        $callback = static fn (int $carry, object $item): int => max($carry, $item->row);
+        $max_rows = array_reduce($lifespans, $callback, 0);
 
         $count    = count($xrefs);
         $subtitle = I18N::plural('%s individual', '%s individuals', $count, I18N::number($count));
@@ -290,14 +282,18 @@ class LifespansChartModule extends AbstractModule implements ModuleChartInterfac
     /**
      * Find the latest event year for individuals
      *
-     * @param array $individuals
+     * @param array<Individual> $individuals
      *
      * @return int
      */
     protected function maxYear(array $individuals): int
     {
-        $jd = array_reduce($individuals, static function ($carry, Individual $item) {
-            return max($carry, $item->getEstimatedDeathDate()->maximumJulianDay());
+        $jd = array_reduce($individuals, static function (int $carry, Individual $item): int {
+            if ($item->getEstimatedDeathDate()->isOK()) {
+                return max($carry, $item->getEstimatedDeathDate()->maximumJulianDay());
+            }
+
+            return $carry;
         }, 0);
 
         $year = $this->jdToYear($jd);
@@ -309,14 +305,18 @@ class LifespansChartModule extends AbstractModule implements ModuleChartInterfac
     /**
      * Find the earliest event year for individuals
      *
-     * @param array $individuals
+     * @param array<Individual> $individuals
      *
      * @return int
      */
     protected function minYear(array $individuals): int
     {
-        $jd = array_reduce($individuals, static function ($carry, Individual $item) {
-            return min($carry, $item->getEstimatedBirthDate()->minimumJulianDay());
+        $jd = array_reduce($individuals, static function (int $carry, Individual $item): int {
+            if ($item->getEstimatedBirthDate()->isOK()) {
+                return min($carry, $item->getEstimatedBirthDate()->minimumJulianDay());
+            }
+
+            return $carry;
         }, PHP_INT_MAX);
 
         return $this->jdToYear($jd);
@@ -419,13 +419,13 @@ class LifespansChartModule extends AbstractModule implements ModuleChartInterfac
     }
 
     /**
-     * @param Individual[] $individuals
+     * @param array<Individual> $individuals
      *
-     * @return stdClass[]
+     * @return array<object>
      */
     private function layoutIndividuals(array $individuals): array
     {
-        $colors = [
+        $color_generators = [
             'M' => new ColorGenerator(240, self::SATURATION, self::LIGHTNESS, self::ALPHA, self::RANGE * -1),
             'F' => new ColorGenerator(000, self::SATURATION, self::LIGHTNESS, self::ALPHA, self::RANGE),
             'U' => new ColorGenerator(120, self::SATURATION, self::LIGHTNESS, self::ALPHA, self::RANGE),
@@ -465,8 +465,10 @@ class LifespansChartModule extends AbstractModule implements ModuleChartInterfac
             // Fill the row up to the year (leaving a small gap)
             $rows[$next_row] = $death_year;
 
+            $color_generator = $color_generators[$individual->sex()] ?? $color_generators['U'];
+
             $lifespans[] = (object) [
-                'background' => $colors[$individual->sex()]->getNextColor(),
+                'background' => $color_generator->getNextColor(),
                 'birth_year' => $birth_year,
                 'death_year' => $death_year,
                 'id'         => 'individual-' . md5($individual->xref()),

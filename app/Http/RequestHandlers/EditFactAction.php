@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -25,35 +25,23 @@ use Fisharebest\Webtrees\Module\CensusAssistantModule;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\GedcomEditService;
 use Fisharebest\Webtrees\Services\ModuleService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function array_merge;
-use function array_unique;
-use function assert;
-use function explode;
-use function in_array;
-use function is_string;
-use function preg_match_all;
 use function redirect;
-use function trim;
 
 /**
  * Save an updated GEDCOM fact.
  */
 class EditFactAction implements RequestHandlerInterface
 {
-    /** @var GedcomEditService */
-    private $gedcom_edit_service;
+    private GedcomEditService $gedcom_edit_service;
 
-    /** @var ModuleService */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * EditFactAction constructor.
-     *
      * @param GedcomEditService $gedcom_edit_service
      * @param ModuleService     $module_service
      */
@@ -70,96 +58,56 @@ class EditFactAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getAttribute('xref');
-        assert(is_string($xref));
-
-        $fact_id = $request->getAttribute('fact_id') ?? '';
-        assert(is_string($fact_id));
+        $tree    = Validator::attributes($request)->tree();
+        $xref    = Validator::attributes($request)->isXref()->string('xref');
+        $fact_id = Validator::attributes($request)->string('fact_id');
 
         $record = Registry::gedcomRecordFactory()->make($xref, $tree);
         $record = Auth::checkRecordAccess($record, true);
 
-        $params    = (array) $request->getParsedBody();
-        $keep_chan = (bool) ($params['keep_chan'] ?? false);
-
-        $this->gedcom_edit_service->glevels = $params['glevels'];
-        $this->gedcom_edit_service->tag     = $params['tag'];
-        $this->gedcom_edit_service->text    = $params['text'];
-        $this->gedcom_edit_service->islink  = $params['islink'];
-
-        // If the fact has a DATE or PLAC, then delete any value of Y
-        if ($this->gedcom_edit_service->text[0] === 'Y') {
-            foreach ($this->gedcom_edit_service->tag as $n => $value) {
-                if ($this->gedcom_edit_service->glevels[$n] == 2 && ($value === 'DATE' || $value === 'PLAC') && $this->gedcom_edit_service->text[$n] !== '') {
-                    $this->gedcom_edit_service->text[0] = '';
-                    break;
-                }
-            }
-        }
-
-        $newged = '';
-
-        $NAME = $params['NAME'] ?? '';
-
-        if ($NAME !== '') {
-            $newged     .= "\n1 NAME " . $NAME;
-            $name_facts = [
-                'TYPE',
-                'NPFX',
-                'GIVN',
-                'NICK',
-                'SPFX',
-                'SURN',
-                'NSFX',
-            ];
-            foreach ($name_facts as $name_fact) {
-                $NAME_FACT = $params[$name_fact] ?? '';
-                if ($NAME_FACT !== '') {
-                    $newged .= "\n2 " . $name_fact . ' ' . $NAME_FACT;
-                }
-            }
-        }
-
-        $newged = $this->gedcom_edit_service->handleUpdates($newged);
-
-        // Add new names after existing names
-        if ($NAME !== '') {
-            preg_match_all('/[_0-9A-Z]+/', $tree->getPreference('ADVANCED_NAME_FACTS'), $match);
-            $name_facts = array_unique(array_merge(['_MARNM'], $match[0]));
-            foreach ($name_facts as $name_fact) {
-                $NAME_FACT = $params[$name_fact] ?? '';
-                // Ignore advanced facts that duplicate standard facts.
-                if ($NAME_FACT !== '' && !in_array($name_fact, ['TYPE', 'NPFX', 'GIVN', 'NICK', 'SPFX', 'SURN', 'NSFX'], true)) {
-                    $newged .= "\n2 " . $name_fact . ' ' . $NAME_FACT;
-                }
-            }
-        }
-
-        $newged = trim($newged); // Remove leading newline
+        $keep_chan = Validator::parsedBody($request)->boolean('keep_chan', false);
+        $levels    = Validator::parsedBody($request)->array('levels');
+        $tags      = Validator::parsedBody($request)->array('tags');
+        $values    = Validator::parsedBody($request)->array('values');
+        $gedcom    = $this->gedcom_edit_service->editLinesToGedcom($record::RECORD_TYPE, $levels, $tags, $values, false);
 
         $census_assistant = $this->module_service->findByInterface(CensusAssistantModule::class)->first();
+
         if ($census_assistant instanceof CensusAssistantModule && $record instanceof Individual) {
-            $newged = $census_assistant->updateCensusAssistant($request, $record, $fact_id, $newged, $keep_chan);
-        }
+            $ca_individuals = Validator::parsedBody($request)->array('ca_individuals')['xref'] ?? [];
 
-        $record->updateFact($fact_id, $newged, !$keep_chan);
+            if ($ca_individuals !== []) {
+                $gedcom = $census_assistant->updateCensusAssistant($request, $record, $fact_id, $gedcom, $keep_chan);
 
-        // For the GEDFact_assistant module
-        $pid_array = $params['pid_array'] ?? '';
-        if ($pid_array !== '') {
-            foreach (explode(',', $pid_array) as $pid) {
-                if ($pid !== $xref) {
-                    $indi = Registry::individualFactory()->make($pid, $tree);
-                    if ($indi && $indi->canEdit()) {
-                        $indi->updateFact($fact_id, $newged, !$keep_chan);
+                // Don't copy the AGE/OCCU fields to other individuals
+                $gedcom2 = preg_replace('/\n2 (?:AGE|OCCU) .*/', '', $gedcom);
+
+                foreach ($ca_individuals as $pid) {
+                    if ($pid !== $xref) {
+                        $individual = Registry::individualFactory()->make($pid, $tree);
+                        if ($individual instanceof Individual && $individual->canEdit()) {
+                            $individual->updateFact('', $gedcom2, !$keep_chan);
+                        }
                     }
                 }
             }
         }
 
-        return redirect($params['url'] ?? $record->url());
+        if ($fact_id === 'new') {
+            // Add a new fact
+            $record->updateFact('', $gedcom, !$keep_chan);
+        } else {
+            // Update (only the first copy of) an existing fact
+            foreach ($record->facts([], false, null, true) as $fact) {
+                if ($fact->id() === $fact_id && $fact->canEdit()) {
+                    $record->updateFact($fact_id, $gedcom, !$keep_chan);
+                    break;
+                }
+            }
+        }
+
+        $url = Validator::parsedBody($request)->isLocalUrl()->string('url', $record->url());
+
+        return redirect($url);
     }
 }

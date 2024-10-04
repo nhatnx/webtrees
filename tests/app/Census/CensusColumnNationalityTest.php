@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -25,40 +25,27 @@ use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Place;
 use Fisharebest\Webtrees\TestCase;
 use Illuminate\Support\Collection;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class CensusColumnNationality
- */
+#[CoversClass(CensusColumnNationality::class)]
+#[CoversClass(AbstractCensusColumn::class)]
 class CensusColumnNationalityTest extends TestCase
 {
-    /**
-     * Get place mock.
-     *
-     * @param string $place Gedcom Place
-     *
-     * @return Place
-     */
     private function getPlaceMock(string $place): Place
     {
-        $placeMock = self::createMock(Place::class);
+        $placeMock = $this->createMock(Place::class);
         $placeMock->method('gedcomName')->willReturn($place);
 
         return $placeMock;
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnNationality
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testNoBirthPlace(): void
     {
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthPlace')->willReturn($this->getPlaceMock(''));
         $individual->method('facts')->with(['IMMI', 'EMIG', 'NATU'], true)->willReturn(new Collection());
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusPlace')->willReturn('Deutschland');
 
         $column = new CensusColumnNationality($census, '', '');
@@ -66,19 +53,13 @@ class CensusColumnNationalityTest extends TestCase
         self::assertSame('Deutsch', $column->generate($individual, $individual));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnNationality
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testPlaceCountry(): void
     {
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthPlace')->willReturn($this->getPlaceMock('Australia'));
         $individual->method('facts')->with(['IMMI', 'EMIG', 'NATU'], true)->willReturn(new Collection());
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusPlace')->willReturn('England');
 
         $column = new CensusColumnNationality($census, '', '');
@@ -86,19 +67,13 @@ class CensusColumnNationalityTest extends TestCase
         self::assertSame('Australia', $column->generate($individual, $individual));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnNationality
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testBritish(): void
     {
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthPlace')->willReturn($this->getPlaceMock('London, England'));
         $individual->method('facts')->with(['IMMI', 'EMIG', 'NATU'], true)->willReturn(new Collection());
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusPlace')->willReturn('England');
 
         $column = new CensusColumnNationality($census, '', '');
@@ -106,36 +81,30 @@ class CensusColumnNationalityTest extends TestCase
         self::assertSame('British', $column->generate($individual, $individual));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnNationality
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testEmigrated(): void
     {
-        $place1 = self::createMock(Place::class);
+        $place1 = $this->createMock(Place::class);
         $place1->method('gedcomName')->willReturn('United States');
 
-        $fact1 = self::createMock(Fact::class);
+        $fact1 = $this->createMock(Fact::class);
         $fact1->method('place')->willReturn($place1);
         $fact1->method('date')->willReturn(new Date('1855'));
 
-        $place2 = self::createMock(Place::class);
+        $place2 = $this->createMock(Place::class);
         $place2->method('gedcomName')->willReturn('Australia');
 
-        $fact2 = self::createMock(Fact::class);
+        $fact2 = $this->createMock(Fact::class);
         $fact2->method('place')->willReturn($place2);
         $fact2->method('date')->willReturn(new Date('1865'));
 
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual->method('getBirthPlace')->willReturn($this->getPlaceMock('London, England'));
         $individual->method('facts')->with(['IMMI', 'EMIG', 'NATU'], true)->willReturn(new Collection([
             $fact1,
             $fact2,
         ]));
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusPlace')->willReturn('England');
         $census->method('censusDate')->willReturn('01 JUN 1860');
 

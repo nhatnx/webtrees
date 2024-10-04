@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,7 +20,6 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees;
 
 use Fisharebest\Webtrees\Http\RequestHandlers\SourcePage;
-use Illuminate\Database\Capsule\Manager as DB;
 
 /**
  * A GEDCOM source (SOUR) object.
@@ -29,7 +28,7 @@ class Source extends GedcomRecord
 {
     public const RECORD_TYPE = 'SOUR';
 
-    protected const ROUTE_NAME  = SourcePage::class;
+    protected const ROUTE_NAME = SourcePage::class;
 
     /**
      * Each object type may have its own special rules, and re-implement this function.
@@ -44,7 +43,7 @@ class Source extends GedcomRecord
         preg_match_all('/\n1 REPO @(.+)@/', $this->gedcom, $matches);
         foreach ($matches[1] as $match) {
             $repo = Registry::repositoryFactory()->make($match, $this->tree);
-            if ($repo && !$repo->canShow($access_level)) {
+            if ($repo instanceof Repository && !$repo->canShow($access_level)) {
                 return false;
             }
         }

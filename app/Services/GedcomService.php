@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -26,15 +26,13 @@ use Fisharebest\Webtrees\Gedcom;
  */
 class GedcomService
 {
-    // User defined tags begin with an underscore
-    private const USER_DEFINED_TAG_PREFIX = '_';
-
     // Some applications, such as FTM, use GEDCOM tag names instead of the tags.
     private const TAG_NAMES = [
         'ABBREVIATION'      => 'ABBR',
         'ADDRESS'           => 'ADDR',
         'ADDRESS1'          => 'ADR1',
         'ADDRESS2'          => 'ADR2',
+        'ADDRESS3'          => 'ADR3',
         'ADOPTION'          => 'ADOP',
         'AGENCY'            => 'AGNC',
         'ALIAS'             => 'ALIA',
@@ -153,17 +151,12 @@ class GedcomService
         '_MILITARY_SERVICE' => '_MILT',
     ];
 
-    // Custom tags used by other applications, with direct synonyms
+    // Custom GEDCOM tags used by other applications, with direct synonyms
     private const TAG_SYNONYMS = [
         // Convert PhpGedView tag to webtrees
         '_PGVU'     => '_WT_USER',
         '_PGV_OBJS' => '_WT_OBJE_SORT',
     ];
-
-    // SEX tags
-    private const SEX_FEMALE  = 'F';
-    private const SEX_MALE    = 'M';
-    private const SEX_UNKNOWN = 'U';
 
     /**
      * Convert a GEDCOM tag to a canonical form.
@@ -181,44 +174,17 @@ class GedcomService
         return $tag;
     }
 
-    /**
-     * @param string $tag
-     *
-     * @return bool
-     */
-    public function isUserDefinedTag(string $tag): bool
-    {
-        return substr_compare($tag, self::USER_DEFINED_TAG_PREFIX, 0, 1) === 0;
-    }
-
-    /**
-     * @param string $text
-     *
-     * @return float|null
-     */
-    public function readLatitude(string $text): ?float
+    public function readLatitude(string $text): float|null
     {
         return $this->readDegrees($text, Gedcom::LATITUDE_NORTH, Gedcom::LATITUDE_SOUTH);
     }
 
-    /**
-     * @param string $text
-     *
-     * @return float|null
-     */
-    public function readLongitude(string $text): ?float
+    public function readLongitude(string $text): float|null
     {
         return $this->readDegrees($text, Gedcom::LONGITUDE_EAST, Gedcom::LONGITUDE_WEST);
     }
 
-    /**
-     * @param string $text
-     * @param string $positive
-     * @param string $negative
-     *
-     * @return float|null
-     */
-    private function readDegrees(string $text, string $positive, string $negative): ?float
+    private function readDegrees(string $text, string $positive, string $negative): float|null
     {
         $text       = trim($text);
         $hemisphere = substr($text, 0, 1);
@@ -245,49 +211,5 @@ class GedcomService
 
         // Can't match anything.
         return null;
-    }
-
-    /**
-     * Although empty placenames are valid "Town, , Country", it is only meaningful
-     * when structured places are used (PLAC:FORM town, county, country), and
-     * structured places are discouraged.
-     *
-     * @param string $text
-     *
-     * @return array<string>
-     */
-    public function readPlace(string $text): array
-    {
-        $text = trim($text);
-
-        return preg_split(Gedcom::PLACE_SEPARATOR_REGEX, $text);
-    }
-
-    /**
-     * @param string[] $place
-     *
-     * @return string
-     */
-    public function writePlace(array $place): string
-    {
-        return implode(Gedcom::PLACE_SEPARATOR, $place);
-    }
-
-    /**
-     * Some applications use non-standard values for unknown.
-     *
-     * @param string $text
-     *
-     * @return string
-     */
-    public function readSex(string $text): string
-    {
-        $text = strtoupper($text);
-
-        if ($text !== self::SEX_MALE && $text !== self::SEX_FEMALE) {
-            $text = self::SEX_UNKNOWN;
-        }
-
-        return $text;
     }
 }

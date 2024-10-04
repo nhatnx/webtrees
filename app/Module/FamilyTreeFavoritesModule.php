@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,18 +20,16 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\Http\RequestHandlers\TreePage;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Str;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use stdClass;
-
-use function assert;
 
 /**
  * Class FamilyTreeFavoritesModule
@@ -65,10 +63,10 @@ class FamilyTreeFavoritesModule extends AbstractModule implements ModuleBlockInt
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
@@ -131,7 +129,7 @@ class FamilyTreeFavoritesModule extends AbstractModule implements ModuleBlockInt
      *
      * @param Tree $tree
      *
-     * @return stdClass[]
+     * @return array<object>
      */
     public function getFavorites(Tree $tree): array
     {
@@ -139,7 +137,7 @@ class FamilyTreeFavoritesModule extends AbstractModule implements ModuleBlockInt
             ->where('gedcom_id', '=', $tree->id())
             ->whereNull('user_id')
             ->get()
-            ->map(static function (stdClass $row) use ($tree): stdClass {
+            ->map(static function (object $row) use ($tree): object {
                 if ($row->xref !== null) {
                     $row->record = Registry::gedcomRecordFactory()->make($row->xref, $tree);
 
@@ -163,18 +161,13 @@ class FamilyTreeFavoritesModule extends AbstractModule implements ModuleBlockInt
      */
     public function postAddFavoriteAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $user   = $request->getAttribute('user');
-        $params = (array) $request->getParsedBody();
-
-        $note  = $params['note'];
-        $title = $params['title'];
-        $url   = $params['url'];
-        $type  = $params['type'];
-        $xref  = $params[$type . '-xref'] ?? '';
-
+        $tree   = Validator::attributes($request)->tree();
+        $user   = Validator::attributes($request)->user();
+        $note   = Validator::parsedBody($request)->string('note');
+        $title  = Validator::parsedBody($request)->string('title');
+        $url    = Validator::parsedBody($request)->string('url');
+        $type   = Validator::parsedBody($request)->string('type');
+        $xref   = Validator::parsedBody($request)->string($type . '-xref', '');
         $record = $this->getRecordForType($type, $xref, $tree);
 
         if (Auth::isManager($tree, $user)) {
@@ -199,11 +192,9 @@ class FamilyTreeFavoritesModule extends AbstractModule implements ModuleBlockInt
      */
     public function postDeleteFavoriteAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $user        = $request->getAttribute('user');
-        $favorite_id = $request->getQueryParams()['favorite_id'];
+        $tree        = Validator::attributes($request)->tree();
+        $user        = Validator::attributes($request)->user();
+        $favorite_id = Validator::queryParams($request)->integer('favorite_id');
 
         if (Auth::isManager($tree, $user)) {
             DB::table('favorite')
@@ -257,14 +248,7 @@ class FamilyTreeFavoritesModule extends AbstractModule implements ModuleBlockInt
         ]);
     }
 
-    /**
-     * @param string $type
-     * @param string $xref
-     * @param Tree   $tree
-     *
-     * @return GedcomRecord|null
-     */
-    private function getRecordForType(string $type, string $xref, Tree $tree): ?GedcomRecord
+    private function getRecordForType(string $type, string $xref, Tree $tree): GedcomRecord|null
     {
         switch ($type) {
             case 'indi':

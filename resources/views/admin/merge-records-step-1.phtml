@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Http\RequestHandlers\ControlPanel;
 use Fisharebest\Webtrees\Http\RequestHandlers\ManageTrees;
 use Fisharebest\Webtrees\Http\RequestHandlers\MergeRecordsAction;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Location;
 use Fisharebest\Webtrees\Media;
 use Fisharebest\Webtrees\Note;
 use Fisharebest\Webtrees\Repository;
@@ -19,6 +22,8 @@ use Fisharebest\Webtrees\View;
  * @var Family|null     $family2
  * @var Individual|null $individual1
  * @var Individual|null $individual2
+ * @var Location|null   $location1
+ * @var Location|null   $location2
  * @var Media|null      $media1
  * @var Media|null      $media2
  * @var Note|null       $note1
@@ -39,15 +44,13 @@ use Fisharebest\Webtrees\View;
 
 <h1><?= $title ?></h1>
 
-<form method="post" action="<?= e(route(MergeRecordsAction::class, ['tree' => $tree->name()])) ?>">
-    <?= csrf_field() ?>
-
-    <div class="row form-group">
+<form id="merge-step-1" method="post" action="<?= e(route(MergeRecordsAction::class, ['tree' => $tree->name()])) ?>">
+    <div class="row mb-3">
         <label class="col-sm-3 col-form-label" for="record-type">
             <?= I18N::translate('Select two records to merge.') ?>
         </label>
         <div class="col-sm-9">
-            <select class="form-control" id="record-type">
+            <select class="form-select" id="record-type">
                 <option value="individual"><?= I18N::translate('Individuals') ?></option>
                 <option value="family"><?= I18N::translate('Families') ?></option>
                 <option value="source"><?= I18N::translate('Sources') ?></option>
@@ -55,11 +58,12 @@ use Fisharebest\Webtrees\View;
                 <option value="note"><?= I18N::translate('Notes') ?></option>
                 <option value="media"><?= I18N::translate('Media objects') ?></option>
                 <option value="submitter"><?= I18N::translate('Submitters') ?></option>
+                <option value="location"><?= I18N::translate('Locations') ?></option>
             </select>
         </div>
     </div>
 
-    <label class="row form-group">
+    <label class="row mb-3">
         <span class="col-sm-3 col-form-label">
             <?= I18N::translate('First record') ?>
         </span>
@@ -91,9 +95,13 @@ use Fisharebest\Webtrees\View;
         <span class="col-sm-9 select-record select-submitter d-none">
             <?= view('components/select-submitter', ['name' => 'xref1', 'id' => 'submitter-xref-1', 'submitter' => $submitter1, 'tree' => $tree, 'disabled' => true]) ?>
         </span>
+
+        <span class="col-sm-9 select-record select-location d-none">
+            <?= view('components/select-location', ['name' => 'xref1', 'id' => 'location-xref-1', 'location' => $location1, 'tree' => $tree, 'disabled' => true]) ?>
+        </span>
     </label>
 
-    <label class="row form-group">
+    <label class="row mb-3">
         <span class="col-sm-3 col-form-label">
             <?= I18N::translate('Second record') ?>
         </span>
@@ -125,9 +133,13 @@ use Fisharebest\Webtrees\View;
         <span class="col-sm-9 select-record select-submitter d-none">
             <?= view('components/select-submitter', ['name' => 'xref2', 'id' => 'submitter-xref-2', 'submitter' => $submitter2, 'tree' => $tree, 'disabled' => true]) ?>
         </span>
+
+        <span class="col-sm-9 select-record select-location d-none">
+            <?= view('components/select-location', ['name' => 'xref2', 'id' => 'location-xref-2', 'location' => $location2, 'tree' => $tree, 'disabled' => true]) ?>
+        </span>
     </label>
 
-    <div class="row form-group">
+    <div class="row mb-3">
         <div class="col-sm-3">
         </div>
 
@@ -138,18 +150,14 @@ use Fisharebest\Webtrees\View;
             </button>
         </div>
     </div>
+
+    <?= csrf_field() ?>
 </form>
 
 <?php View::push('javascript') ?>
 <script>
-  "use strict";
+  'use strict';
 
-  // Disabled elements do not get submitted with the form.
-  $("#record-type").change(function() {
-      $(".select-record").addClass('d-none');
-      $(".select-" + $(this).val()).removeClass('d-none');
-      $(".select-record select").attr("disabled", true);
-      $(".select-" + $(this).val() + " select").attr("disabled", false);
-  });
+  webtrees.initializeIFSRO(document.getElementById('record-type'), document.getElementById('merge-step-1'));
 </script>
 <?php View::endpush() ?>

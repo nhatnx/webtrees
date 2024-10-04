@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -36,5 +36,6 @@ class SourceRecord extends AbstractElement
         'DATA' => '0:1',
         'REFN' => '0:1',
         'RIN'  => '0:1',
+        'CHAN' => '0:1',
     ];
 }

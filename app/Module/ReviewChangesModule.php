@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,21 +20,26 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Carbon;
 use Fisharebest\Webtrees\Contracts\UserInterface;
-use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Http\RequestHandlers\PendingChanges;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\EmailService;
+use Fisharebest\Webtrees\Services\MessageService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\SiteUser;
 use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\TreeUser;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Str;
 use Psr\Http\Message\ServerRequestInterface;
+
+use function time;
 
 /**
  * Class ReviewChangesModule
@@ -43,18 +48,13 @@ class ReviewChangesModule extends AbstractModule implements ModuleBlockInterface
 {
     use ModuleBlockTrait;
 
-    /** @var EmailService */
-    private $email_service;
+    private EmailService $email_service;
 
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
-     * ReviewChangesModule constructor.
-     *
      * @param EmailService $email_service
      * @param TreeService  $tree_service
      * @param UserService  $user_service
@@ -94,10 +94,10 @@ class ReviewChangesModule extends AbstractModule implements ModuleBlockInterface
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
@@ -115,14 +115,14 @@ class ReviewChangesModule extends AbstractModule implements ModuleBlockInterface
             ->exists();
 
         if ($changes_exist && $sendmail) {
-            $last_email_timestamp = Carbon::createFromTimestamp((int) Site::getPreference('LAST_CHANGE_EMAIL'));
-            $next_email_timestamp = $last_email_timestamp->addDays($days);
+            $last_email_timestamp = (int) Site::getPreference('LAST_CHANGE_EMAIL');
+            $next_email_timestamp = $last_email_timestamp + 86400 * $days;
 
             // There are pending changes - tell moderators/managers/administrators about them.
-            if ($next_email_timestamp < Carbon::now()) {
+            if ($next_email_timestamp < time()) {
                 // Which users have pending changes?
                 foreach ($this->user_service->all() as $user) {
-                    if ($user->getPreference(UserInterface::PREF_CONTACT_METHOD) !== 'none') {
+                    if ($user->getPreference(UserInterface::PREF_CONTACT_METHOD) !== MessageService::CONTACT_METHOD_NONE) {
                         foreach ($this->tree_service->all() as $tmp_tree) {
                             if ($tmp_tree->hasPendingEdit() && Auth::isManager($tmp_tree, $user)) {
                                 I18N::init($user->getPreference(UserInterface::PREF_LANGUAGE));
@@ -146,7 +146,7 @@ class ReviewChangesModule extends AbstractModule implements ModuleBlockInterface
                     }
                 }
                 I18N::init($old_language);
-                Site::setPreference('LAST_CHANGE_EMAIL', (string) Carbon::now()->unix());
+                Site::setPreference('LAST_CHANGE_EMAIL', (string) time());
             }
         }
         if (Auth::isEditor($tree) && $tree->hasPendingEdit()) {
@@ -155,8 +155,8 @@ class ReviewChangesModule extends AbstractModule implements ModuleBlockInterface
                 $content .= '<a href="' . e(route(PendingChanges::class, ['tree' => $tree->name()])) . '">' . I18N::translate('There are pending changes for you to moderate.') . '</a><br>';
             }
             if ($sendmail) {
-                $last_email_timestamp = Carbon::createFromTimestamp((int) Site::getPreference('LAST_CHANGE_EMAIL'));
-                $next_email_timestamp = $last_email_timestamp->copy()->addDays($days);
+                $last_email_timestamp = Registry::timestampFactory()->make((int) Site::getPreference('LAST_CHANGE_EMAIL'));
+                $next_email_timestamp = $last_email_timestamp->addDays($days);
 
                 $content .= I18N::translate('Last email reminder was sent ') . view('components/datetime', ['timestamp' => $last_email_timestamp]) . '<br>';
                 $content .= I18N::translate('Next email reminder will be sent after ') . view('components/datetime', ['timestamp' => $next_email_timestamp]) . '<br><br>';
@@ -165,12 +165,17 @@ class ReviewChangesModule extends AbstractModule implements ModuleBlockInterface
 
             $changes = DB::table('change')
                 ->where('gedcom_id', '=', $tree->id())
-                ->where('status', '=', 'pending')
-                ->select(['xref'])
+                ->whereIn('change_id', static function (Builder $query) use ($tree): void {
+                    $query->select([new Expression('MAX(change_id)')])
+                        ->from('change')
+                        ->where('gedcom_id', '=', $tree->id())
+                        ->where('status', '=', 'pending')
+                        ->groupBy(['xref']);
+                })
                 ->get();
 
             foreach ($changes as $change) {
-                $record = Registry::gedcomRecordFactory()->make($change->xref, $tree);
+                $record = Registry::gedcomRecordFactory()->make($change->xref, $tree, $change->new_gedcom ?: $change->old_gedcom);
                 if ($record->canShow()) {
                     $content .= '<li><a href="' . e($record->url()) . '">' . $record->fullName() . '</a></li>';
                 }
@@ -235,10 +240,11 @@ class ReviewChangesModule extends AbstractModule implements ModuleBlockInterface
      */
     public function saveBlockConfiguration(ServerRequestInterface $request, int $block_id): void
     {
-        $params = (array) $request->getParsedBody();
+        $days     = Validator::parsedBody($request)->integer('days');
+        $sendmail = Validator::parsedBody($request)->string('sendmail');
 
-        $this->setBlockSetting($block_id, 'days', $params['days']);
-        $this->setBlockSetting($block_id, 'sendmail', $params['sendmail']);
+        $this->setBlockSetting($block_id, 'days', (string) $days);
+        $this->setBlockSetting($block_id, 'sendmail', $sendmail);
     }
 
     /**

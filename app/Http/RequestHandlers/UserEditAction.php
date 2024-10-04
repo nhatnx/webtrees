@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,14 +21,15 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
-use Fisharebest\Webtrees\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\FlashMessages;
+use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Services\EmailService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\SiteUser;
 use Fisharebest\Webtrees\User;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -40,18 +41,13 @@ use function route;
  */
 class UserEditAction implements RequestHandlerInterface
 {
-    /** @var EmailService */
-    private $email_service;
+    private EmailService $email_service;
 
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
-     * UserEditAction constructor.
-     *
      * @param EmailService $email_service
      * @param TreeService  $tree_service
      * @param UserService  $user_service
@@ -73,37 +69,34 @@ class UserEditAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $user = $request->getAttribute('user');
-
-        $params = (array) $request->getParsedBody();
-
-        $user_id        = (int) $params['user_id'];
-        $username       = $params['username'] ?? '';
-        $real_name      = $params['real_name'] ?? '';
-        $email          = $params['email'] ?? '';
-        $password       = $params['password'] ?? '';
-        $theme          = $params['theme'] ?? '';
-        $language       = $params['language'] ?? '';
-        $timezone       = $params['timezone'] ?? '';
-        $contact_method = $params['contact-method'] ?? '';
-        $comment        = $params['comment'] ?? '';
-        $auto_accept    = (bool) ($params[UserInterface::PREF_AUTO_ACCEPT_EDITS] ?? '');
-        $canadmin       = (bool) ($params[UserInterface::PREF_IS_ADMINISTRATOR] ?? '');
-        $visible_online = (bool) ($params['visible-online'] ?? '');
-        $verified       = (bool) ($params[UserInterface::PREF_IS_EMAIL_VERIFIED] ?? '');
-        $approved       = (bool) ($params['approved'] ?? '');
+        $user           = Validator::attributes($request)->user();
+        $user_id        = Validator::parsedBody($request)->integer('user_id');
+        $username       = Validator::parsedBody($request)->string('username');
+        $real_name      = Validator::parsedBody($request)->string('real_name');
+        $email          = Validator::parsedBody($request)->string('email');
+        $password       = Validator::parsedBody($request)->string('password');
+        $theme          = Validator::parsedBody($request)->string('theme');
+        $language       = Validator::parsedBody($request)->string('language');
+        $timezone       = Validator::parsedBody($request)->string('timezone');
+        $contact_method = Validator::parsedBody($request)->string('contact-method');
+        $comment        = Validator::parsedBody($request)->string('comment');
+        $auto_accept    = Validator::parsedBody($request)->boolean('auto_accept', false);
+        $canadmin       = Validator::parsedBody($request)->boolean('canadmin', false);
+        $visible_online = Validator::parsedBody($request)->boolean('visible-online', false);
+        $verified       = Validator::parsedBody($request)->boolean('verified', false);
+        $approved       = Validator::parsedBody($request)->boolean('approved', false);
 
         $edit_user = $this->user_service->find($user_id);
 
         if ($edit_user === null) {
-            throw new HttpNotFoundException(I18N::translate('%1$s does not exist', 'user_id:' . $user_id));
+            throw new HttpNotFoundException(I18N::translate('%s does not exist.', 'user_id:' . $user_id));
         }
 
         // We have just approved a user.  Tell them
         if ($approved && $edit_user->getPreference(UserInterface::PREF_IS_ACCOUNT_APPROVED) !== '1') {
             I18N::init($edit_user->getPreference(UserInterface::PREF_LANGUAGE));
 
-            $base_url = $request->getAttribute('base_url');
+            $base_url = Validator::attributes($request)->string('base_url');
 
             $this->email_service->send(
                 new SiteUser(),
@@ -137,9 +130,9 @@ class UserEditAction implements RequestHandlerInterface
         }
 
         foreach ($this->tree_service->all() as $tree) {
-            $path_length = (int) $params['RELATIONSHIP_PATH_LENGTH' . $tree->id()];
-            $gedcom_id   = $params['gedcomid' . $tree->id()] ?? '';
-            $can_edit    = $params['canedit' . $tree->id()] ?? '';
+            $path_length = Validator::parsedBody($request)->integer('RELATIONSHIP_PATH_LENGTH' . $tree->id(), 0);
+            $gedcom_id   = Validator::parsedBody($request)->string('gedcomid' . $tree->id(), '');
+            $can_edit    = Validator::parsedBody($request)->string('canedit' . $tree->id(), '');
 
             // Do not allow a path length to be set if the individual ID is not
             if ($gedcom_id === '') {

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -95,11 +95,25 @@ interface IndividualRepositoryInterface
     public function totalIndividualsPercentage(): string;
 
     /**
+     * Show the total individuals with sources as a percentage.
+     *
+     * @return string
+     */
+    public function totalIndisWithSourcesPercentage(): string;
+
+    /**
      * Show the total families as a percentage.
      *
      * @return string
      */
     public function totalFamiliesPercentage(): string;
+
+    /**
+     * Show the total families with sources as a percentage.
+     *
+     * @return string
+     */
+    public function totalFamsWithSourcesPercentage(): string;
 
     /**
      * Show the total number of repositories as a percentage.
@@ -158,6 +172,13 @@ interface IndividualRepositoryInterface
     public function totalSexUnknownPercentage(): string;
 
     /**
+     * Find common surnames.
+     *
+     * @return string
+     */
+    public function getCommonSurname(): string;
+
+    /**
      * Generate a chart showing sex distribution.
      *
      * @param string|null $color_female
@@ -167,8 +188,8 @@ interface IndividualRepositoryInterface
      * @return string
      */
     public function chartSex(
-        string $color_female = null,
-        string $color_male = null,
-        string $color_unknown = null
+        string|null $color_female = null,
+        string|null $color_male = null,
+        string|null $color_unknown = null
     ): string;
 }

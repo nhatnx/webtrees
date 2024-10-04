@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,12 +21,10 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-
-use function assert;
 
 /**
  * Process a form to create a new submitter.
@@ -40,53 +38,45 @@ class CreateSubmitterAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree        = Validator::attributes($request)->tree();
+        $name        = Validator::parsedBody($request)->isNotEmpty()->string('submitter_name');
+        $address     = Validator::parsedBody($request)->string('submitter_address');
+        $email       = Validator::parsedBody($request)->string('submitter_email');
+        $phone       = Validator::parsedBody($request)->string('submitter_phone');
+        $restriction = Validator::parsedBody($request)->string('restriction');
 
-        $params              = (array) $request->getParsedBody();
-        $name                = $params['submitter_name'];
-        $address             = $params['submitter_address'];
-        $email               = $params['submitter_email'];
-        $phone               = $params['submitter_phone'];
-        $privacy_restriction = $params['privacy-restriction'];
-        $edit_restriction    = $params['edit-restriction'];
+        $name        = Registry::elementFactory()->make('SUBM:NAME')->canonical($name);
+        $address     = Registry::elementFactory()->make('SUBM:ADDR')->canonical($address);
+        $email       = Registry::elementFactory()->make('SUBM:EMAIL')->canonical($email);
+        $phone       = Registry::elementFactory()->make('SUBM:PHON')->canonical($phone);
+        $restriction = Registry::elementFactory()->make('SUBM:RESN')->canonical($restriction);
 
-        // Fix non-printing characters
-        $name = trim(preg_replace('/\s+/', ' ', $name));
-
-        $gedcom = "0 @@ SUBM\n1 NAME " . $name;
+        $gedcom = "0 @@ SUBM\n1 NAME " . strtr($name, ["\n" => "\n2 CONT "]);
 
         if ($address !== '') {
-            $gedcom .= "\n1 ADDR " . $address;
+            $gedcom .= "\n1 ADDR " . strtr($address, ["\n" => "\n2 CONT "]);
         }
 
         if ($email !== '') {
-            $gedcom .= "\n1 EMAIL " . $email;
+            $gedcom .= "\n1 EMAIL " . strtr($email, ["\n" => "\n2 CONT "]);
         }
 
         if ($phone !== '') {
-            $gedcom .= "\n1 PHON " . $phone;
+            $gedcom .= "\n1 PHON " . strtr($phone, ["\n" => "\n2 CONT "]);
         }
 
-        if (in_array($privacy_restriction, ['none', 'privacy', 'confidential'], true)) {
-            $gedcom .= "\n1 RESN " . $privacy_restriction;
-        }
-
-        if ($edit_restriction === 'locked') {
-            $gedcom .= "\n1 RESN " . $edit_restriction;
+        if ($restriction !== '') {
+            $gedcom .= "\n1 RESN " . strtr($restriction, ["\n" => "\n2 CONT "]);
         }
 
         $record = $tree->createRecord($gedcom);
-        $record = Registry::submitterFactory()->new($record->xref(), $record->gedcom(), null, $tree);
 
-        // id and text are for select2 / autocomplete
+        // value and text are for autocomplete
         // html is for interactive modals
         return response([
-            'id'   => '@' . $record->xref() . '@',
-            'text' => view('selects/submitter', [
-                'submitter' => $record,
-            ]),
-            'html' => view('modals/record-created', [
+            'value' => '@' . $record->xref() . '@',
+            'text'  => view('selects/submitter', ['submitter' => $record]),
+            'html'  => view('modals/record-created', [
                 'title' => I18N::translate('The submitter has been created'),
                 'name'  => $record->fullName(),
                 'url'   => $record->url(),

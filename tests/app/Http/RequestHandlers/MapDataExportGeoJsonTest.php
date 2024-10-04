@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,19 +22,13 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Services\MapDataService;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test the location export.
- *
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\MapDataExportGeoJson
- */
+#[CoversClass(MapDataExportGeoJson::class)]
 class MapDataExportGeoJsonTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @return void
-     */
     public function testExportGeoJson(): void
     {
         $map_data_service = new MapDataService();
@@ -43,6 +37,6 @@ class MapDataExportGeoJsonTest extends TestCase
         $response         = $handler->handle($request);
 
         self::assertSame(StatusCodeInterface::STATUS_OK, $response->getStatusCode());
-        self::assertSame($response->getHeaderLine('Content-Type'), 'application/vnd.geo+json');
+        self::assertSame($response->getHeaderLine('content-type'), 'application/vnd.geo+json');
     }
 }

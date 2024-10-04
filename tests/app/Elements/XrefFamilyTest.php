@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -25,20 +25,14 @@ use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\TestCase;
 use Fisharebest\Webtrees\Tree;
+use PHPUnit\Framework\Attributes\CoversClass;
 use Psr\Http\Message\ServerRequestInterface;
 
-/**
- * Test harness for the class XrefFamily
- *
- * @covers \Fisharebest\Webtrees\Elements\AbstractElement
- * @covers \Fisharebest\Webtrees\Elements\AbstractXrefElement
- * @covers \Fisharebest\Webtrees\Elements\XrefFamily
- */
+#[CoversClass(AbstractElement::class)]
+#[CoversClass(AbstractXrefElement::class)]
+#[CoversClass(XrefFamily::class)]
 class XrefFamilyTest extends TestCase
 {
-    /**
-     * @return void
-     */
     public function testEdit(): void
     {
         $element = new XrefFamily('');
@@ -47,15 +41,15 @@ class XrefFamilyTest extends TestCase
 
         $factory = $this->createMock(FamilyFactory::class);
 
-        $factory->expects(self::once())
+        $factory->expects($this->once())
             ->method('make')
             ->willReturn(null);
 
         Registry::familyFactory($factory);
 
-        $request = $this->createMock(ServerRequestInterface::class);
+        $request = self::createRequest();
 
-        app()->instance(ServerRequestInterface::class, $request);
+        Registry::container()->set(ServerRequestInterface::class, $request);
 
         $html = $element->edit('some-id', 'some-name', '@X123@', $tree);
         $dom  = new DOMDocument();
@@ -68,9 +62,6 @@ class XrefFamilyTest extends TestCase
         self::assertEquals(1, $option_nodes->count());
     }
 
-    /**
-     * @return void
-     */
     public function testEscape(): void
     {
         $element = new XrefFamily('');
@@ -78,20 +69,17 @@ class XrefFamilyTest extends TestCase
         self::assertSame('@X123@', $element->escape('@X123@'));
     }
 
-    /**
-     * @return void
-     */
     public function testValueXrefLink(): void
     {
         $element = new XrefFamily('');
 
         $record = $this->createMock(Family::class);
 
-        $record->expects(self::once())
+        $record->expects($this->once())
             ->method('fullName')
             ->willReturn('Full Name');
 
-        $record->expects(self::once())
+        $record->expects($this->once())
             ->method('url')
             ->willReturn('https://url');
 
@@ -99,19 +87,15 @@ class XrefFamilyTest extends TestCase
 
         $factory = $this->createMock(FamilyFactory::class);
 
-        $factory->expects(self::once())
+        $factory->expects($this->once())
             ->method('make')
             ->willReturn($record);
-
 
         Registry::familyFactory($factory);
 
         self::assertSame('<a href="https://url">Full Name</a>', $element->value('@X123@', $tree));
     }
 
-    /**
-     * @return void
-     */
     public function testValueXrefLinkWithInvalidXref(): void
     {
         $element = new XrefFamily('');
@@ -121,9 +105,6 @@ class XrefFamilyTest extends TestCase
         self::assertSame('<span class="error">invalid</span>', $element->value('invalid', $tree));
     }
 
-    /**
-     * @return void
-     */
     public function testValueXrefLinkWithMissingRecord(): void
     {
         $element = new XrefFamily('');
@@ -132,7 +113,7 @@ class XrefFamilyTest extends TestCase
 
         $factory = $this->createMock(FamilyFactory::class);
 
-        $factory->expects(self::once())
+        $factory->expects($this->once())
             ->method('make')
             ->willReturn(null);
 

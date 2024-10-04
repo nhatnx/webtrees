@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,16 +21,12 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
-use function in_array;
-use function preg_replace;
 use function response;
-use function trim;
 use function view;
 
 /**
@@ -45,38 +41,39 @@ class CreateRepositoryAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree        = Validator::attributes($request)->tree();
+        $name        = Validator::parsedBody($request)->isNotEmpty()->string('name');
+        $address     = Validator::parsedBody($request)->string('address');
+        $url         = Validator::parsedBody($request)->string('url');
+        $restriction = Validator::parsedBody($request)->string('restriction');
 
-        $params              = (array) $request->getParsedBody();
-        $name                = $params['repository-name'];
-        $privacy_restriction = $params['privacy-restriction'];
-        $edit_restriction    = $params['edit-restriction'];
+        $name        = Registry::elementFactory()->make('REPO:NAME')->canonical($name);
+        $address     = Registry::elementFactory()->make('REPO:ADDR')->canonical($address);
+        $url         = Registry::elementFactory()->make('REPO:WWW')->canonical($url);
+        $restriction = Registry::elementFactory()->make('REPO:RESN')->canonical($restriction);
 
-        // Fix non-printing characters
-        $name = trim(preg_replace('/\s+/', ' ', $name));
+        $gedcom = "0 @@ REPO\n1 NAME " . strtr($name, ["\n" => "\n2 CONT "]);
 
-        $gedcom = "0 @@ REPO\n1 NAME " . $name;
-
-        if (in_array($privacy_restriction, ['none', 'privacy', 'confidential'], true)) {
-            $gedcom .= "\n1 RESN " . $privacy_restriction;
+        if ($address !== '') {
+            $gedcom .= "\n1 ADDR " . strtr($address, ["\n" => "\n2 CONT "]);
         }
 
-        if ($edit_restriction === 'locked') {
-            $gedcom .= "\n1 RESN " . $edit_restriction;
+        if ($url !== '') {
+            $gedcom .= "\n1 WWW " . strtr($url, ["\n" => "\n2 CONT "]);
+        }
+
+        if ($restriction !== '') {
+            $gedcom .= "\n1 RESN " . strtr($restriction, ["\n" => "\n2 CONT "]);
         }
 
         $record = $tree->createRecord($gedcom);
-        $record = Registry::repositoryFactory()->new($record->xref(), $record->gedcom(), null, $tree);
 
-        // id and text are for select2 / autocomplete
+        // value and text are for autocomplete
         // html is for interactive modals
         return response([
-            'id'   => '@' . $record->xref() . '@',
-            'text' => view('selects/repository', [
-                'repository' => $record,
-            ]),
-            'html' => view('modals/record-created', [
+            'value' => '@' . $record->xref() . '@',
+            'text'  => view('selects/repository', ['repository' => $record]),
+            'html'  => view('modals/record-created', [
                 'title' => I18N::translate('The repository has been created'),
                 'name'  => $record->fullName(),
                 'url'   => $record->url(),

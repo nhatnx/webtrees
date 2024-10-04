@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,13 +19,11 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
-/**
- * Test harness for the class SexXValue
- *
- * @covers \Fisharebest\Webtrees\Elements\AbstractElement
- * @covers \Fisharebest\Webtrees\Elements\SexXValue
- */
-class SexXValueTest extends AbstractElementTest
+use PHPUnit\Framework\Attributes\CoversClass;
+
+#[CoversClass(AbstractElement::class)]
+#[CoversClass(SexXValue::class)]
+class SexXValueTest extends AbstractElementTestCase
 {
     /**
      * Standard tests for all elements.
@@ -37,12 +35,9 @@ class SexXValueTest extends AbstractElementTest
         self::$element = new SexXValue('label');
     }
 
-    /**
-     * @return void
-     */
     public function testCanonical(): void
     {
-        self::assertSame('FOO BAR BAZ', self::$element->canonical("Foo  bAr  baZ"));
+        self::assertSame('FOO BAR BAZ', self::$element->canonical('Foo  bAr  baZ'));
         self::assertSame('FOO BAR BAZ', self::$element->canonical("\t Foo\t bAr \tbaZ\t "));
         self::assertSame('FOO BAR BAZ', self::$element->canonical("\nFoo \n\r bAr \r\n baZ\r"));
     }

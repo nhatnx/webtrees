@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,6 +23,7 @@ use Fisharebest\Webtrees\Fact;
 use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Services\LinkedRecordService;
 use Fisharebest\Webtrees\Tree;
 use Illuminate\Support\Collection;
 
@@ -37,6 +38,16 @@ class FixPrimaryTag extends AbstractModule implements ModuleDataFixInterface
 {
     use ModuleDataFixTrait;
 
+    private LinkedRecordService $linked_record_service;
+
+    /**
+     * @param LinkedRecordService $linked_record_service
+     */
+    public function __construct(LinkedRecordService $linked_record_service)
+    {
+        $this->linked_record_service = $linked_record_service;
+    }
+
     /**
      * How should this module be identified in the control panel, etc.?
      *
@@ -45,7 +56,7 @@ class FixPrimaryTag extends AbstractModule implements ModuleDataFixInterface
     public function title(): string
     {
         /* I18N: Name of a module */
-        return I18N::translate('Convert _PRIM tags to GEDCOM 5.5.1');
+        return I18N::translate('Convert %s tags to GEDCOM 5.5.1', 'OBJE:_PRIM');
     }
 
     /**
@@ -65,7 +76,7 @@ class FixPrimaryTag extends AbstractModule implements ModuleDataFixInterface
      * @param Tree                 $tree
      * @param array<string,string> $params
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public function mediaToFix(Tree $tree, array $params): Collection
     {
@@ -104,7 +115,7 @@ class FixPrimaryTag extends AbstractModule implements ModuleDataFixInterface
         }
 
         $html .= '<ul>';
-        foreach ($record->linkedIndividuals('OBJE') as $individual) {
+        foreach ($this->linked_record_service->linkedIndividuals($record) as $individual) {
             $html .= '<li>' . I18N::translate('Re-order media') . ' – <a href="' . e($individual->url()) . '">' . $individual->fullName() . '</a></li>';
         }
         $html .= '</ul>';
@@ -122,14 +133,12 @@ class FixPrimaryTag extends AbstractModule implements ModuleDataFixInterface
      */
     public function updateRecord(GedcomRecord $record, array $params): void
     {
-        $facts = $record->facts(['_PRIM'])->filter(static function (Fact $fact): bool {
-            return !$fact->isPendingDeletion();
-        });
+        $facts = $record->facts(['_PRIM'])->filter(static fn (Fact $fact): bool => !$fact->isPendingDeletion());
 
         foreach ($facts as $fact) {
             $primary = strtoupper($fact->value()) !== 'N';
 
-            foreach ($record->linkedIndividuals('OBJE') as $individual) {
+            foreach ($this->linked_record_service->linkedIndividuals($record) as $individual) {
                 $this->updateMediaLinks($individual, $record->xref(), $primary);
             }
 
@@ -152,7 +161,7 @@ class FixPrimaryTag extends AbstractModule implements ModuleDataFixInterface
         $facts4 = new Collection();
 
         foreach ($facts as $fact) {
-            if ($fact->getTag() !== 'OBJE') {
+            if ($fact->tag() !== 'INDI:OBJE') {
                 $facts1->push($fact);
             } elseif ($fact->value() !== '@' . $xref . '@') {
                 $facts3->push($fact);
@@ -165,9 +174,7 @@ class FixPrimaryTag extends AbstractModule implements ModuleDataFixInterface
 
         $sorted_facts = $facts1->concat($facts2)->concat($facts3)->concat($facts4);
 
-        $gedcom = $sorted_facts->map(static function (Fact $fact): string {
-            return "\n" . $fact->gedcom();
-        })->implode('');
+        $gedcom = $sorted_facts->map(static fn (Fact $fact): string => "\n" . $fact->gedcom())->implode('');
 
         $gedcom = '0 @' . $individual->xref() . '@ INDI' . $gedcom;
 

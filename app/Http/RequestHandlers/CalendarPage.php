@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,13 +23,10 @@ use Fisharebest\Webtrees\Date;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Services\CalendarService;
-use Fisharebest\Webtrees\Services\LocalizationService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-
-use function assert;
 
 /**
  * Show anniversaries for events in a given day/month/year.
@@ -38,22 +35,14 @@ class CalendarPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var CalendarService */
-    private $calendar_service;
-
-    /** @var LocalizationService */
-    private $localization_service;
+    private CalendarService $calendar_service;
 
     /**
-     * CalendarPage constructor.
-     *
-     * @param CalendarService     $calendar_service
-     * @param LocalizationService $localization_service
+     * @param CalendarService $calendar_service
      */
-    public function __construct(CalendarService $calendar_service, LocalizationService $localization_service)
+    public function __construct(CalendarService $calendar_service)
     {
-        $this->calendar_service     = $calendar_service;
-        $this->localization_service = $localization_service;
+        $this->calendar_service = $calendar_service;
     }
 
     /**
@@ -65,28 +54,26 @@ class CalendarPage implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $view     = $request->getAttribute('view');
-        $cal      = $request->getQueryParams()['cal'] ?? '';
-        $day      = $request->getQueryParams()['day'] ?? '';
-        $month    = $request->getQueryParams()['month'] ?? '';
-        $year     = $request->getQueryParams()['year'] ?? '';
-        $filterev = $request->getQueryParams()['filterev'] ?? 'BIRT-MARR-DEAT';
-        $filterof = $request->getQueryParams()['filterof'] ?? 'all';
-        $filtersx = $request->getQueryParams()['filtersx'] ?? '';
+        $tree     = Validator::attributes($request)->tree();
+        $view     = Validator::attributes($request)->isInArray(['day', 'month', 'year'])->string('view');
+        $cal      = Validator::queryParams($request)->string('cal', '');
+        $day      = Validator::queryParams($request)->string('day', '');
+        $month    = Validator::queryParams($request)->string('month', '');
+        $year     = Validator::queryParams($request)->string('year', '');
+        $filterev = Validator::queryParams($request)->string('filterev', 'BIRT-MARR-DEAT');
+        $filterof = Validator::queryParams($request)->string('filterof', 'all');
+        $filtersx = Validator::queryParams($request)->string('filtersx', '');
 
         if ($cal . $day . $month . $year === '') {
             // No date specified? Use the most likely calendar
-            $cal = $this->localization_service->calendar(I18N::locale())->gedcomCalendarEscape();
+            $cal = I18N::language()->calendar()->gedcomCalendarEscape();
         }
 
         // need BC to parse date
-        if ($year < 0) {
-            $year = (-$year) . ' B.C.';
+        if (str_starts_with($year, '-')) {
+            $year = substr($year, 1) . ' B.C.';
         }
-        $ged_date = new Date("{$cal} {$day} {$month} {$year}");
+        $ged_date = new Date($cal . ' ' . $day . ' ' . $month . ' ' . $year);
         // need negative year for year entry field.
         $year     = $ged_date->minimumDate()->year;
         $cal_date = $ged_date->minimumDate();
@@ -123,13 +110,13 @@ class CalendarPage implements RequestHandlerInterface
 
         switch ($view) {
             case 'day':
-                $title = I18N::translate('On this day…') . ' ' . $ged_date->display(false);
+                $title = I18N::translate('On this day…') . ' ' . $ged_date->display($tree);
                 break;
             case 'month':
-                $title = I18N::translate('In this month…') . ' ' . $ged_date->display(false, '%F %Y');
+                $title = I18N::translate('In this month…') . ' ' . $ged_date->display($tree, '%F %Y');
                 break;
             case 'year':
-                $title = I18N::translate('In this year…') . ' ' . $ged_date->display(false, '%Y');
+                $title = I18N::translate('In this year…') . ' ' . $ged_date->display($tree, '%Y');
                 break;
         }
 

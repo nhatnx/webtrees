@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -27,6 +27,7 @@ use Fisharebest\Webtrees\Log;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\User;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -36,12 +37,9 @@ use Psr\Http\Server\RequestHandlerInterface;
  */
 class PasswordResetAction implements RequestHandlerInterface, StatusCodeInterface
 {
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
     /**
-     * PasswordRequestForm constructor.
-     *
      * @param UserService $user_service
      */
     public function __construct(UserService $user_service)
@@ -56,15 +54,12 @@ class PasswordResetAction implements RequestHandlerInterface, StatusCodeInterfac
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree  = $request->getAttribute('tree');
+        $tree  = Validator::attributes($request)->treeOptional();
         $token = $request->getAttribute('token');
-
-        $user = $this->user_service->findByToken($token);
+        $user  = $this->user_service->findByToken($token);
 
         if ($user instanceof User) {
-            $params = (array) $request->getParsedBody();
-
-            $password = $params['password'] ?? '';
+            $password = Validator::parsedBody($request)->string('password');
 
             $user->setPreference('password-token', '');
             $user->setPreference('password-token-expire', '');
@@ -87,6 +82,6 @@ class PasswordResetAction implements RequestHandlerInterface, StatusCodeInterfac
 
         FlashMessages::addMessage($message, 'danger');
 
-        return redirect(route(PasswordRequestPage::class, ['tree' => $tree instanceof Tree ? $tree->name() : null]));
+        return redirect(route(PasswordRequestPage::class, ['tree' => $tree?->name()]));
     }
 }

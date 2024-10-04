@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -35,6 +35,11 @@ use function view;
  */
 class XrefRepository extends AbstractXrefElement
 {
+    protected const SUBTAGS = [
+        'CALN' => '0:1',
+        'NOTE' => '0:M',
+    ];
+
     /**
      * An edit control for this data.
      *
@@ -57,11 +62,9 @@ class XrefRepository extends AbstractXrefElement
 
         return
             '<div class="input-group">' .
-            '<div class="input-group-prepend">' .
-            '<button class="btn btn-secondary" type="button" data-toggle="modal" data-backdrop="static" data-target="#wt-ajax-modal" data-href="' . e(route(CreateRepositoryModal::class, ['tree' => $tree->name()])) . '" data-select-id="' . $id . '" title="' . I18N::translate('Create a repository') . '">' .
+            '<button class="btn btn-secondary" type="button" data-bs-toggle="modal" data-bs-backdrop="static" data-bs-target="#wt-ajax-modal" data-wt-href="' . e(route(CreateRepositoryModal::class, ['tree' => $tree->name()])) . '" data-wt-select-id="' . $id . '" title="' . I18N::translate('Create a repository') . '">' .
             view('icons/add') .
             '</button>' .
-            '</div>' .
             $select .
             '</div>';
     }

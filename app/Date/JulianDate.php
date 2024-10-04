@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -30,8 +30,8 @@ class JulianDate extends AbstractGregorianJulianDate
     // GEDCOM calendar escape
     public const ESCAPE = '@#DJULIAN@';
 
-    /** @var bool True for dates recorded in new-style/old-style format, e.g. 2 FEB 1743/44 */
-    private $new_old_style = false;
+    // For dates recorded in new-style/old-style format, e.g. 2 FEB 1743/44
+    private bool $new_old_style = false;
 
     /**
      * Create a date from either:
@@ -80,7 +80,7 @@ class JulianDate extends AbstractGregorianJulianDate
         }
 
         if (preg_match('/^(\d+) B\.C\.$/', $year, $match)) {
-            return - (int) $match[1];
+            return -(int) $match[1];
         }
 
         return (int) $year;
@@ -94,7 +94,7 @@ class JulianDate extends AbstractGregorianJulianDate
     protected function formatLongYear(): string
     {
         if ($this->year < 0) {
-            return /*  I18N: BCE=Before the Common Era, for Julian years < 0. See http://en.wikipedia.org/wiki/Common_Era */
+            return /*  I18N: BCE=Before the Common Era, for Julian years < 0. See https://en.wikipedia.org/wiki/Common_Era */
                 I18N::translate('%s&nbsp;BCE', I18N::digits(-$this->year));
         }
 
@@ -102,7 +102,7 @@ class JulianDate extends AbstractGregorianJulianDate
             return I18N::translate('%s&nbsp;CE', I18N::digits(sprintf('%d/%02d', $this->year - 1, $this->year % 100)));
         }
 
-        /* I18N: CE=Common Era, for Julian years > 0. See http://en.wikipedia.org/wiki/Common_Era */
+        /* I18N: CE=Common Era, for Julian years > 0. See https://en.wikipedia.org/wiki/Common_Era */
         return I18N::translate('%s&nbsp;CE', I18N::digits($this->year));
     }
 

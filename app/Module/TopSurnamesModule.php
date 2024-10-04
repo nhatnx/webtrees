@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,15 +20,25 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Functions\FunctionsPrintLists;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
-use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\Services\ModuleService;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Str;
 use Psr\Http\Message\ServerRequestInterface;
+
+use function array_slice;
+use function array_sum;
+use function count;
+use function extract;
+use function uasort;
+use function uksort;
+use function view;
+
+use const EXTR_OVERWRITE;
 
 /**
  * Class TopSurnamesModule
@@ -41,12 +51,9 @@ class TopSurnamesModule extends AbstractModule implements ModuleBlockInterface
     private const DEFAULT_NUMBER = '10';
     private const DEFAULT_STYLE  = 'table';
 
-    /** @var ModuleService */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * TopSurnamesModule constructor.
-     *
      * @param ModuleService $module_service
      */
     public function __construct(ModuleService $module_service)
@@ -79,77 +86,96 @@ class TopSurnamesModule extends AbstractModule implements ModuleBlockInterface
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
     public function getBlock(Tree $tree, int $block_id, string $context, array $config = []): string
     {
-        $num       = (int) $this->getBlockSetting($block_id, 'num', self::DEFAULT_NUMBER);
-        $infoStyle = $this->getBlockSetting($block_id, 'infoStyle', self::DEFAULT_STYLE);
+        $num        = (int) $this->getBlockSetting($block_id, 'num', self::DEFAULT_NUMBER);
+        $info_style = $this->getBlockSetting($block_id, 'infoStyle', self::DEFAULT_STYLE);
 
         extract($config, EXTR_OVERWRITE);
 
-        // Use the count of base surnames.
-        $top_surnames = DB::table('name')
+        $query = DB::table('name')
             ->where('n_file', '=', $tree->id())
             ->where('n_type', '<>', '_MARNM')
-            ->whereNotIn('n_surn', [Individual::NOMEN_NESCIO, ''])
-            ->groupBy(['n_surn'])
-            ->orderByDesc(new Expression('COUNT(n_surn)'))
-            ->take($num)
-            ->pluck('n_surn');
+            ->where('n_surn', '<>', '')
+            ->where('n_surn', '<>', Individual::NOMEN_NESCIO)
+            ->select([
+                DB::binaryColumn('n_surn', 'n_surn'),
+                DB::binaryColumn('n_surname', 'n_surname'),
+                new Expression('COUNT(*) AS total'),
+            ])
+            ->groupBy([
+                DB::binaryColumn('n_surn'),
+                DB::binaryColumn('n_surname'),
+            ]);
 
-        $all_surnames = [];
+        /** @var array<array<int>> $top_surnames */
+        $top_surnames = [];
 
-        foreach ($top_surnames as $top_surname) {
-            $variants = DB::table('name')
-                ->where('n_file', '=', $tree->id())
-                ->where(new Expression('n_surn /*! COLLATE utf8_bin */'), '=', $top_surname)
-                ->groupBy(['surname'])
-                ->select([new Expression('n_surname /*! COLLATE utf8_bin */ AS surname'), new Expression('count(*) AS total')])
-                ->pluck('total', 'surname')
-                ->map(static function ($n): int {
-                    // Some database drivers return numeric columns strings.
-                    return (int) $n;
-                })
-                ->all();
+        foreach ($query->get() as $row) {
+            $row->n_surn = $row->n_surn === '' ? $row->n_surname : $row->n_surn;
+            $row->n_surn = I18N::strtoupper(I18N::language()->normalize($row->n_surn));
 
-            $all_surnames[$top_surname] = $variants;
+            $top_surnames[$row->n_surn][$row->n_surname] ??= 0;
+            $top_surnames[$row->n_surn][$row->n_surname] += (int) $row->total;
         }
+
+        uasort($top_surnames, static fn (array $x, array $y): int => array_sum($y) <=> array_sum($x));
+
+        $top_surnames = array_slice($top_surnames, 0, $num, true);
 
         // Find a module providing individual lists.
         $module = $this->module_service
             ->findByComponent(ModuleListInterface::class, $tree, Auth::user())
-            ->first(static function (ModuleInterface $module): bool {
-                // The family list extends the individual list
-                return
-                    $module instanceof IndividualListModule &&
-                    !$module instanceof FamilyListModule;
-            });
+            ->first(static fn (ModuleInterface $module): bool => $module instanceof IndividualListModule);
 
-        switch ($infoStyle) {
+        switch ($info_style) {
             case 'tagcloud':
-                uksort($all_surnames, [I18N::class, 'strcasecmp']);
-                $content = FunctionsPrintLists::surnameTagCloud($all_surnames, $module, true, $tree);
+                uksort($top_surnames, I18N::comparator());
+                $content = view('lists/surnames-tag-cloud', [
+                    'module'   => $module,
+                    'params'   => [],
+                    'surnames' => $top_surnames,
+                    'totals'   => true,
+                    'tree'     => $tree,
+                ]);
                 break;
+
             case 'list':
-                uasort($all_surnames, [$this, 'surnameCountSort']);
-                $content = FunctionsPrintLists::surnameList($all_surnames, 1, true, $module, $tree);
+                $content = view('lists/surnames-bullet-list', [
+                    'module'   => $module,
+                    'params'   => [],
+                    'surnames' => $top_surnames,
+                    'totals'   => true,
+                    'tree'     => $tree,
+                ]);
                 break;
+
             case 'array':
-                uasort($all_surnames, [$this, 'surnameCountSort']);
-                $content = FunctionsPrintLists::surnameList($all_surnames, 2, true, $module, $tree);
+                $content = view('lists/surnames-compact-list', [
+                    'module'   => $module,
+                    'params'   => [],
+                    'surnames' => $top_surnames,
+                    'totals'   => true,
+                    'tree'     => $tree,
+                ]);
                 break;
+
             case 'table':
             default:
+                uksort($top_surnames, I18N::comparator());
                 $content = view('lists/surnames-table', [
-                    'surnames' => $all_surnames,
-                    'module'   => $module,
                     'families' => false,
+                    'module'   => $module,
+                    'order'    => [[1, 'desc']],
+                    'params'   => [],
+                    'surnames' => $top_surnames,
                     'tree'     => $tree,
                 ]);
                 break;
@@ -219,10 +245,11 @@ class TopSurnamesModule extends AbstractModule implements ModuleBlockInterface
      */
     public function saveBlockConfiguration(ServerRequestInterface $request, int $block_id): void
     {
-        $params = (array) $request->getParsedBody();
+        $num        = Validator::parsedBody($request)->integer('num');
+        $info_style = Validator::parsedBody($request)->string('infoStyle');
 
-        $this->setBlockSetting($block_id, 'num', $params['num']);
-        $this->setBlockSetting($block_id, 'infoStyle', $params['infoStyle']);
+        $this->setBlockSetting($block_id, 'num', (string) $num);
+        $this->setBlockSetting($block_id, 'infoStyle', $info_style);
     }
 
     /**
@@ -254,18 +281,5 @@ class TopSurnamesModule extends AbstractModule implements ModuleBlockInterface
             'info_style'  => $info_style,
             'info_styles' => $info_styles,
         ]);
-    }
-
-    /**
-     * Sort (lists of counts of similar) surname by total count.
-     *
-     * @param string[] $a
-     * @param string[] $b
-     *
-     * @return int
-     */
-    private function surnameCountSort(array $a, array $b): int
-    {
-        return array_sum($b) - array_sum($a);
     }
 }

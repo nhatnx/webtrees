@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,6 +21,7 @@ namespace Fisharebest\Webtrees\Http\Middleware;
 
 use Fisharebest\Webtrees\Module\ModuleThemeInterface;
 use Fisharebest\Webtrees\Module\WebtreesTheme;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Session;
 use Fisharebest\Webtrees\Site;
@@ -30,19 +31,14 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function app;
-
 /**
  * Middleware to select a theme.
  */
 class UseTheme implements MiddlewareInterface
 {
-    /** @var ModuleService */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * UseTheme constructor.
-     *
      * @param ModuleService $module_service
      */
     public function __construct(ModuleService $module_service)
@@ -60,7 +56,7 @@ class UseTheme implements MiddlewareInterface
     {
         foreach ($this->themes() as $theme) {
             if ($theme instanceof ModuleThemeInterface) {
-                app()->instance(ModuleThemeInterface::class, $theme);
+                Registry::container()->set(ModuleThemeInterface::class, $theme);
                 $request = $request->withAttribute('theme', $theme);
                 Session::put('theme', $theme->name());
                 break;
@@ -80,12 +76,14 @@ class UseTheme implements MiddlewareInterface
         $themes = $this->module_service->findByInterface(ModuleThemeInterface::class);
 
         // Last theme used
-        yield $themes->get(Session::get('theme'));
+        yield $themes
+            ->first(static fn (ModuleThemeInterface $module): bool => $module->name() === Session::get('theme'));
 
         // Default for site
-        yield $themes->get(Site::getPreference('THEME_DIR'));
+        yield $themes
+            ->first(static fn (ModuleThemeInterface $module): bool => $module->name() === Site::getPreference('THEME_DIR'));
 
         // Default for application
-        yield app(WebtreesTheme::class);
+        yield new WebtreesTheme();
     }
 }

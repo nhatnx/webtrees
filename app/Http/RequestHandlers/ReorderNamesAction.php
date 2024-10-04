@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,17 +21,14 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 use function array_merge;
 use function array_search;
-use function assert;
 use function implode;
-use function is_array;
-use function is_string;
 use function redirect;
 use function uksort;
 
@@ -47,18 +44,12 @@ class ReorderNamesAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getAttribute('xref');
-        assert(is_string($xref));
+        $tree  = Validator::attributes($request)->tree();
+        $xref  = Validator::attributes($request)->isXref()->string('xref');
+        $order = Validator::parsedBody($request)->array('order');
 
         $individual = Registry::individualFactory()->make($xref, $tree);
         $individual = Auth::checkIndividualAccess($individual, true);
-
-        $params = (array) $request->getParsedBody();
-        $order  = $params['order'];
-        assert(is_array($order));
 
         $fake_facts = ['0 @' . $individual->xref() . '@ INDI'];
         $sort_facts = [];
@@ -66,7 +57,7 @@ class ReorderNamesAction implements RequestHandlerInterface
 
         // Split facts into NAME and other
         foreach ($individual->facts() as $fact) {
-            if ($fact->getTag() === 'NAME') {
+            if ($fact->tag() === 'INDI:NAME') {
                 $sort_facts[$fact->id()] = $fact->gedcom();
             } else {
                 $keep_facts[] = $fact->gedcom();
@@ -74,9 +65,8 @@ class ReorderNamesAction implements RequestHandlerInterface
         }
 
         // Sort the facts
-        uksort($sort_facts, static function (string $x, string $y) use ($order): int {
-            return array_search($x, $order, true) <=> array_search($y, $order, true);
-        });
+        $callback = static fn (string $x, string $y): int => array_search($x, $order, true) <=> array_search($y, $order, true);
+        uksort($sort_facts, $callback);
 
         // Merge the facts
         $gedcom = implode("\n", array_merge($fake_facts, $sort_facts, $keep_facts));

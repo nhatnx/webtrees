@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,18 +20,14 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Census;
 
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class CensusOfWales1891
- */
+#[CoversClass(CensusOfWales1891::class)]
+#[CoversClass(AbstractCensusColumn::class)]
 class CensusOfWales1891Test extends TestCase
 {
     /**
      * Test the census place and date
-     *
-     * @covers \Fisharebest\Webtrees\Census\CensusOfWales1891
-     *
-     * @return void
      */
     public function testPlaceAndDate(): void
     {
@@ -43,18 +39,13 @@ class CensusOfWales1891Test extends TestCase
 
     /**
      * Test the census columns
-     *
-     * @covers \Fisharebest\Webtrees\Census\CensusOfWales1891
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
      */
     public function testColumns(): void
     {
         $census  = new CensusOfWales1891();
         $columns = $census->columns();
 
-        self::assertCount(11, $columns);
+        self::assertCount(12, $columns);
         self::assertInstanceOf(CensusColumnFullName::class, $columns[0]);
         self::assertInstanceOf(CensusColumnRelationToHeadEnglish::class, $columns[1]);
         self::assertInstanceOf(CensusColumnConditionEnglish::class, $columns[2]);
@@ -66,6 +57,7 @@ class CensusOfWales1891Test extends TestCase
         self::assertInstanceOf(CensusColumnNull::class, $columns[8]);
         self::assertInstanceOf(CensusColumnBirthPlace::class, $columns[9]);
         self::assertInstanceOf(CensusColumnNull::class, $columns[10]);
+        self::assertInstanceOf(CensusColumnNull::class, $columns[11]);
 
         self::assertSame('Name', $columns[0]->abbreviation());
         self::assertSame('Relation', $columns[1]->abbreviation());
@@ -78,6 +70,7 @@ class CensusOfWales1891Test extends TestCase
         self::assertSame('OAC', $columns[8]->abbreviation());
         self::assertSame('Birthplace', $columns[9]->abbreviation());
         self::assertSame('Infirm', $columns[10]->abbreviation());
+        self::assertSame('Lang', $columns[11]->abbreviation());
 
         self::assertSame('Name and surname', $columns[0]->title());
         self::assertSame('Relation to head of household', $columns[1]->title());
@@ -90,5 +83,6 @@ class CensusOfWales1891Test extends TestCase
         self::assertSame('Own account', $columns[8]->title());
         self::assertSame('Where born', $columns[9]->title());
         self::assertSame('Whether deaf-and-dumb, blind, lunatic or imbecile', $columns[10]->title());
+        self::assertSame('Language spoken', $columns[11]->title());
     }
 }

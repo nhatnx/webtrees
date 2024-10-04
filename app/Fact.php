@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,7 +20,7 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees;
 
 use Closure;
-use Fisharebest\Webtrees\Functions\FunctionsPrint;
+use Fisharebest\Webtrees\Elements\RestrictionNotice;
 use Fisharebest\Webtrees\Services\GedcomService;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
@@ -32,12 +32,11 @@ use function e;
 use function implode;
 use function in_array;
 use function preg_match;
-use function preg_match_all;
 use function preg_replace;
 use function str_contains;
+use function str_ends_with;
+use function str_starts_with;
 use function usort;
-
-use const PREG_SET_ORDER;
 
 /**
  * A GEDCOM fact or event object.
@@ -119,6 +118,7 @@ class Fact
         'CONL',
         'ENDL',
         'SLGS',
+        'NO',
         'ADDR',
         'PHON',
         'EMAIL',
@@ -128,6 +128,7 @@ class Fact
         'WWW',
         'URL',
         '_URL',
+        '_FSFTID',
         'AFN',
         'REFN',
         '_PRMN',
@@ -137,36 +138,37 @@ class Fact
         'OBJE',
         'NOTE',
         'SOUR',
+        'CREA',
         'CHAN',
         '_TODO',
     ];
 
-    /** @var string Unique identifier for this fact (currently implemented as a hash of the raw data). */
-    private $id;
+    // Unique identifier for this fact (currently implemented as a hash of the raw data).
+    private string $id;
 
-    /** @var GedcomRecord The GEDCOM record from which this fact is taken */
-    private $record;
+    // The GEDCOM record from which this fact is taken
+    private GedcomRecord $record;
 
-    /** @var string The raw GEDCOM data for this fact */
-    private $gedcom;
+    // The raw GEDCOM data for this fact
+    private string $gedcom;
 
-    /** @var string The GEDCOM tag for this record */
-    private $tag;
+    // The GEDCOM tag for this record
+    private string $tag;
 
-    /** @var bool Is this a recently deleted fact, pending approval? */
-    private $pending_deletion = false;
+    private bool $pending_deletion = false;
 
-    /** @var bool Is this a recently added fact, pending approval? */
-    private $pending_addition = false;
+    private bool $pending_addition = false;
 
-    /** @var Date The date of this fact, from the “2 DATE …” attribute */
-    private $date;
+    private Date $date;
 
-    /** @var Place The place of this fact, from the “2 PLAC …” attribute */
-    private $place;
+    private Place $place;
 
-    /** @var int Used by Functions::sortFacts() */
-    private $sortOrder;
+    // Used to sort facts
+    public int $sortOrder;
+
+    // Used by anniversary calculations
+    public int $jd;
+    public int $anniv;
 
     /**
      * Create an event object from a gedcom fragment.
@@ -199,8 +201,10 @@ class Fact
      */
     public function value(): string
     {
-        if (preg_match('/^1 (?:' . $this->tag . ') ?(.*(?:(?:\n2 CONT ?.*)*))/', $this->gedcom, $match)) {
-            return preg_replace("/\n2 CONT ?/", "\n", $match[1]);
+        if (preg_match('/^1 ' . $this->tag . ' ?(.*(?:\n2 CONT ?.*)*)/', $this->gedcom, $match)) {
+            $value = preg_replace("/\n2 CONT ?/", "\n", $match[1]);
+
+            return Registry::elementFactory()->make($this->tag())->canonical($value);
         }
 
         return '';
@@ -222,35 +226,35 @@ class Fact
         switch ($this->tag) {
             case 'FAMC':
             case 'FAMS':
-                return Registry::familyFactory()->make($xref, $this->record()->tree());
+                return Registry::familyFactory()->make($xref, $this->record->tree());
             case 'HUSB':
             case 'WIFE':
             case 'ALIA':
             case 'CHIL':
             case '_ASSO':
-                return Registry::individualFactory()->make($xref, $this->record()->tree());
+                return Registry::individualFactory()->make($xref, $this->record->tree());
             case 'ASSO':
                 return
-                    Registry::individualFactory()->make($xref, $this->record()->tree()) ??
-                    Registry::submitterFactory()->make($xref, $this->record()->tree());
+                    Registry::individualFactory()->make($xref, $this->record->tree()) ??
+                    Registry::submitterFactory()->make($xref, $this->record->tree());
             case 'SOUR':
-                return Registry::sourceFactory()->make($xref, $this->record()->tree());
+                return Registry::sourceFactory()->make($xref, $this->record->tree());
             case 'OBJE':
-                return Registry::mediaFactory()->make($xref, $this->record()->tree());
+                return Registry::mediaFactory()->make($xref, $this->record->tree());
             case 'REPO':
-                return Registry::repositoryFactory()->make($xref, $this->record()->tree());
+                return Registry::repositoryFactory()->make($xref, $this->record->tree());
             case 'NOTE':
-                return Registry::noteFactory()->make($xref, $this->record()->tree());
+                return Registry::noteFactory()->make($xref, $this->record->tree());
             case 'ANCI':
             case 'DESI':
             case 'SUBM':
-                return Registry::submitterFactory()->make($xref, $this->record()->tree());
+                return Registry::submitterFactory()->make($xref, $this->record->tree());
             case 'SUBN':
-                return Registry::submissionFactory()->make($xref, $this->record()->tree());
+                return Registry::submissionFactory()->make($xref, $this->record->tree());
             case '_LOC':
-                return Registry::locationFactory()->make($xref, $this->record()->tree());
+                return Registry::locationFactory()->make($xref, $this->record->tree());
             default:
-                return Registry::gedcomRecordFactory()->make($xref, $this->record()->tree());
+                return Registry::gedcomRecordFactory()->make($xref, $this->record->tree());
         }
     }
 
@@ -263,8 +267,10 @@ class Fact
      */
     public function attribute(string $tag): string
     {
-        if (preg_match('/\n2 (?:' . $tag . ') ?(.*(?:(?:\n3 CONT ?.*)*)*)/', $this->gedcom, $match)) {
-            return preg_replace("/\n3 CONT ?/", "\n", $match[1]);
+        if (preg_match('/\n2 ' . $tag . '\b ?(.*(?:(?:\n3 CONT ?.*)*)*)/', $this->gedcom, $match)) {
+            $value = preg_replace("/\n3 CONT ?/", "\n", $match[1]);
+
+            return Registry::elementFactory()->make($this->tag() . ':' . $tag)->canonical($value);
         }
 
         return '';
@@ -272,10 +278,8 @@ class Fact
 
     /**
      * Get the PLAC:MAP:LATI for the fact.
-     *
-     * @return float|null
      */
-    public function latitude(): ?float
+    public function latitude(): float|null
     {
         if (preg_match('/\n4 LATI (.+)/', $this->gedcom, $match)) {
             $gedcom_service = new GedcomService();
@@ -288,10 +292,8 @@ class Fact
 
     /**
      * Get the PLAC:MAP:LONG for the fact.
-     *
-     * @return float|null
      */
-    public function longitude(): ?float
+    public function longitude(): float|null
     {
         if (preg_match('/\n4 LONG (.+)/', $this->gedcom, $match)) {
             $gedcom_service = new GedcomService();
@@ -309,19 +311,31 @@ class Fact
      *
      * @return bool
      */
-    public function canShow(int $access_level = null): bool
+    public function canShow(int|null $access_level = null): bool
     {
-        $access_level = $access_level ?? Auth::accessLevel($this->record->tree());
+        $access_level ??= Auth::accessLevel($this->record->tree());
 
-        // Does this record have an explicit RESN?
-        if (str_contains($this->gedcom, "\n2 RESN confidential")) {
+        // Does this record have an explicit restriction notice?
+        $element     = new RestrictionNotice('');
+        $restriction = $element->canonical($this->attribute('RESN'));
+
+        if (str_starts_with($restriction, RestrictionNotice::VALUE_CONFIDENTIAL)) {
             return Auth::PRIV_NONE >= $access_level;
         }
-        if (str_contains($this->gedcom, "\n2 RESN privacy")) {
+
+        if (str_starts_with($restriction, RestrictionNotice::VALUE_PRIVACY)) {
             return Auth::PRIV_USER >= $access_level;
         }
-        if (str_contains($this->gedcom, "\n2 RESN none")) {
+        if (str_starts_with($restriction, RestrictionNotice::VALUE_NONE)) {
             return true;
+        }
+
+        // A link to a record of the same type: NOTE=>NOTE, OBJE=>OBJE, SOUR=>SOUR, etc.
+        // Use the privacy of the target record.
+        $target = $this->target();
+
+        if ($target instanceof GedcomRecord && $target->tag() === $this->tag) {
+            return $target->canShow($access_level);
         }
 
         // Does this record have a default RESN?
@@ -355,19 +369,17 @@ class Fact
         }
 
         // Members cannot edit RESN, CHAN and locked records
-        return Auth::isEditor($this->record->tree()) && !str_contains($this->gedcom, "\n2 RESN locked") && $this->tag !== 'RESN' && $this->tag !== 'CHAN';
+        return Auth::isEditor($this->record->tree()) && !str_ends_with($this->attribute('RESN'), RestrictionNotice::VALUE_LOCKED) && $this->tag !== 'RESN' && $this->tag !== 'CHAN';
     }
 
     /**
-     * The place where the event occured.
+     * The place where the event occurred.
      *
      * @return Place
      */
     public function place(): Place
     {
-        if ($this->place === null) {
-            $this->place = new Place($this->attribute('PLAC'), $this->record()->tree());
-        }
+        $this->place ??= new Place($this->attribute('PLAC'), $this->record->tree());
 
         return $this->place;
     }
@@ -381,9 +393,7 @@ class Fact
      */
     public function date(): Date
     {
-        if ($this->date === null) {
-            $this->date = new Date($this->attribute('DATE'));
-        }
+        $this->date ??= new Date($this->attribute('DATE'));
 
         return $this->date;
     }
@@ -419,23 +429,11 @@ class Fact
     }
 
     /**
-     * What is the tag (type) of this fact, such as BIRT, MARR or DEAT.
+     * The GEDCOM record where this Fact came from
      *
-     * @return string
-     *
-     * @deprecated since 2.0.5.  Will be removed in 2.1.0
+     * @return GedcomRecord
      */
-    public function getTag(): string
-    {
-        return $this->tag;
-    }
-
-    /**
-     * The Person/Family record where this Fact came from
-     *
-     * @return Individual|Family|Source|Repository|Media|Note|Submitter|Submission|Location|Header|GedcomRecord
-     */
-    public function record()
+    public function record(): GedcomRecord
     {
         return $this->record;
     }
@@ -447,6 +445,10 @@ class Fact
      */
     public function label(): string
     {
+        if (str_ends_with($this->tag(), ':NOTE') && preg_match('/^@' . Gedcom::REGEX_XREF . '@$/', $this->value())) {
+            return I18N::translate('Shared note');
+        }
+
         // Marriages
         if ($this->tag() === 'FAM:MARR') {
             $element = Registry::elementFactory()->make('FAM:MARR:TYPE');
@@ -521,70 +523,6 @@ class Fact
     }
 
     /**
-     * Source citations linked to this fact
-     *
-     * @return array<string>
-     */
-    public function getCitations(): array
-    {
-        preg_match_all('/\n(2 SOUR @(' . Gedcom::REGEX_XREF . ')@(?:\n[3-9] .*)*)/', $this->gedcom(), $matches, PREG_SET_ORDER);
-        $citations = [];
-        foreach ($matches as $match) {
-            $source = Registry::sourceFactory()->make($match[2], $this->record()->tree());
-            if ($source && $source->canShow()) {
-                $citations[] = $match[1];
-            }
-        }
-
-        return $citations;
-    }
-
-    /**
-     * Notes (inline and objects) linked to this fact
-     *
-     * @return string[]|Note[]
-     */
-    public function getNotes(): array
-    {
-        $notes = [];
-        preg_match_all('/\n2 NOTE ?(.*(?:\n3.*)*)/', $this->gedcom(), $matches);
-        foreach ($matches[1] as $match) {
-            $note = preg_replace("/\n3 CONT ?/", "\n", $match);
-            if (preg_match('/@(' . Gedcom::REGEX_XREF . ')@/', $note, $nmatch)) {
-                $note = Registry::noteFactory()->make($nmatch[1], $this->record()->tree());
-                if ($note && $note->canShow()) {
-                    // A note object
-                    $notes[] = $note;
-                }
-            } else {
-                // An inline note
-                $notes[] = $note;
-            }
-        }
-
-        return $notes;
-    }
-
-    /**
-     * Media objects linked to this fact
-     *
-     * @return Media[]
-     */
-    public function getMedia(): array
-    {
-        $media = [];
-        preg_match_all('/\n2 OBJE @(' . Gedcom::REGEX_XREF . ')@/', $this->gedcom(), $matches);
-        foreach ($matches[1] as $match) {
-            $obje = Registry::mediaFactory()->make($match, $this->record()->tree());
-            if ($obje && $obje->canShow()) {
-                $media[] = $obje;
-            }
-        }
-
-        return $media;
-    }
-
-    /**
      * A one-line summary of the fact - for charts, etc.
      *
      * @return string
@@ -599,13 +537,13 @@ class Fact
             // Fact value
             $value = $this->value();
             if ($value !== '' && $value !== 'Y') {
-                $attributes[] = '<span dir="auto">' . e($value) . '</span>';
+                $attributes[] = '<bdi>' . e($value) . '</bdi>';
             }
             // Fact date
             $date = $this->date();
             if ($date->isOK()) {
-                if ($this->record() instanceof Individual && in_array($this->tag, Gedcom::BIRTH_EVENTS, true) && $this->record()->tree()->getPreference('SHOW_PARENTS_AGE')) {
-                    $attributes[] = $date->display() . FunctionsPrint::formatParentsAges($this->record(), $date);
+                if ($this->record instanceof Individual && in_array($this->tag, Gedcom::BIRTH_EVENTS, true) && $this->record->tree()->getPreference('SHOW_PARENTS_AGE')) {
+                    $attributes[] = $date->display() . view('fact-parents-age', ['individual' => $this->record, 'birth_date' => $date]);
                 } else {
                     $attributes[] = $date->display();
                 }
@@ -623,17 +561,50 @@ class Fact
             $class .= ' wt-old';
         }
 
-        return
-            '<div class="' . $class . '">' .
-            /* I18N: a label/value pair, such as “Occupation: Farmer”. Some languages may need to change the punctuation. */
-            I18N::translate('<span class="label">%1$s:</span> <span class="field" dir="auto">%2$s</span>', $this->label(), implode(' — ', $attributes)) .
-            '</div>';
+        $label = '<span class="label">' . $this->label() . '</span>';
+        $value = '<span class="field" dir="auto">' . implode(' — ', $attributes) . '</span>';
+
+        /* I18N: a label/value pair, such as “Occupation: Farmer”. Some languages may need to change the punctuation. */
+        return '<div class="' . $class . '">' . I18N::translate('%1$s: %2$s', $label, $value) . '</div>';
+    }
+
+    /**
+     * A one-line summary of the fact - for the clipboard, etc.
+     *
+     * @return string
+     */
+    public function name(): string
+    {
+        $items  = [$this->label()];
+        $target = $this->target();
+
+        if ($target instanceof GedcomRecord) {
+            $items[] = '<bdi>' . $target->fullName() . '</bdi>';
+        } else {
+            // Fact value
+            $value = $this->value();
+            if ($value !== '' && $value !== 'Y') {
+                $items[] = '<bdi>' . e($value) . '</bdi>';
+            }
+
+            // Fact date
+            if ($this->date()->isOK()) {
+                $items[] = $this->date()->minimumDate()->format('%Y');
+            }
+
+            // Fact place
+            if ($this->place()->gedcomName() !== '') {
+                $items[] = $this->place()->shortName();
+            }
+        }
+
+        return implode(' — ', $items);
     }
 
     /**
      * Helper functions to sort facts
      *
-     * @return Closure
+     * @return Closure(Fact,Fact):int
      */
     private static function dateComparator(): Closure
     {
@@ -663,7 +634,7 @@ class Fact
     /**
      * Helper functions to sort facts.
      *
-     * @return Closure
+     * @return Closure(Fact,Fact):int
      */
     public static function typeComparator(): Closure
     {
@@ -678,11 +649,12 @@ class Fact
             // Keep MARR and DIV from the same families from mixing with events from other FAMs
             // Use the original order in which the facts were added
             if ($a->record instanceof Family && $b->record instanceof Family && $a->record !== $b->record) {
-                return $a->sortOrder - $b->sortOrder;
+                return $a->sortOrder <=> $b->sortOrder;
             }
 
-            $atag = $a->tag;
-            $btag = $b->tag;
+            // NO events sort as the non-event itself.
+            $atag = $a->tag === 'NO' ? $a->value() : $a->tag;
+            $btag = $b->tag === 'NO' ? $b->value() : $b->tag;
 
             // Events not in the above list get mapped onto one that is.
             if (!array_key_exists($atag, $factsort)) {
@@ -703,10 +675,8 @@ class Fact
                 $btag = 'BURI';
             }
 
-            $ret = $factsort[$atag] - $factsort[$btag];
-
             // If facts are the same then put dated facts before non-dated facts
-            if ($ret == 0) {
+            if ($atag === $btag) {
                 if ($a->attribute('DATE') !== '' && $b->attribute('DATE') === '') {
                     return -1;
                 }
@@ -716,10 +686,10 @@ class Fact
                 }
 
                 // If no sorting preference, then keep original ordering
-                $ret = $a->sortOrder - $b->sortOrder;
+                return $a->sortOrder <=> $b->sortOrder;
             }
 
-            return $ret;
+            return $factsort[$atag] <=> $factsort[$btag];
         };
     }
 
@@ -730,9 +700,9 @@ class Fact
      * using the compare type function
      * 3. Then merge the arrays back into the original array using the compare type function
      *
-     * @param Collection<Fact> $unsorted
+     * @param Collection<int,Fact> $unsorted
      *
-     * @return Collection<Fact>
+     * @return Collection<int,Fact>
      */
     public static function sortFacts(Collection $unsorted): Collection
     {
@@ -787,9 +757,9 @@ class Fact
     /**
      * Sort fact/event tags using the same order that we use for facts.
      *
-     * @param Collection<string> $unsorted
+     * @param Collection<int,string> $unsorted
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public static function sortFactTags(Collection $unsorted): Collection
     {

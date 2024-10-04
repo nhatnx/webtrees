@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,17 +20,11 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Services;
 
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class HtmlService
- */
+#[CoversClass(HtmlService::class)]
 class HtmlServiceTest extends TestCase
 {
-    /**
-     * @covers \Fisharebest\Webtrees\Services\HtmlService::sanitize
-     *
-     * @return void
-     */
     public function testAllowedHtml(): void
     {
         $html_service = new HtmlService();
@@ -41,11 +35,6 @@ class HtmlServiceTest extends TestCase
         self::assertSame($dirty, $clean);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Services\HtmlService::sanitize
-     *
-     * @return void
-     */
     public function testDisallowedHtml(): void
     {
         $html_service = new HtmlService();

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,9 +19,10 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
+use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Tree;
 
-use function preg_match;
+use function view;
 
 /**
  * MULTIMEDIA_FILE_REFERENCE := {Size=1:30}
@@ -50,6 +51,34 @@ class MultimediaFileReference extends AbstractElement
     }
 
     /**
+     * Should we collapse the children of this element when editing?
+     *
+     * @return bool
+     */
+    public function collapseChildren(): bool
+    {
+        return true;
+    }
+
+    /**
+     * An edit control for this data.
+     *
+     * @param string $id
+     * @param string $name
+     * @param string $value
+     * @param Tree   $tree
+     *
+     * @return string
+     */
+    public function edit(string $id, string $name, string $value, Tree $tree): string
+    {
+        $icon    = view('icons/warning');
+        $warning = I18N::translate('If you modify the filename, you should also rename the file.');
+
+        return parent::edit($id, $name, $value, $tree) . '<div class="alert alert-warning mb-0">' . $icon . ' ' . $warning . '</div>';
+    }
+
+    /**
      * Display the value of this type of element.
      *
      * @param string $value
@@ -59,12 +88,6 @@ class MultimediaFileReference extends AbstractElement
      */
     public function value(string $value, Tree $tree): string
     {
-        $canonical = $this->canonical($value);
-
-        if (preg_match(static::REGEX_URL, $canonical)) {
-            return '<a href="' . e($canonical) . '">' . e($canonical) . '</a>';
-        }
-
-        return parent::value($value, $tree);
+        return $this->valueLink($value);
     }
 }

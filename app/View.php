@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -48,40 +48,34 @@ class View
 {
     public const NAMESPACE_SEPARATOR = '::';
 
-    // File extension for our template files.
     private const TEMPLATE_EXTENSION = '.phtml';
 
-    /**
-     * @var string The (file) name of the view.
-     */
-    private $name;
+    private string $name;
+
+    /** @var array<mixed> */
+    private array $data;
 
     /**
-     * @var mixed[] Data to be inserted into the view.
+     * @var array<string> Where do the templates live, for each namespace.
      */
-    private $data;
-
-    /**
-     * @var string[] Where do the templates live, for each namespace.
-     */
-    private static $namespaces = [
+    private static array $namespaces = [
         '' => Webtrees::ROOT_DIR . 'resources/views/',
     ];
 
     /**
-     * @var string[] Modules can replace core views with their own.
+     * @var array<string> Modules can replace core views with their own.
      */
-    private static $replacements = [];
+    private static array $replacements = [];
 
     /**
      * @var string Implementation of Blade "stacks".
      */
-    private static $stack;
+    private static string $stack;
 
     /**
-     * @var array[] Implementation of Blade "stacks".
+     * @var array<array<string>> Implementation of Blade "stacks".
      */
-    private static $stacks = [];
+    private static array $stacks = [];
 
     /**
      * Create a view from a template name and optional data.
@@ -89,7 +83,7 @@ class View
      * @param string       $name
      * @param array<mixed> $data
      */
-    public function __construct(string $name, $data = [])
+    public function __construct(string $name, array $data = [])
     {
         $this->name = $name;
         $this->data = $data;
@@ -188,7 +182,7 @@ class View
             // Do not use require, so we can catch errors for missing files
             include $this->getFilenameForView($this->name);
 
-            return ob_get_clean();
+            return (string) ob_get_clean();
         } catch (Throwable $ex) {
             while (ob_get_level() > 0) {
                 ob_end_clean();
@@ -257,7 +251,7 @@ class View
         [$namespace, $view_name] = explode(self::NAMESPACE_SEPARATOR, $view_name, 2);
 
         if ((self::$namespaces[$namespace] ?? null) === null) {
-            throw new RuntimeException('Namespace "' . e($namespace) .  '" not found.');
+            throw new RuntimeException('Namespace "' . e($namespace) . '" not found.');
         }
 
         $view_file = self::$namespaces[$namespace] . $view_name . self::TEMPLATE_EXTENSION;
@@ -272,16 +266,14 @@ class View
     /**
      * Create and render a view in a single operation.
      *
-     * @param string  $name
-     * @param mixed[] $data
+     * @param string       $name
+     * @param array<mixed> $data
      *
      * @return string
      */
     public static function make(string $name, array $data = []): string
     {
         $view = new self($name, $data);
-
-        DebugBar::addView($name, $data);
 
         return $view->render();
     }

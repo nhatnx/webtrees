@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,24 +21,19 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\MediaFileService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-
-use function assert;
 
 /**
  * Show a form to create a new media object.
  */
 class CreateMediaObjectModal implements RequestHandlerInterface
 {
-    /** @var MediaFileService */
-    private $media_file_service;
+    private MediaFileService $media_file_service;
 
     /**
-     * CreateMediaObjectModal constructor.
-     *
      * @param MediaFileService $media_file_service
      */
     public function __construct(MediaFileService $media_file_service)
@@ -53,13 +48,10 @@ class CreateMediaObjectModal implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
+        $tree            = Validator::attributes($request)->tree();
         $max_upload_size = $this->media_file_service->maxUploadFilesize();
         $media_types     = Registry::elementFactory()->make('OBJE:FILE:FORM:TYPE')->values();
-        $data_filesystem = Registry::filesystem()->data();
-        $unused_files    = $this->media_file_service->unusedFiles($tree, $data_filesystem);
+        $unused_files    = $this->media_file_service->unusedFiles($tree);
 
         return response(view('modals/create-media-object', [
             'max_upload_size' => $max_upload_size,

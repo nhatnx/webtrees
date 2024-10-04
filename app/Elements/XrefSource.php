@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,6 +19,7 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
+use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\Http\RequestHandlers\CreateSourceModal;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
@@ -26,6 +27,8 @@ use Fisharebest\Webtrees\Tree;
 
 use function e;
 use function route;
+use function str_ends_with;
+use function str_starts_with;
 use function trim;
 use function view;
 
@@ -56,23 +59,26 @@ class XrefSource extends AbstractXrefElement
      */
     public function edit(string $id, string $name, string $value, Tree $tree): string
     {
-        $select = view('components/select-source', [
-            'id'     => $id,
-            'name'   => $name,
-            'source' => Registry::sourceFactory()->make(trim($value, '@'), $tree),
-            'tree'   => $tree,
-            'at'     => '@',
-        ]);
+        // Other applications create sources with text, rather than XREFs
+        if ($value === '' || preg_match('/^@' . Gedcom::REGEX_XREF . '@$/', $value)) {
+            $select = view('components/select-source', [
+                'id'     => $id,
+                'name'   => $name,
+                'source' => Registry::sourceFactory()->make(trim($value, '@'), $tree),
+                'tree'   => $tree,
+                'at'     => '@',
+            ]);
 
-        return
-            '<div class="input-group">' .
-            '<div class="input-group-prepend">' .
-            '<button class="btn btn-secondary" type="button" data-toggle="modal" data-backdrop="static" data-target="#wt-ajax-modal" data-href="' . e(route(CreateSourceModal::class, ['tree' => $tree->name()])) . '" data-select-id="' . $id . '" title="' . I18N::translate('Create a source') . '">' .
-            view('icons/add') .
-            '</button>' .
-            '</div>' .
-            $select .
-            '</div>';
+            return
+                '<div class="input-group">' .
+                '<button class="btn btn-secondary" type="button" data-bs-toggle="modal" data-bs-backdrop="static" data-bs-target="#wt-ajax-modal" data-wt-href="' . e(route(CreateSourceModal::class, ['tree' => $tree->name()])) . '" data-wt-select-id="' . $id . '" title="' . I18N::translate('Create a source') . '">' .
+                view('icons/add') .
+                '</button>' .
+                $select .
+                '</div>';
+        }
+
+        return $this->editTextArea($id, $name, $value);
     }
 
     /**
@@ -85,6 +91,11 @@ class XrefSource extends AbstractXrefElement
      */
     public function value(string $value, Tree $tree): string
     {
-        return $this->valueXrefLink($value, $tree, Registry::sourceFactory());
+        if (str_starts_with($value, '@') && str_ends_with($value, '@')) {
+            return $this->valueXrefLink($value, $tree, Registry::sourceFactory());
+        }
+
+        // Inline sources are deprecated - but used by some historic events
+        return $this->valueFormatted($value, $tree);
     }
 }

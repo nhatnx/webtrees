@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -42,13 +42,13 @@ class ChartSex
         int $tot_m,
         int $tot_f,
         int $tot_u,
-        string $color_female = null,
-        string $color_male = null,
-        string $color_unknown = null
+        string|null $color_female = null,
+        string|null $color_male = null,
+        string|null $color_unknown = null
     ): string {
-        $color_female  = $color_female  ?? '#ffd1dc';
-        $color_male    = $color_male    ?? '#84beff';
-        $color_unknown = $color_unknown ?? '#777777';
+        $color_female ??= '#ffd1dc';
+        $color_male ??= '#84beff';
+        $color_unknown ??= '#777777';
 
         $data = [
             [
@@ -57,7 +57,7 @@ class ChartSex
             ],
         ];
 
-        if ($tot_m || $tot_f || $tot_u) {
+        if ($tot_m > 0 || $tot_f > 0 || $tot_u > 0) {
             $data[] = [
                 I18N::translate('Males'),
                 $tot_m

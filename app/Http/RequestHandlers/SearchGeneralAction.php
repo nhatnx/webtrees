@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,12 +19,10 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-
-use function assert;
 
 /**
  * Search for genealogy data
@@ -32,28 +30,22 @@ use function assert;
 class SearchGeneralAction implements RequestHandlerInterface
 {
     /**
-     * The standard search.
-     *
      * @param ServerRequestInterface $request
      *
      * @return ResponseInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $params = (array) $request->getParsedBody();
-
         return redirect(route(SearchGeneralPage::class, [
-            'query'               => $params['query'] ?? '',
-            'search_individuals'  => (bool) ($params['search_individuals'] ?? false),
-            'search_families'     => (bool) ($params['search_families'] ?? false),
-            'search_repositories' => (bool) ($params['search_repositories'] ?? false),
-            'search_sources'      => (bool) ($params['search_sources'] ?? false),
-            'search_notes'        => (bool) ($params['search_notes'] ?? false),
-            'search_trees'        => $params['search_trees'] ?? [],
-            'tree'                => $tree->name(),
+            'query'               => Validator::parsedBody($request)->string('query'),
+            'search_families'     => Validator::parsedBody($request)->boolean('search_families', false),
+            'search_individuals'  => Validator::parsedBody($request)->boolean('search_individuals', false),
+            'search_locations'    => Validator::parsedBody($request)->boolean('search_locations', false),
+            'search_notes'        => Validator::parsedBody($request)->boolean('search_notes', false),
+            'search_repositories' => Validator::parsedBody($request)->boolean('search_repositories', false),
+            'search_sources'      => Validator::parsedBody($request)->boolean('search_sources', false),
+            'search_trees'        => Validator::parsedBody($request)->array('search_trees'),
+            'tree'                => Validator::attributes($request)->tree()->name(),
         ]));
     }
 }

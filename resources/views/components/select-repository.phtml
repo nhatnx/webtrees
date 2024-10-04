@@ -1,6 +1,9 @@
 <?php
 
-use Fisharebest\Webtrees\Http\RequestHandlers\Select2Repository;
+declare(strict_types=1);
+
+use Fisharebest\Webtrees\Http\RequestHandlers\TomSelectRepository;
+use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Repository;
 use Fisharebest\Webtrees\Tree;
 
@@ -19,18 +22,13 @@ $at = $at ?? '';
 
 <select
     autocomplete="off"
-    class="form-control select2 <?= $class ?? '' ?>"
-    data-ajax--delay="<?= e(Select2Repository::AJAX_DELAY) ?>"
-    data-minimum-input-length="<?= e(Select2Repository::MINIMUM_INPUT_LENGTH) ?>"
-    data-ajax--type="POST"
-    data-ajax--url="<?= e(route(Select2Repository::class, ['tree' => $tree->name(), 'at' => $at])) ?>"
-    data-allow-clear="true"
-    data-placeholder=""
+    class="form-select tom-select <?= $class ?? '' ?>"
+    data-wt-url="<?= e(route(TomSelectRepository::class, ['tree' => $tree->name(), 'at' => $at])) ?>"
+    data-wt-i18n-no-results="<?= I18N::translate('No results found') ?>"
     id="<?= e($id ?? $name) ?>"
     name="<?= e($name) ?>"
-    <?= ($disabled ?? false) ? 'disabled' : '' ?>
-    <?= ($required ?? false) ? 'required' : '' ?>
-    style="width:100%"
+    <?= ($disabled ?? false) ? 'disabled="disabled"' : '' ?>
+    <?= ($required ?? false) ? 'required="required"' : '' ?>
 >
     <?php if (($repository ?? null) instanceof Repository) : ?>
         <option value="<?= e($at . $repository->xref() . $at) ?>">

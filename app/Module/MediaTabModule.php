@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,10 +20,10 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Fact;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ClipboardService;
 use Illuminate\Support\Collection;
 
@@ -36,12 +36,9 @@ class MediaTabModule extends AbstractModule implements ModuleTabInterface
 {
     use ModuleTabTrait;
 
-    /** @var ClipboardService */
-    private $clipboard_service;
+    private ClipboardService $clipboard_service;
 
     /**
-     * NotesTabModule constructor.
-     *
      * @param ClipboardService $clipboard_service
      */
     public function __construct(ClipboardService $clipboard_service)
@@ -128,11 +125,11 @@ class MediaTabModule extends AbstractModule implements ModuleTabInterface
      *
      * @param Individual $individual
      *
-     * @return Collection<Fact>
+     * @return Collection<int,Fact>
      */
     protected function getFactsWithMedia(Individual $individual): Collection
     {
-        return Registry::cache()->array()->remember(__CLASS__ . ':' . __METHOD__, static function () use ($individual): Collection {
+        return Registry::cache()->array()->remember(self::class . ':' . __METHOD__, static function () use ($individual): Collection {
             $facts = $individual->facts();
 
             foreach ($individual->spouseFamilies() as $family) {
@@ -141,9 +138,7 @@ class MediaTabModule extends AbstractModule implements ModuleTabInterface
                 }
             }
 
-            $facts = $facts->filter(static function (Fact $fact): bool {
-                return preg_match('/(?:^1|\n\d) OBJE @' . Gedcom::REGEX_XREF . '@/', $fact->gedcom()) === 1;
-            });
+            $facts = $facts->filter(static fn (Fact $fact): bool => preg_match('/(?:^1|\n\d) OBJE @' . Gedcom::REGEX_XREF . '@/', $fact->gedcom()) === 1);
 
             return Fact::sortFacts($facts);
         });
@@ -162,10 +157,10 @@ class MediaTabModule extends AbstractModule implements ModuleTabInterface
     /**
      * This module handles the following facts - so don't show them on the "Facts and events" tab.
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public function supportedFacts(): Collection
     {
-        return new Collection(['OBJE']);
+        return new Collection(['INDI:OBJE', 'FAM:OBJE']);
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,9 +20,10 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Carbon;
+use Fisharebest\Webtrees\DB;
+use Fisharebest\Webtrees\Elements\DateValueToday;
+use Fisharebest\Webtrees\Elements\NoteStructure;
 use Fisharebest\Webtrees\Elements\ResearchTask;
-use Fisharebest\Webtrees\Elements\TransmissionDate;
 use Fisharebest\Webtrees\Elements\WebtreesUser;
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\GedcomRecord;
@@ -30,7 +31,7 @@ use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -47,20 +48,31 @@ class ResearchTaskModule extends AbstractModule implements ModuleBlockInterface
     private const DEFAULT_SHOW_UNASSIGNED = '1';
     private const DEFAULT_SHOW_FUTURE     = '1';
 
+    // 31 DEC 9999
+    private const MAXIMUM_JULIAN_DAY = 5373484;
+
     // Pagination
     private const LIMIT_LOW  = 10;
     private const LIMIT_HIGH = 20;
 
+    /**
+     * Early initialisation.  Called before most of the middleware.
+     */
     public function boot(): void
     {
-        Registry::elementFactory()->register([
+        Registry::elementFactory()->registerTags([
             'FAM:_TODO'           => new ResearchTask(I18N::translate('Research task')),
-            'FAM:_TODO:DATE'      => new TransmissionDate(I18N::translate('Date')),
+            'FAM:_TODO:DATE'      => new DateValueToday(I18N::translate('Date')),
+            'FAM:_TODO:NOTE'      => new NoteStructure(I18N::translate('Note')),
             'FAM:_TODO:_WT_USER'  => new WebtreesUser(I18N::translate('User')),
             'INDI:_TODO'          => new ResearchTask(I18N::translate('Research task')),
-            'INDI:_TODO:DATE'     => new TransmissionDate(I18N::translate('Date')),
+            'INDI:_TODO:DATE'     => new DateValueToday(I18N::translate('Date')),
+            'INDI:_TODO:NOTE'     => new NoteStructure(I18N::translate('Note')),
             'INDI:_TODO:_WT_USER' => new WebtreesUser(I18N::translate('User')),
         ]);
+
+        Registry::elementFactory()->make('FAM')->subtag('_TODO', '0:M');
+        Registry::elementFactory()->make('INDI')->subtag('_TODO', '0:M');
     }
 
     /**
@@ -77,10 +89,10 @@ class ResearchTaskModule extends AbstractModule implements ModuleBlockInterface
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
@@ -92,7 +104,7 @@ class ResearchTaskModule extends AbstractModule implements ModuleBlockInterface
 
         extract($config, EXTR_OVERWRITE);
 
-        $end_jd      = $show_future ? Carbon::maxValue()->julianDay() : Carbon::now()->julianDay();
+        $end_jd      = $show_future ? self::MAXIMUM_JULIAN_DAY : Registry::timestampFactory()->now()->julianDay();
         $individuals = $this->individualsWithTasks($tree, $end_jd);
         $families    = $this->familiesWithTasks($tree, $end_jd);
 
@@ -101,7 +113,7 @@ class ResearchTaskModule extends AbstractModule implements ModuleBlockInterface
         $tasks = new Collection();
 
         foreach ($records as $record) {
-            foreach ($record->facts(['_TODO']) as $task) {
+            foreach ($record->facts(['_TODO'], false, null, true) as $task) {
                 $user_name = $task->attribute('_WT_USER');
 
                 if ($user_name === Auth::user()->userName()) {
@@ -144,7 +156,7 @@ class ResearchTaskModule extends AbstractModule implements ModuleBlockInterface
      * @param Tree $tree
      * @param int  $max_julian_day
      *
-     * @return Collection<Individual>
+     * @return Collection<int,Individual>
      */
     private function individualsWithTasks(Tree $tree, int $max_julian_day): Collection
     {
@@ -157,8 +169,8 @@ class ResearchTaskModule extends AbstractModule implements ModuleBlockInterface
             ->where('i_file', '=', $tree->id())
             ->where('d_fact', '=', '_TODO')
             ->where('d_julianday1', '<', $max_julian_day)
-            ->select(['individuals.*'])
             ->distinct()
+            ->select(['individuals.*'])
             ->get()
             ->map(Registry::individualFactory()->mapper($tree))
             ->filter(GedcomRecord::accessFilter());
@@ -168,7 +180,7 @@ class ResearchTaskModule extends AbstractModule implements ModuleBlockInterface
      * @param Tree $tree
      * @param int  $max_julian_day
      *
-     * @return Collection<Family>
+     * @return Collection<int,Family>
      */
     private function familiesWithTasks(Tree $tree, int $max_julian_day): Collection
     {
@@ -181,8 +193,8 @@ class ResearchTaskModule extends AbstractModule implements ModuleBlockInterface
             ->where('f_file', '=', $tree->id())
             ->where('d_fact', '=', '_TODO')
             ->where('d_julianday1', '<', $max_julian_day)
-            ->select(['families.*'])
             ->distinct()
+            ->select(['families.*'])
             ->get()
             ->map(Registry::familyFactory()->mapper($tree))
             ->filter(GedcomRecord::accessFilter());
@@ -241,11 +253,13 @@ class ResearchTaskModule extends AbstractModule implements ModuleBlockInterface
      */
     public function saveBlockConfiguration(ServerRequestInterface $request, int $block_id): void
     {
-        $params = (array) $request->getParsedBody();
+        $show_other      = Validator::parsedBody($request)->boolean('show_other', false);
+        $show_unassigned = Validator::parsedBody($request)->boolean('show_unassigned', false);
+        $show_future     = Validator::parsedBody($request)->boolean('show_future', false);
 
-        $this->setBlockSetting($block_id, 'show_other', $params['show_other']);
-        $this->setBlockSetting($block_id, 'show_unassigned', $params['show_unassigned']);
-        $this->setBlockSetting($block_id, 'show_future', $params['show_future']);
+        $this->setBlockSetting($block_id, 'show_other', (string) $show_other);
+        $this->setBlockSetting($block_id, 'show_unassigned', (string) $show_unassigned);
+        $this->setBlockSetting($block_id, 'show_future', (string) $show_future);
     }
 
     /**

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,66 +20,56 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
-use Fisharebest\Webtrees\Exceptions\HttpNotFoundException;
+use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Http\Exceptions\HttpGoneException;
 use Fisharebest\Webtrees\Module\BranchesListModule;
+use Fisharebest\Webtrees\Module\ModuleListInterface;
+use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function redirect;
+use function route;
 
 /**
  * Redirect URLs created by webtrees 1.x (and PhpGedView).
  */
 class RedirectBranchesPhp implements RequestHandlerInterface
 {
-    /** @var TreeService */
-    private $tree_service;
-
-    /** @var BranchesListModule */
-    private $module;
-
-    /**
-     * @param BranchesListModule $module
-     * @param TreeService        $tree_service
-     */
-    public function __construct(BranchesListModule $module, TreeService $tree_service)
-    {
-        $this->module       = $module;
-        $this->tree_service = $tree_service;
+    public function __construct(
+        private readonly ModuleService $module_service,
+        private readonly TreeService $tree_service,
+    ) {
     }
 
-    /**
-     * @param ServerRequestInterface $request
-     *
-     * @return ResponseInterface
-     */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $query       = $request->getQueryParams();
-        $ged         = $query['ged'] ?? Site::getPreference('DEFAULT_GEDCOM');
-        $soundex_dm  = $query['soundex_dm'] ?? null;
-        $soundex_std = $query['soundex_std'] ?? null;
-        $surname     = $query['surname'] ?? null;
-
+        $ged  = Validator::queryParams($request)->string('ged', Site::getPreference('DEFAULT_GEDCOM'));
         $tree = $this->tree_service->all()->get($ged);
 
         if ($tree instanceof Tree) {
-            $url = route('module', [
-                'module'      => $this->module->name(),
-                'action'      => 'Page',
-                'soundex_dm'  => $soundex_dm,
-                'soundex_std' => $soundex_std,
-                'surname'     => $surname,
-                'tree'        => $tree->name(),
-            ]);
+            $module = $this->module_service
+                ->findByComponent(ModuleListInterface::class, $tree, Auth::user())
+                ->first(static fn (ModuleListInterface $module): bool => $module instanceof BranchesListModule);
 
-            return redirect($url, StatusCodeInterface::STATUS_MOVED_PERMANENTLY);
+            if ($module instanceof BranchesListModule) {
+                $url = $module->listUrl($tree, [
+                    'soundex_dm'  => Validator::queryParams($request)->string('soundex_dm', ''),
+                    'soundex_std' => Validator::queryParams($request)->string('soundex_std', ''),
+                    'surname'     => Validator::queryParams($request)->string('surname', ''),
+                ]);
+
+                return Registry::responseFactory()
+                    ->redirectUrl($url, StatusCodeInterface::STATUS_MOVED_PERMANENTLY)
+                    ->withHeader('Link', '<' . $url . '>; rel="canonical"');
+            }
         }
 
-        throw new HttpNotFoundException();
+        throw new HttpGoneException();
     }
 }

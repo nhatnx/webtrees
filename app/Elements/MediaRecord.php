@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -30,7 +30,7 @@ class MediaRecord extends AbstractElement
         'RIN'  => '0:1',
         'NOTE' => '0:M',
         'SOUR' => '0:M',
+        'RESN' => '0:1',
         'CHAN' => '0:1',
-        'RESN' => '0:1', /* *** webtrees extension */
     ];
 }

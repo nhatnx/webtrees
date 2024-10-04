@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,22 +21,18 @@ namespace Fisharebest\Webtrees;
 
 use Closure;
 use Exception;
+use Fisharebest\Webtrees\Contracts\TimestampInterface;
 use Fisharebest\Webtrees\Contracts\UserInterface;
-use Fisharebest\Webtrees\Functions\FunctionsPrint;
+use Fisharebest\Webtrees\Elements\RestrictionNotice;
 use Fisharebest\Webtrees\Http\RequestHandlers\GedcomRecordPage;
 use Fisharebest\Webtrees\Services\PendingChangesService;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Database\Query\Expression;
-use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
-use Throwable;
-use Transliterator;
 
-use function addcslashes;
-use function app;
+use function array_combine;
+use function array_keys;
+use function array_map;
+use function array_search;
 use function array_shift;
-use function assert;
 use function count;
 use function date;
 use function e;
@@ -49,14 +45,17 @@ use function preg_match_all;
 use function preg_replace;
 use function preg_replace_callback;
 use function preg_split;
+use function range;
 use function route;
 use function str_contains;
+use function str_ends_with;
 use function str_pad;
+use function str_replace;
 use function str_starts_with;
-use function strip_tags;
 use function strtoupper;
-use function substr_count;
+use function strtr;
 use function trim;
+use function view;
 
 use const PHP_INT_MAX;
 use const PREG_SET_ORDER;
@@ -71,28 +70,27 @@ class GedcomRecord
 
     protected const ROUTE_NAME = GedcomRecordPage::class;
 
-    /** @var string The record identifier */
-    protected $xref;
+    protected string $xref;
 
-    /** @var Tree  The family tree to which this record belongs */
-    protected $tree;
+    protected Tree $tree;
 
-    /** @var string  GEDCOM data (before any pending edits) */
-    protected $gedcom;
+    // GEDCOM data (before any pending edits)
+    protected string $gedcom;
 
-    /** @var string|null  GEDCOM data (after any pending edits) */
-    protected $pending;
+    // GEDCOM data (after any pending edits)
+    protected string|null $pending;
 
-    /** @var Fact[] facts extracted from $gedcom/$pending */
-    protected $facts;
+    /** @var array<Fact> Facts extracted from $gedcom/$pending */
+    protected array $facts;
 
-    /** @var string[][] All the names of this individual */
-    protected $getAllNames;
+    /** @var array<array<string>> All the names of this individual */
+    protected array $getAllNames = [];
 
     /** @var int|null Cached result */
-    protected $getPrimaryName;
+    private int|null $getPrimaryName = null;
+
     /** @var int|null Cached result */
-    protected $getSecondaryName;
+    private int|null $getSecondaryName = null;
 
     /**
      * Create a GedcomRecord object from raw GEDCOM data.
@@ -103,39 +101,36 @@ class GedcomRecord
      *                             empty string for records with pending deletions
      * @param Tree        $tree
      */
-    public function __construct(string $xref, string $gedcom, ?string $pending, Tree $tree)
+    public function __construct(string $xref, string $gedcom, string|null $pending, Tree $tree)
     {
         $this->xref    = $xref;
         $this->gedcom  = $gedcom;
         $this->pending = $pending;
         $this->tree    = $tree;
-
-        $this->parseFacts();
+        $this->facts   = $this->parseFacts();
     }
 
     /**
      * A closure which will filter out private records.
      *
-     * @return Closure
+     * @return Closure(GedcomRecord):bool
      */
     public static function accessFilter(): Closure
     {
-        return static function (GedcomRecord $record): bool {
-            return $record->canShow();
-        };
+        return static fn (GedcomRecord $record): bool => $record->canShow();
     }
 
     /**
      * A closure which will compare records by name.
      *
-     * @return Closure
+     * @return Closure(GedcomRecord,GedcomRecord):int
      */
     public static function nameComparator(): Closure
     {
         return static function (GedcomRecord $x, GedcomRecord $y): int {
             if ($x->canShowName()) {
                 if ($y->canShowName()) {
-                    return I18N::strcasecmp($x->sortName(), $y->sortName());
+                    return I18N::comparator()($x->sortName(), $y->sortName());
                 }
 
                 return -1; // only $y is private
@@ -154,13 +149,11 @@ class GedcomRecord
      *
      * @param int $direction +1 to sort ascending, -1 to sort descending
      *
-     * @return Closure
+     * @return Closure(GedcomRecord,GedcomRecord):int
      */
     public static function lastChangeComparator(int $direction = 1): Closure
     {
-        return static function (GedcomRecord $x, GedcomRecord $y) use ($direction): int {
-            return $direction * ($x->lastChangeTimestamp() <=> $y->lastChangeTimestamp());
-        };
+        return static fn (GedcomRecord $x, GedcomRecord $y): int => $direction * ($x->lastChangeTimestamp() <=> $y->lastChangeTimestamp());
     }
 
     /**
@@ -227,28 +220,6 @@ class GedcomRecord
     }
 
     /**
-     * Generate a "slug" to use in pretty URLs.
-     *
-     * @return string
-     */
-    public function slug(): string
-    {
-        $slug = strip_tags($this->fullName());
-
-        try {
-            $transliterator = Transliterator::create('Any-Latin;Latin-ASCII');
-            $slug           = $transliterator->transliterate($slug);
-        } catch (Throwable $ex) {
-            // ext-intl not installed?
-            // Transliteration algorithms not present in lib-icu?
-        }
-
-        $slug = preg_replace('/[^A-Za-z0-9]+/', '-', $slug);
-
-        return trim($slug, '-') ?: '-';
-    }
-
-    /**
      * Generate a URL to this record.
      *
      * @return string
@@ -258,7 +229,7 @@ class GedcomRecord
         return route(static::ROUTE_NAME, [
             'xref' => $this->xref(),
             'tree' => $this->tree->name(),
-            'slug' => $this->slug(),
+            'slug' => Registry::slugFactory()->make($this),
         ]);
     }
 
@@ -269,9 +240,9 @@ class GedcomRecord
      *
      * @return bool
      */
-    public function canShow(int $access_level = null): bool
+    public function canShow(int|null $access_level = null): bool
     {
-        $access_level = $access_level ?? Auth::accessLevel($this->tree);
+        $access_level ??= Auth::accessLevel($this->tree);
 
         // We use this value to bypass privacy checks. For example,
         // when downloading data or when calculating privacy itself.
@@ -281,9 +252,7 @@ class GedcomRecord
 
         $cache_key = 'show-' . $this->xref . '-' . $this->tree->id() . '-' . $access_level;
 
-        return Registry::cache()->array()->remember($cache_key, function () use ($access_level) {
-            return $this->canShowRecord($access_level);
-        });
+        return Registry::cache()->array()->remember($cache_key, fn () => $this->canShowRecord($access_level));
     }
 
     /**
@@ -293,7 +262,7 @@ class GedcomRecord
      *
      * @return bool
      */
-    public function canShowName(int $access_level = null): bool
+    public function canShowName(int|null $access_level = null): bool
     {
         return $this->canShow($access_level);
     }
@@ -313,41 +282,57 @@ class GedcomRecord
             return true;
         }
 
-        return Auth::isEditor($this->tree) && !str_contains($this->gedcom, "\n1 RESN locked");
+        $fact   = $this->facts(['RESN'])->first();
+        $locked = $fact instanceof Fact && str_ends_with($fact->value(), RestrictionNotice::VALUE_LOCKED);
+
+        return Auth::isEditor($this->tree) && !$locked;
     }
 
     /**
      * Remove private data from the raw gedcom record.
-     * Return both the visible and invisible data. We need the invisible data when editing.
-     *
-     * @param int $access_level
-     *
-     * @return string
      */
     public function privatizeGedcom(int $access_level): string
     {
         if ($access_level === Auth::PRIV_HIDE) {
-            // We may need the original record, for example when downloading a GEDCOM or clippings cart
             return $this->gedcom;
         }
 
-        if ($this->canShow($access_level)) {
-            // The record is not private, but the individual facts may be.
-
-            // Include the entire first line (for NOTE records)
-            [$gedrec] = explode("\n", $this->gedcom . $this->pending, 2);
-
-            // Check each of the facts for access
-            foreach ($this->facts([], false, $access_level) as $fact) {
-                $gedrec .= "\n" . $fact->gedcom();
-            }
-
-            return $gedrec;
+        if (!$this->canShow($access_level)) {
+            return '';
         }
 
-        // We cannot display the details, but we may be able to display
-        // limited data, such as links to other records.
-        return $this->createPrivateGedcomRecord($access_level);
+        // The record is not private, but parts of it may be.
+
+        // Include the entire first line (for NOTE records)
+        [$gedcom] = explode("\n", $this->gedcom . $this->pending, 2);
+
+        // Check each of the facts for access
+        foreach ($this->facts([], false, $access_level) as $fact) {
+            $gedcom .= "\n" . $fact->gedcom();
+        }
+
+        // Remove links to missing and private records
+        $patterns = [
+            '/\n1 ' . Gedcom::REGEX_TAG . ' @(' . Gedcom::REGEX_XREF . ')@(?:\n[2-9].*)*/',
+            '/\n2 ' . Gedcom::REGEX_TAG . ' @(' . Gedcom::REGEX_XREF . ')@(?:\n[3-9].*)*/',
+            '/\n3 ' . Gedcom::REGEX_TAG . ' @(' . Gedcom::REGEX_XREF . ')@(?:\n[4-9].*)*/',
+            '/\n4 ' . Gedcom::REGEX_TAG . ' @(' . Gedcom::REGEX_XREF . ')@(?:\n[5-9].*)*/',
+        ];
+
+        foreach ($patterns as $pattern) {
+            preg_match_all($pattern, $gedcom, $matches, PREG_SET_ORDER);
+
+            foreach ($matches as $match) {
+                $xref   = $match[1];
+                $record = Registry::gedcomRecordFactory()->make($xref, $this->tree);
+
+                if ($record === null || !$record->canShow($access_level)) {
+                    $gedcom = str_replace($match[0], '', $gedcom);
+                }
+            }
+        }
+
+        return $gedcom;
     }
 
     /**
@@ -363,12 +348,11 @@ class GedcomRecord
     /**
      * Derived classes should redefine this function, otherwise the object will have no name
      *
-     * @return array<array<string>>
+     * @return array<int,array<string,string>>
      */
     public function getAllNames(): array
     {
-        if ($this->getAllNames === null) {
-            $this->getAllNames = [];
+        if ($this->getAllNames === []) {
             if ($this->canShowName()) {
                 // Ask the record to extract its names
                 $this->extractNames();
@@ -403,9 +387,7 @@ class GedcomRecord
     {
         static $language_script;
 
-        if ($language_script === null) {
-            $language_script = $language_script ?? I18N::locale()->script()->code();
-        }
+        $language_script ??= I18N::locale()->script()->code();
 
         if ($this->getPrimaryName === null) {
             // Generally, the first name is the primary one....
@@ -449,13 +431,13 @@ class GedcomRecord
     }
 
     /**
-     * Allow the choice of primary name to be overidden, e.g. in a search result
+     * Allow the choice of primary name to be overridden, e.g. in a search result
      *
      * @param int|null $n
      *
      * @return void
      */
-    public function setPrimaryName(int $n = null): void
+    public function setPrimaryName(int|null $n = null): void
     {
         $this->getPrimaryName   = $n;
         $this->getSecondaryName = null;
@@ -506,7 +488,7 @@ class GedcomRecord
      *
      * @return string|null
      */
-    public function alternateName(): ?string
+    public function alternateName(): string|null
     {
         if ($this->canShowName() && $this->getPrimaryName() !== $this->getSecondaryName()) {
             $all_names = $this->getAllNames();
@@ -524,10 +506,10 @@ class GedcomRecord
      */
     public function formatList(): string
     {
-        $html = '<a href="' . e($this->url()) . '" class="list_item">';
+        $html = '<a href="' . e($this->url()) . '">';
         $html .= '<b>' . $this->fullName() . '</b>';
-        $html .= $this->formatListDetails();
         $html .= '</a>';
+        $html .= $this->formatListDetails();
 
         return $html;
     }
@@ -546,202 +528,35 @@ class GedcomRecord
     /**
      * Extract/format the first fact from a list of facts.
      *
-     * @param string[] $facts
-     * @param int      $style
+     * @param array<string> $facts
+     * @param int           $style
      *
      * @return string
      */
     public function formatFirstMajorFact(array $facts, int $style): string
     {
-        foreach ($this->facts($facts, true) as $event) {
-            // Only display if it has a date or place (or both)
-            if ($event->date()->isOK() && $event->place()->gedcomName() !== '') {
-                $joiner = ' — ';
-            } else {
-                $joiner = '';
-            }
-            if ($event->date()->isOK() || $event->place()->gedcomName() !== '') {
-                switch ($style) {
-                    case 1:
-                        return '<br><em>' . $event->label() . ' ' . FunctionsPrint::formatFactDate($event, $this, false, false) . $joiner . FunctionsPrint::formatFactPlace($event) . '</em>';
-                    case 2:
-                        return '<dl><dt class="label">' . $event->label() . '</dt><dd class="field">' . FunctionsPrint::formatFactDate($event, $this, false, false) . $joiner . FunctionsPrint::formatFactPlace($event) . '</dd></dl>';
-                }
-            }
+        $fact = $this->facts($facts, true)->first();
+
+        if ($fact === null) {
+            return '';
         }
 
-        return '';
-    }
+        // Only display if it has a date or place (or both)
+        $attributes = [];
 
-    /**
-     * Find individuals linked to this record.
-     *
-     * @param string $link
-     *
-     * @return Collection<Individual>
-     */
-    public function linkedIndividuals(string $link): Collection
-    {
-        return DB::table('individuals')
-            ->join('link', static function (JoinClause $join): void {
-                $join
-                    ->on('l_file', '=', 'i_file')
-                    ->on('l_from', '=', 'i_id');
-            })
-            ->where('i_file', '=', $this->tree->id())
-            ->where('l_type', '=', $link)
-            ->where('l_to', '=', $this->xref)
-            ->select(['individuals.*'])
-            ->get()
-            ->map(Registry::individualFactory()->mapper($this->tree))
-            ->filter(self::accessFilter());
-    }
+        if ($fact->date()->isOK()) {
+            $attributes[] = view('fact-date', ['cal_link' => 'false', 'fact' => $fact, 'record' => $fact->record(), 'time' => false]);
+        }
 
-    /**
-     * Find families linked to this record.
-     *
-     * @param string $link
-     *
-     * @return Collection<Family>
-     */
-    public function linkedFamilies(string $link): Collection
-    {
-        return DB::table('families')
-            ->join('link', static function (JoinClause $join): void {
-                $join
-                    ->on('l_file', '=', 'f_file')
-                    ->on('l_from', '=', 'f_id');
-            })
-            ->where('f_file', '=', $this->tree->id())
-            ->where('l_type', '=', $link)
-            ->where('l_to', '=', $this->xref)
-            ->select(['families.*'])
-            ->get()
-            ->map(Registry::familyFactory()->mapper($this->tree))
-            ->filter(self::accessFilter());
-    }
+        if ($fact->place()->gedcomName() !== '' && $style === 2) {
+            $attributes[] = $fact->place()->shortName();
+        }
 
-    /**
-     * Find sources linked to this record.
-     *
-     * @param string $link
-     *
-     * @return Collection<Source>
-     */
-    public function linkedSources(string $link): Collection
-    {
-        return DB::table('sources')
-            ->join('link', static function (JoinClause $join): void {
-                $join
-                    ->on('l_file', '=', 's_file')
-                    ->on('l_from', '=', 's_id');
-            })
-            ->where('s_file', '=', $this->tree->id())
-            ->where('l_type', '=', $link)
-            ->where('l_to', '=', $this->xref)
-            ->select(['sources.*'])
-            ->get()
-            ->map(Registry::sourceFactory()->mapper($this->tree))
-            ->filter(self::accessFilter());
-    }
+        if ($attributes === []) {
+            return '';
+        }
 
-    /**
-     * Find media objects linked to this record.
-     *
-     * @param string $link
-     *
-     * @return Collection<Media>
-     */
-    public function linkedMedia(string $link): Collection
-    {
-        return DB::table('media')
-            ->join('link', static function (JoinClause $join): void {
-                $join
-                    ->on('l_file', '=', 'm_file')
-                    ->on('l_from', '=', 'm_id');
-            })
-            ->where('m_file', '=', $this->tree->id())
-            ->where('l_type', '=', $link)
-            ->where('l_to', '=', $this->xref)
-            ->select(['media.*'])
-            ->get()
-            ->map(Registry::mediaFactory()->mapper($this->tree))
-            ->filter(self::accessFilter());
-    }
-
-    /**
-     * Find notes linked to this record.
-     *
-     * @param string $link
-     *
-     * @return Collection<Note>
-     */
-    public function linkedNotes(string $link): Collection
-    {
-        return DB::table('other')
-            ->join('link', static function (JoinClause $join): void {
-                $join
-                    ->on('l_file', '=', 'o_file')
-                    ->on('l_from', '=', 'o_id');
-            })
-            ->where('o_file', '=', $this->tree->id())
-            ->where('o_type', '=', Note::RECORD_TYPE)
-            ->where('l_type', '=', $link)
-            ->where('l_to', '=', $this->xref)
-            ->select(['other.*'])
-            ->get()
-            ->map(Registry::noteFactory()->mapper($this->tree))
-            ->filter(self::accessFilter());
-    }
-
-    /**
-     * Find repositories linked to this record.
-     *
-     * @param string $link
-     *
-     * @return Collection<Repository>
-     */
-    public function linkedRepositories(string $link): Collection
-    {
-        return DB::table('other')
-            ->join('link', static function (JoinClause $join): void {
-                $join
-                    ->on('l_file', '=', 'o_file')
-                    ->on('l_from', '=', 'o_id');
-            })
-            ->where('o_file', '=', $this->tree->id())
-            ->where('o_type', '=', Repository::RECORD_TYPE)
-            ->where('l_type', '=', $link)
-            ->where('l_to', '=', $this->xref)
-            ->select(['other.*'])
-            ->get()
-            ->map(Registry::repositoryFactory()->mapper($this->tree))
-            ->filter(self::accessFilter());
-    }
-
-    /**
-     * Find locations linked to this record.
-     *
-     * @param string $link
-     *
-     * @return Collection<Location>
-     */
-    public function linkedLocations(string $link): Collection
-    {
-        return DB::table('other')
-            ->join('link', static function (JoinClause $join): void {
-                $join
-                    ->on('l_file', '=', 'o_file')
-                    ->on('l_from', '=', 'o_id');
-            })
-            ->where('o_file', '=', $this->tree->id())
-            ->where('o_type', '=', Location::RECORD_TYPE)
-            ->where('l_type', '=', $link)
-            ->where('l_to', '=', $this->xref)
-            ->select(['other.*'])
-            ->get()
-            ->map(Registry::locationFactory()->mapper($this->tree))
-            ->filter(self::accessFilter());
+        return '<div><em>' . I18N::translate('%1$s: %2$s', $fact->label(), implode(' — ', $attributes)) . '</em></div>';
     }
 
     /**
@@ -751,9 +566,9 @@ class GedcomRecord
      * calendars, place-names in both latin and hebrew character sets, etc.
      * It also allows us to combine dates/places from different events in the summaries.
      *
-     * @param string[] $events
+     * @param array<string> $events
      *
-     * @return Date[]
+     * @return array<Date>
      */
     public function getAllEventDates(array $events): array
     {
@@ -770,9 +585,9 @@ class GedcomRecord
     /**
      * Get all the places for a particular type of event
      *
-     * @param string[] $events
+     * @param array<string> $events
      *
-     * @return Place[]
+     * @return array<Place>
      */
     public function getAllEventPlaces(array $events): array
     {
@@ -791,70 +606,126 @@ class GedcomRecord
     /**
      * The facts and events for this record.
      *
-     * @param string[] $filter
-     * @param bool     $sort
-     * @param int|null $access_level
-     * @param bool     $ignore_deleted
+     * @param array<string> $filter
+     * @param bool          $sort
+     * @param int|null      $access_level
+     * @param bool          $ignore_deleted
      *
-     * @return Collection<Fact>
+     * @return Collection<int,Fact>
      */
     public function facts(
         array $filter = [],
         bool $sort = false,
-        int $access_level = null,
+        int|null $access_level = null,
         bool $ignore_deleted = false
     ): Collection {
-        $access_level = $access_level ?? Auth::accessLevel($this->tree);
+        $access_level ??= Auth::accessLevel($this->tree);
+
+        // Convert BIRT into INDI:BIRT, etc.
+        $filter = array_map(fn (string $tag): string => $this->tag() . ':' . $tag, $filter);
 
         $facts = new Collection();
         if ($this->canShow($access_level)) {
             foreach ($this->facts as $fact) {
-                if (($filter === [] || in_array($fact->getTag(), $filter, true)) && $fact->canShow($access_level)) {
+                if (($filter === [] || in_array($fact->tag(), $filter, true)) && $fact->canShow($access_level)) {
                     $facts->push($fact);
                 }
             }
         }
 
         if ($sort) {
-            $facts = Fact::sortFacts($facts);
+            switch ($this->tag()) {
+                case Family::RECORD_TYPE:
+                case Individual::RECORD_TYPE:
+                    $facts = Fact::sortFacts($facts);
+                    break;
+
+                default:
+                    $subtags = Registry::elementFactory()->make($this->tag())->subtags();
+                    $subtags = array_map(fn (string $tag): string => $this->tag() . ':' . $tag, array_keys($subtags));
+
+                    if ($subtags !== []) {
+                        // Renumber keys from 1.
+                        $subtags = array_combine(range(1, count($subtags)), $subtags);
+                    }
+
+                    $facts = $facts
+                        ->sort(static function (Fact $x, Fact $y) use ($subtags): int {
+                            $sort_x = array_search($x->tag(), $subtags, true) ?: PHP_INT_MAX;
+                            $sort_y = array_search($y->tag(), $subtags, true) ?: PHP_INT_MAX;
+
+                            return $sort_x <=> $sort_y;
+                        });
+                    break;
+            }
         }
 
         if ($ignore_deleted) {
-            $facts = $facts->filter(static function (Fact $fact): bool {
-                return !$fact->isPendingDeletion();
-            });
+            $facts = $facts->filter(static fn (Fact $fact): bool => !$fact->isPendingDeletion());
         }
 
-        return new Collection($facts);
+        return $facts;
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    public function missingFacts(): array
+    {
+        $missing_facts = [];
+
+        foreach (Registry::elementFactory()->make($this->tag())->subtags() as $subtag => $repeat) {
+            [, $max] = explode(':', $repeat);
+            $max = $max === 'M' ? PHP_INT_MAX : (int) $max;
+
+            if ($this->facts([$subtag], false, null, true)->count() < $max) {
+                $missing_facts[$subtag] = $subtag;
+                $missing_facts[$subtag] = Registry::elementFactory()->make($this->tag() . ':' . $subtag)->label();
+            }
+        }
+
+        uasort($missing_facts, I18N::comparator());
+
+        if (!Auth::canUploadMedia($this->tree, Auth::user())) {
+            unset($missing_facts['OBJE']);
+        }
+
+        // We have special code for this.
+        unset($missing_facts['FILE']);
+
+        return $missing_facts;
     }
 
     /**
      * Get the last-change timestamp for this record
      *
-     * @return Carbon
+     * @return TimestampInterface
      */
-    public function lastChangeTimestamp(): Carbon
+    public function lastChangeTimestamp(): TimestampInterface
     {
-        /** @var Fact|null $chan */
         $chan = $this->facts(['CHAN'])->first();
 
         if ($chan instanceof Fact) {
-            // The record does have a CHAN event
-            $d = $chan->date()->minimumDate();
+            // The record has a CHAN event.
+            $date = $chan->date()->minimumDate();
+            $ymd = sprintf('%04d-%02d-%02d', $date->year(), $date->month(), $date->day());
 
-            if (preg_match('/\n3 TIME (\d\d):(\d\d):(\d\d)/', $chan->gedcom(), $match)) {
-                return Carbon::create($d->year(), $d->month(), $d->day(), (int) $match[1], (int) $match[2], (int) $match[3]);
+            if ($ymd !== '') {
+                // The CHAN event has a valid DATE.
+                if (preg_match('/\n3 TIME (([01]\d|2[0-3]):([0-5]\d):([0-5]\d))/', $chan->gedcom(), $match) === 1) {
+                    return Registry::timestampFactory()->fromString($ymd . $match[1], 'Y-m-d H:i:s');
+                }
+
+                if (preg_match('/\n3 TIME (([01]\d|2[0-3]):([0-5]\d))/', $chan->gedcom(), $match) === 1) {
+                    return Registry::timestampFactory()->fromString($ymd . $match[1], 'Y-m-d H:i');
+                }
+
+                return Registry::timestampFactory()->fromString($ymd, 'Y-m-d');
             }
-
-            if (preg_match('/\n3 TIME (\d\d):(\d\d)/', $chan->gedcom(), $match)) {
-                return Carbon::create($d->year(), $d->month(), $d->day(), (int) $match[1], (int) $match[2]);
-            }
-
-            return Carbon::create($d->year(), $d->month(), $d->day());
         }
 
         // The record does not have a CHAN event
-        return Carbon::createFromTimestamp(0);
+        return Registry::timestampFactory()->make(0);
     }
 
     /**
@@ -930,7 +801,7 @@ class GedcomRecord
             throw new Exception('Invalid GEDCOM data passed to GedcomRecord::updateFact(' . $gedcom . ')');
         }
 
-        if ($this->pending) {
+        if ($this->pending !== null && $this->pending !== '') {
             $old_gedcom = $this->pending;
         } else {
             $old_gedcom = $this->gedcom;
@@ -946,7 +817,9 @@ class GedcomRecord
                     $new_gedcom .= "\n" . $gedcom;
                 }
                 $fact_id = 'NOT A VALID FACT ID'; // Only replace/delete one copy of a duplicate fact
-            } elseif ($fact->getTag() !== 'CHAN' || !$update_chan) {
+            } elseif ($update_chan && str_ends_with($fact->tag(), ':CHAN')) {
+                $new_gedcom .= "\n" . $this->updateChange($fact->gedcom());
+            } else {
                 $new_gedcom .= "\n" . $fact->gedcom();
             }
         }
@@ -957,9 +830,7 @@ class GedcomRecord
         }
 
         if ($update_chan && !str_contains($new_gedcom, "\n1 CHAN")) {
-            $today = strtoupper(date('d M Y'));
-            $now   = date('H:i:s');
-            $new_gedcom .= "\n1 CHAN\n2 DATE " . $today . "\n3 TIME " . $now . "\n2 _WT_USER " . Auth::user()->userName();
+            $new_gedcom .= $this->updateChange("\n1 CHAN");
         }
 
         if ($new_gedcom !== $old_gedcom) {
@@ -969,18 +840,22 @@ class GedcomRecord
                 'xref'       => $this->xref,
                 'old_gedcom' => $old_gedcom,
                 'new_gedcom' => $new_gedcom,
+                'status'     => 'pending',
                 'user_id'    => Auth::id(),
             ]);
 
             $this->pending = $new_gedcom;
 
             if (Auth::user()->getPreference(UserInterface::PREF_AUTO_ACCEPT_EDITS) === '1') {
-                app(PendingChangesService::class)->acceptRecord($this);
+                $pending_changes_service = Registry::container()->get(PendingChangesService::class);
+
+                $pending_changes_service->acceptRecord($this);
                 $this->gedcom  = $new_gedcom;
                 $this->pending = null;
             }
         }
-        $this->parseFacts();
+
+        $this->facts = $this->parseFacts();
     }
 
     /**
@@ -1002,10 +877,11 @@ class GedcomRecord
 
         // Update the CHAN record
         if ($update_chan) {
-            $gedcom = preg_replace('/\n1 CHAN(\n[2-9].*)*/', '', $gedcom);
-            $today = strtoupper(date('d M Y'));
-            $now   = date('H:i:s');
-            $gedcom .= "\n1 CHAN\n2 DATE " . $today . "\n3 TIME " . $now . "\n2 _WT_USER " . Auth::user()->userName();
+            if (preg_match('/\n1 CHAN(\n[2-9].*)*/', $gedcom, $match)) {
+                $gedcom = strtr($gedcom, [$match[0] => $this->updateChange($match[0])]);
+            } else {
+                $gedcom .= $this->updateChange("\n1 CHAN");
+            }
         }
 
         // Create a pending change
@@ -1014,6 +890,7 @@ class GedcomRecord
             'xref'       => $this->xref,
             'old_gedcom' => $this->gedcom(),
             'new_gedcom' => $gedcom,
+            'status'     => 'pending',
             'user_id'    => Auth::id(),
         ]);
 
@@ -1022,12 +899,14 @@ class GedcomRecord
 
         // Accept this pending change
         if (Auth::user()->getPreference(UserInterface::PREF_AUTO_ACCEPT_EDITS) === '1') {
-            app(PendingChangesService::class)->acceptRecord($this);
+            $pending_changes_service = Registry::container()->get(PendingChangesService::class);
+
+            $pending_changes_service->acceptRecord($this);
             $this->gedcom  = $gedcom;
             $this->pending = null;
         }
 
-        $this->parseFacts();
+        $this->facts = $this->parseFacts();
 
         Log::addEditLog('Update: ' . static::RECORD_TYPE . ' ' . $this->xref, $this->tree);
     }
@@ -1046,13 +925,15 @@ class GedcomRecord
                 'xref'       => $this->xref,
                 'old_gedcom' => $this->gedcom(),
                 'new_gedcom' => '',
+                'status'     => 'pending',
                 'user_id'    => Auth::id(),
             ]);
         }
 
         // Auto-accept this pending change
         if (Auth::user()->getPreference(UserInterface::PREF_AUTO_ACCEPT_EDITS) === '1') {
-            app(PendingChangesService::class)->acceptRecord($this);
+            $pending_changes_service = Registry::container()->get(PendingChangesService::class);
+            $pending_changes_service->acceptRecord($this);
         }
 
         Log::addEditLog('Delete: ' . static::RECORD_TYPE . ' ' . $this->xref, $this->tree);
@@ -1076,51 +957,13 @@ class GedcomRecord
             } elseif (preg_match_all('/\n(\d) ' . Gedcom::REGEX_TAG . ' ' . $value . '/', $fact->gedcom(), $matches, PREG_SET_ORDER)) {
                 $gedcom = $fact->gedcom();
                 foreach ($matches as $match) {
-                    $next_level  = $match[1] + 1;
+                    $next_level  = 1 + (int) $match[1];
                     $next_levels = '[' . $next_level . '-9]';
                     $gedcom      = preg_replace('/' . $match[0] . '(\n' . $next_levels . '.*)*/', '', $gedcom);
                 }
                 $this->updateFact($fact->id(), $gedcom, $update_chan);
             }
         }
-    }
-
-    /**
-     * Fetch XREFs of all records linked to a record - when deleting an object, we must
-     * also delete all links to it.
-     *
-     * @return GedcomRecord[]
-     */
-    public function linkingRecords(): array
-    {
-        $like = addcslashes($this->xref(), '\\%_');
-
-        $union = DB::table('change')
-            ->where('gedcom_id', '=', $this->tree()->id())
-            ->where('new_gedcom', 'LIKE', '%@' . $like . '@%')
-            ->where('new_gedcom', 'NOT LIKE', '0 @' . $like . '@%')
-            ->whereIn('change_id', function (Builder $query): void {
-                $query->select(new Expression('MAX(change_id)'))
-                    ->from('change')
-                    ->where('gedcom_id', '=', $this->tree->id())
-                    ->where('status', '=', 'pending')
-                    ->groupBy(['xref']);
-            })
-            ->select(['xref']);
-
-        $xrefs = DB::table('link')
-            ->where('l_file', '=', $this->tree()->id())
-            ->where('l_to', '=', $this->xref())
-            ->select(['l_from'])
-            ->union($union)
-            ->pluck('l_from');
-
-        return $xrefs->map(function (string $xref): GedcomRecord {
-            $record = Registry::gedcomRecordFactory()->make($xref, $this->tree);
-            assert($record instanceof GedcomRecord);
-
-            return $record;
-        })->all();
     }
 
     /**
@@ -1144,18 +987,6 @@ class GedcomRecord
     }
 
     /**
-     * Generate a private version of this record
-     *
-     * @param int $access_level
-     *
-     * @return string
-     */
-    protected function createPrivateGedcomRecord(int $access_level): string
-    {
-        return '0 @' . $this->xref . '@ ' . static::RECORD_TYPE;
-    }
-
-    /**
      * Convert a name record into sortable and full/display versions. This default
      * should be OK for simple record types. INDI/FAM records will need to redefine it.
      *
@@ -1169,10 +1000,8 @@ class GedcomRecord
     {
         $this->getAllNames[] = [
             'type'   => $type,
-            'sort'   => preg_replace_callback('/([0-9]+)/', static function (array $matches): string {
-                return str_pad($matches[0], 10, '0', STR_PAD_LEFT);
-            }, $value),
-            'full'   => '<span dir="auto">' . e($value) . '</span>',
+            'sort'   => preg_replace_callback('/(\d+)/', static fn (array $matches): string => str_pad($matches[0], 10, '0', STR_PAD_LEFT), $value),
+            'full'   => '<bdi>' . e($value) . '</bdi>',
             // This is used for display
             'fullNN' => $value,
             // This goes into the database
@@ -1190,7 +1019,7 @@ class GedcomRecord
      *
      * @param int              $level
      * @param string           $fact_type
-     * @param Collection<Fact> $facts
+     * @param Collection<int,Fact> $facts
      *
      * @return void
      */
@@ -1199,17 +1028,19 @@ class GedcomRecord
         $sublevel    = $level + 1;
         $subsublevel = $sublevel + 1;
         foreach ($facts as $fact) {
-            if (preg_match_all("/^{$level} ({$fact_type}) (.+)((\n[{$sublevel}-9].+)*)/m", $fact->gedcom(), $matches, PREG_SET_ORDER)) {
+            if (preg_match_all('/^' . $level . ' (' . $fact_type . ') (.+)((\n[' . $sublevel . '-9].+)*)/m', $fact->gedcom(), $matches, PREG_SET_ORDER)) {
                 foreach ($matches as $match) {
                     // Treat 1 NAME / 2 TYPE married the same as _MARNM
-                    if ($match[1] === 'NAME' && str_contains($match[3], "\n2 TYPE married")) {
+                    if ($match[1] === 'NAME' && str_contains(strtoupper($match[3]), "\n2 TYPE MARRIED")) {
                         $this->addName('_MARNM', $match[2], $fact->gedcom());
                     } else {
                         $this->addName($match[1], $match[2], $fact->gedcom());
                     }
-                    if ($match[3] && preg_match_all("/^{$sublevel} (ROMN|FONE|_\w+) (.+)((\n[{$subsublevel}-9].+)*)/m", $match[3], $submatches, PREG_SET_ORDER)) {
+                    if ($match[3] && preg_match_all('/^' . $sublevel . ' (ROMN|FONE|_\w+) (.+)((\n[' . $subsublevel . '-9].+)*)/m', $match[3], $submatches, PREG_SET_ORDER)) {
                         foreach ($submatches as $submatch) {
-                            $this->addName($submatch[1], $submatch[2], $match[3]);
+                            if ($submatch[1] !== '_RUFNAME') {
+                                $this->addName($submatch[1], $submatch[2], $match[3]);
+                            }
                         }
                     }
                 }
@@ -1220,40 +1051,42 @@ class GedcomRecord
     /**
      * Split the record into facts
      *
-     * @return void
+     * @return array<Fact>
      */
-    private function parseFacts(): void
+    private function parseFacts(): array
     {
         // Split the record into facts
-        if ($this->gedcom) {
+        if ($this->gedcom !== '') {
             $gedcom_facts = preg_split('/\n(?=1)/', $this->gedcom);
             array_shift($gedcom_facts);
         } else {
             $gedcom_facts = [];
         }
-        if ($this->pending) {
+        if ($this->pending !== null && $this->pending !== '') {
             $pending_facts = preg_split('/\n(?=1)/', $this->pending);
             array_shift($pending_facts);
         } else {
             $pending_facts = [];
         }
 
-        $this->facts = [];
+        $facts = [];
 
         foreach ($gedcom_facts as $gedcom_fact) {
             $fact = new Fact($gedcom_fact, $this, md5($gedcom_fact));
             if ($this->pending !== null && !in_array($gedcom_fact, $pending_facts, true)) {
                 $fact->setPendingDeletion();
             }
-            $this->facts[] = $fact;
+            $facts[] = $fact;
         }
         foreach ($pending_facts as $pending_fact) {
             if (!in_array($pending_fact, $gedcom_facts, true)) {
                 $fact = new Fact($pending_fact, $this, md5($pending_fact));
                 $fact->setPendingAddition();
-                $this->facts[] = $fact;
+                $facts[] = $fact;
             }
         }
+
+        return $facts;
     }
 
     /**
@@ -1275,15 +1108,21 @@ class GedcomRecord
             return true;
         }
 
-        // Does this record have a RESN?
-        if (str_contains($this->gedcom, "\n1 RESN confidential")) {
-            return Auth::PRIV_NONE >= $access_level;
-        }
-        if (str_contains($this->gedcom, "\n1 RESN privacy")) {
-            return Auth::PRIV_USER >= $access_level;
-        }
-        if (str_contains($this->gedcom, "\n1 RESN none")) {
-            return true;
+        // Does this record have a restriction notice?
+        // Cannot use $this->>fact(), as that function calls this one.
+        if (preg_match('/\n1 RESN (.+)/', $this->gedcom(), $match)) {
+            $element     = new RestrictionNotice('');
+            $restriction = $element->canonical($match[1]);
+
+            if (str_starts_with($restriction, RestrictionNotice::VALUE_CONFIDENTIAL)) {
+                return Auth::PRIV_NONE >= $access_level;
+            }
+            if (str_starts_with($restriction, RestrictionNotice::VALUE_PRIVACY)) {
+                return Auth::PRIV_USER >= $access_level;
+            }
+            if (str_starts_with($restriction, RestrictionNotice::VALUE_NONE)) {
+                return true;
+            }
         }
 
         // Does this record have a default RESN?
@@ -1314,69 +1153,19 @@ class GedcomRecord
     }
 
     /**
-     * Add blank lines, to allow a user to add/edit new values.
+     * Change records may contain notes and other fields.  Just update the date/time/author.
      *
-     * @return string
-     */
-    public function insertMissingSubtags(): string
-    {
-        $gedcom = $this->insertMissingLevels($this->tag(), $this->gedcom());
-
-        return preg_replace('/^0.*\n/', '', $gedcom);
-    }
-
-    /**
-     * @param string $tag
      * @param string $gedcom
      *
      * @return string
      */
-    protected function insertMissingLevels(string $tag, string $gedcom): string
+    private function updateChange(string $gedcom): string
     {
-        $next_level = substr_count($tag, ':') + 1;
-        $factory    = Registry::elementFactory();
-        $subtags    = $factory->make($tag)->subtags();
+        $gedcom = preg_replace('/\n2 (DATE|_WT_USER).*(\n[3-9].*)*/', '', $gedcom);
+        $today  = strtoupper(date('d M Y'));
+        $now    = date('H:i:s');
+        $author = Auth::user()->userName();
 
-        // The first part is level N (includes CONT records).  The remainder are level N+1.
-        $parts  = preg_split('/\n(?=' . $next_level . ')/', $gedcom);
-        $return = array_shift($parts);
-
-        foreach ($subtags as $subtag => $occurrences) {
-            [$min, $max] = explode(':', $occurrences);
-            if ($max === 'M') {
-                $max = PHP_INT_MAX;
-            } else {
-                $max = (int) $max;
-            }
-
-            $count = 0;
-
-            // Add expected subtags in our preferred order.
-            foreach ($parts as $n => $part) {
-                if (str_starts_with($part, $next_level . ' ' . $subtag)) {
-                    $return .= "\n" . $this->insertMissingLevels($tag . ':' . $subtag, $part);
-                    $count++;
-                    unset($parts[$n]);
-                }
-            }
-
-            // Allowed to have more of this subtag?
-            if ($count < $max) {
-                // Create a new one.
-                $gedcom  = $next_level . ' ' . $subtag;
-                $default = $factory->make($tag . ':' . $subtag)->default($this->tree);
-                if ($default !== '') {
-                    $gedcom .= ' ' . $default;
-                }
-                $return .= "\n" . $this->insertMissingLevels($tag . ':' . $subtag, $gedcom);
-            }
-        }
-
-        // Now add any unexpected/existing data.
-        if ($parts !== []) {
-            $return .= "\n" . implode("\n", $parts);
-        }
-
-        return $return;
+        return $gedcom . "\n2 DATE " . $today . "\n3 TIME " . $now . "\n2 _WT_USER " . $author;
     }
 }

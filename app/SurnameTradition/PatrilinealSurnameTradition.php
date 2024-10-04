@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,56 +19,82 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\SurnameTradition;
 
+use Fisharebest\Webtrees\Elements\NameType;
+use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Individual;
+
 /**
  * Children take their father’s surname.
  */
 class PatrilinealSurnameTradition extends DefaultSurnameTradition
 {
     /**
-     * What names are given to a new child
+     * The name of this surname tradition
      *
-     * @param string $father_name A GEDCOM NAME
-     * @param string $mother_name A GEDCOM NAME
-     * @param string $child_sex   M, F or U
-     *
-     * @return array<string,string> Associative array of GEDCOM name parts (SURN, _MARNM, etc.)
+     * @return string
      */
-    public function newChildNames(string $father_name, string $mother_name, string $child_sex): array
+    public function name(): string
     {
-        if (preg_match(self::REGEX_SPFX_SURN, $father_name, $match)) {
-            return array_filter([
-                'NAME' => $match['NAME'],
-                'SPFX' => $match['SPFX'],
-                'SURN' => $match['SURN'],
-            ]);
-        }
-
-        return [
-            'NAME' => '//',
-        ];
+        /* I18N: A system where children take their father’s surname */
+        return I18N::translate('patrilineal');
     }
 
     /**
-     * What names are given to a new parent
+     * A short description of this surname tradition
      *
-     * @param string $child_name A GEDCOM NAME
-     * @param string $parent_sex M, F or U
-     *
-     * @return array<string,string> Associative array of GEDCOM name parts (SURN, _MARNM, etc.)
+     * @return string
      */
-    public function newParentNames(string $child_name, string $parent_sex): array
+    public function description(): string
     {
-        if ($parent_sex === 'M' && preg_match(self::REGEX_SPFX_SURN, $child_name, $match)) {
-            return array_filter([
-                'NAME' => $match['NAME'],
-                'SPFX' => $match['SPFX'],
-                'SURN' => $match['SURN'],
-            ]);
+        /* I18N: In the patrilineal surname tradition, ... */
+        return I18N::translate('Children take their father’s surname.');
+    }
+
+    /**
+     * What name is given to a new child
+     *
+     * @param Individual|null $father
+     * @param Individual|null $mother
+     * @param string          $sex
+     *
+     * @return array<int,string>
+     */
+    public function newChildNames(Individual|null $father, Individual|null $mother, string $sex): array
+    {
+        if (preg_match(self::REGEX_SPFX_SURN, $this->extractName($father), $match) === 1) {
+            $name = $match['NAME'];
+            $spfx = $match['SPFX'];
+            $surn = $match['SURN'];
+
+            return [
+                $this->buildName($name, ['TYPE' => NameType::VALUE_BIRTH, 'SPFX' => $spfx, 'SURN' => $surn]),
+            ];
         }
 
-        return [
-            'NAME' => '//',
-        ];
+        return parent::newChildNames($father, $mother, $sex);
+    }
+
+    /**
+     * What name is given to a new parent
+     *
+     * @param Individual $child
+     * @param string     $sex
+     *
+     * @return array<int,string>
+     */
+    public function newParentNames(Individual $child, string $sex): array
+    {
+        if ($sex === 'M' && preg_match(self::REGEX_SPFX_SURN, $this->extractName($child), $match) === 1) {
+            $name = $match['NAME'];
+            $spfx = $match['SPFX'];
+            $surn = $match['SURN'];
+
+            return [
+                $this->buildName($name, ['TYPE' => NameType::VALUE_BIRTH, 'SPFX' => $spfx, 'SURN' => $surn]),
+            ];
+        }
+
+        return parent::newParentNames($child, $sex);
     }
 
     /**

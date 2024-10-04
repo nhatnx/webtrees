@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -26,11 +26,11 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 trait ModuleFooterTrait
 {
-    /** @var int The default position for this footer.  It can be changed in the control panel. */
-    protected $footer_order;
+    // The default position for this footer.  It can be changed in the control panel.
+    protected int $footer_order;
 
     /**
-     * Users change change the order of footers using the control panel.
+     * Users can change the order of footers using the control panel.
      *
      * @param int $footer_order
      *
@@ -42,7 +42,7 @@ trait ModuleFooterTrait
     }
 
     /**
-     * Users change change the order of footers using the control panel.
+     * Users can change the order of footers using the control panel.
      *
      * @return int
      */

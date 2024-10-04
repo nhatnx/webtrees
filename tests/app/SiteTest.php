@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,31 +19,21 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+
 use function str_repeat;
 
-/**
- * Test the site functions
- */
+#[CoversClass(Site::class)]
 class SiteTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @covers \Fisharebest\Webtrees\Site
-     *
-     * @return void
-     */
     public function testDefault(): void
     {
-        self::assertSame('foo', Site::getPreference('no-such-setting', 'foo'));
-        self::assertSame('bar', Site::getPreference('no-such-setting', 'bar'));
+        self::assertSame('', Site::getPreference('no-such-setting'));
+        self::assertSame('UTC', Site::getPreference('TIMEZONE'));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Site
-     *
-     * @return void
-     */
     public function testSetAndGetPreference(): void
     {
         Site::setPreference('setting', 'foo');
@@ -51,11 +41,6 @@ class SiteTest extends TestCase
         self::assertSame('foo', Site::getPreference('setting'));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Site
-     *
-     * @return void
-     */
     public function test2000CharacterLimit(): void
     {
         $too_long = str_repeat('x', 3000);

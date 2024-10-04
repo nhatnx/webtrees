@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,9 +20,10 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\Middleware;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Carbon;
 use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Session;
+use Fisharebest\Webtrees\Webtrees;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -30,6 +31,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 use function session_destroy;
 use function session_status;
+use function time;
 
 use const PHP_SESSION_ACTIVE;
 
@@ -38,6 +40,9 @@ use const PHP_SESSION_ACTIVE;
  */
 class UseSession implements MiddlewareInterface
 {
+    // To avoid read-write contention on the wt_user_setting table, don't update the last-active time on every request.
+    private const UPDATE_ACTIVITY_INTERVAL = 60;
+
     /**
      * @param ServerRequestInterface  $request
      * @param RequestHandlerInterface $handler
@@ -57,14 +62,17 @@ class UseSession implements MiddlewareInterface
 
         $user = Auth::user();
 
-        // Update the last-login time no more than once a minute.
+        // Update the last-login time.
         if (Session::get('masquerade') === null) {
-            $last = Carbon::createFromTimestamp((int) $user->getPreference(UserInterface::PREF_TIMESTAMP_ACTIVE));
+            $last = (int) $user->getPreference(UserInterface::PREF_TIMESTAMP_ACTIVE);
 
-            if (Carbon::now()->subMinute()->gt($last)) {
-                $user->setPreference(UserInterface::PREF_TIMESTAMP_ACTIVE, (string) Carbon::now()->unix());
+            if (time() - $last >= self::UPDATE_ACTIVITY_INTERVAL) {
+                $user->setPreference(UserInterface::PREF_TIMESTAMP_ACTIVE, (string) time());
             }
         }
+
+        // Allow request handlers, modules, etc. to have a dependency on the current user.
+        Registry::container()->set(UserInterface::class, $user);
 
         $request = $request->withAttribute('user', $user);
 

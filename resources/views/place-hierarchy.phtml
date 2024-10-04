@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Place;
 
@@ -12,13 +14,13 @@ use Fisharebest\Webtrees\Place;
 
 <div class="<?= $col_class ?> list_table">
     <div class="row">
-        <span class="col list_label mr-1">
+        <span class="col wt-page-options-label me-1">
             <?= I18N::translate('Place hierarchy') ?>
         </span>
     </div>
     <div class="row">
         <?php foreach ($columns as $column) : ?>
-            <ul class="col list_value_wrap mr-1 list-unstyled">
+            <ul class="col wt-page-options-value me-1 list-unstyled">
                 <?php foreach ($column as $item) : ?>
                     <li>
                         <a href="<?= e($item->url()) ?>"><?= $item->placeName() ?></a>

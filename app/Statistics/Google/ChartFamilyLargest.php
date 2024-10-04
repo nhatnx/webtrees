@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,47 +19,35 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Statistics\Google;
 
-use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\DB;
+use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\I18N;
-use Fisharebest\Webtrees\Module\ModuleThemeInterface;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Statistics\Service\ColorService;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
-use stdClass;
 
-use function app;
 use function count;
+use function htmlspecialchars_decode;
+use function strip_tags;
+use function view;
 
 /**
  * A chart showing the largest families (Families with most children).
  */
 class ChartFamilyLargest
 {
-    /**
-     * @var Tree
-     */
-    private $tree;
+    private Tree $tree;
+
+    private ColorService $color_service;
 
     /**
-     * @var ModuleThemeInterface
+     * @param ColorService $color_service
+     * @param Tree         $tree
      */
-    private $theme;
-
-    /**
-     * @var ColorService
-     */
-    private $color_service;
-
-    /**
-     * Constructor.
-     *
-     * @param Tree $tree
-     */
-    public function __construct(Tree $tree)
+    public function __construct(ColorService $color_service, Tree $tree)
     {
         $this->tree          = $tree;
-        $this->theme         = app(ModuleThemeInterface::class);
-        $this->color_service = new ColorService();
+        $this->color_service = $color_service;
     }
 
     /**
@@ -67,7 +55,7 @@ class ChartFamilyLargest
      *
      * @param int $total
      *
-     * @return stdClass[]
+     * @return array<object>
      */
     private function queryRecords(int $total): array
     {
@@ -90,14 +78,12 @@ class ChartFamilyLargest
      * @return string
      */
     public function chartLargestFamilies(
-        string $color_from = null,
-        string $color_to = null,
+        string|null $color_from = null,
+        string|null $color_to = null,
         int $total = 10
     ): string {
-        $chart_color1 = (string) $this->theme->parameter('distribution-chart-no-values');
-        $chart_color2 = (string) $this->theme->parameter('distribution-chart-high-values');
-        $color_from   = $color_from ?? $chart_color1;
-        $color_to     = $color_to   ?? $chart_color2;
+        $color_from ??= 'ffffff';
+        $color_to ??= '84beff';
 
         $data = [
             [
@@ -109,7 +95,7 @@ class ChartFamilyLargest
         foreach ($this->queryRecords($total) as $record) {
             $family = Registry::familyFactory()->make($record->id, $this->tree);
 
-            if ($family && $family->canShow()) {
+            if ($family instanceof Family && $family->canShow()) {
                 $data[] = [
                     htmlspecialchars_decode(strip_tags($family->fullName())),
                     $record->total

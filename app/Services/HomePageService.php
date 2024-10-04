@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,30 +21,26 @@ namespace Fisharebest\Webtrees\Services;
 
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
-use Fisharebest\Webtrees\Exceptions\HttpAccessDeniedException;
-use Fisharebest\Webtrees\Exceptions\HttpNotFoundException;
+use Fisharebest\Webtrees\DB;
+use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\Module\ModuleBlockInterface;
 use Fisharebest\Webtrees\Module\ModuleInterface;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Collection;
 use Psr\Http\Message\ServerRequestInterface;
-use stdClass;
 
-use function assert;
 use function is_numeric;
+use function is_object;
 
 /**
  * Logic and content for the home-page blocks.
  */
 class HomePageService
 {
-    /** @var ModuleService */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * HomePageController constructor.
-     *
      * @param ModuleService $module_service
      */
     public function __construct(ModuleService $module_service)
@@ -53,19 +49,16 @@ class HomePageService
     }
 
     /**
-     * Load a block and check we have permission to edit it.
+     * Load a tree block.
      *
      * @param ServerRequestInterface $request
-     * @param UserInterface          $user
      *
      * @return ModuleBlockInterface
      */
-    public function treeBlock(ServerRequestInterface $request, UserInterface $user): ModuleBlockInterface
+    public function treeBlock(ServerRequestInterface $request): ModuleBlockInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $block_id = (int) $request->getQueryParams()['block_id'];
+        $tree     = Validator::attributes($request)->tree();
+        $block_id = Validator::attributes($request)->integer('block_id');
 
         $block = DB::table('block')
             ->where('block_id', '=', $block_id)
@@ -73,25 +66,19 @@ class HomePageService
             ->whereNull('user_id')
             ->first();
 
-        if (!$block instanceof stdClass) {
-            throw new HttpNotFoundException();
+        if (is_object($block)) {
+            $module = $this->module_service->findByName($block->module_name);
+
+            if ($module instanceof ModuleBlockInterface) {
+                return $module;
+            }
         }
 
-        $module = $this->module_service->findByName($block->module_name);
-
-        if (!$module instanceof ModuleBlockInterface) {
-            throw new HttpNotFoundException();
-        }
-
-        if ($block->user_id !== $user->id() && !Auth::isAdmin()) {
-            throw new HttpAccessDeniedException();
-        }
-
-        return $module;
+        throw new HttpNotFoundException();
     }
 
     /**
-     * Load a block and check we have permission to edit it.
+     * Load a user block.
      *
      * @param ServerRequestInterface $request
      * @param UserInterface          $user
@@ -100,7 +87,7 @@ class HomePageService
      */
     public function userBlock(ServerRequestInterface $request, UserInterface $user): ModuleBlockInterface
     {
-        $block_id = (int) $request->getQueryParams()['block_id'];
+        $block_id = Validator::attributes($request)->integer('block_id');
 
         $block = DB::table('block')
             ->where('block_id', '=', $block_id)
@@ -108,23 +95,15 @@ class HomePageService
             ->whereNull('gedcom_id')
             ->first();
 
-        if (!$block instanceof stdClass) {
-            throw new HttpNotFoundException('This block does not exist');
+        if (is_object($block)) {
+            $module = $this->module_service->findByName($block->module_name);
+
+            if ($module instanceof ModuleBlockInterface) {
+                return $module;
+            }
         }
 
-        $module = $this->module_service->findByName($block->module_name);
-
-        if (!$module instanceof ModuleBlockInterface) {
-            throw new HttpNotFoundException($block->module_name . ' is not a block');
-        }
-
-        $block_owner_id = (int) $block->user_id;
-
-        if ($block_owner_id !== $user->id() && !Auth::isAdmin()) {
-            throw new HttpAccessDeniedException('You are not allowed to edit this block');
-        }
-
-        return $module;
+        throw new HttpNotFoundException();
     }
 
     /**
@@ -143,9 +122,7 @@ class HomePageService
             ->where('block_id', '=', $block_id)
             ->value('module_name');
 
-        $block = $active_blocks->first(static function (ModuleInterface $module) use ($module_name): bool {
-            return $module->name() === $module_name;
-        });
+        $block = $active_blocks->first(static fn (ModuleInterface $module): bool => $module->name() === $module_name);
 
         if ($block instanceof ModuleBlockInterface) {
             return $block;
@@ -165,12 +142,8 @@ class HomePageService
     public function availableTreeBlocks(Tree $tree, UserInterface $user): Collection
     {
         return $this->module_service->findByComponent(ModuleBlockInterface::class, $tree, $user)
-            ->filter(static function (ModuleBlockInterface $block): bool {
-                return $block->isTreeBlock();
-            })
-            ->mapWithKeys(static function (ModuleBlockInterface $block): array {
-                return [$block->name() => $block];
-            });
+            ->filter(static fn (ModuleBlockInterface $block): bool => $block->isTreeBlock())
+            ->mapWithKeys(static fn (ModuleBlockInterface $block): array => [$block->name() => $block]);
     }
 
     /**
@@ -184,12 +157,8 @@ class HomePageService
     public function availableUserBlocks(Tree $tree, UserInterface $user): Collection
     {
         return $this->module_service->findByComponent(ModuleBlockInterface::class, $tree, $user)
-            ->filter(static function (ModuleBlockInterface $block): bool {
-                return $block->isUserBlock();
-            })
-            ->mapWithKeys(static function (ModuleBlockInterface $block): array {
-                return [$block->name() => $block];
-            });
+            ->filter(static fn (ModuleBlockInterface $block): bool => $block->isUserBlock())
+            ->mapWithKeys(static fn (ModuleBlockInterface $block): array => [$block->name() => $block]);
     }
 
     /**
@@ -295,9 +264,9 @@ class HomePageService
     /**
      * Save the updated blocks for a user.
      *
-     * @param int                $user_id
-     * @param Collection<string> $main_block_ids
-     * @param Collection<string> $side_block_ids
+     * @param int                    $user_id
+     * @param Collection<int,string> $main_block_ids
+     * @param Collection<int,string> $side_block_ids
      *
      * @return void
      */
@@ -352,9 +321,9 @@ class HomePageService
     /**
      * Save the updated blocks for a tree.
      *
-     * @param int                $tree_id
-     * @param Collection<string> $main_block_ids
-     * @param Collection<string> $side_block_ids
+     * @param int                    $tree_id
+     * @param Collection<int,string> $main_block_ids
+     * @param Collection<int,string> $side_block_ids
      *
      * @return void
      */
@@ -409,17 +378,14 @@ class HomePageService
     /**
      * Take a list of block names, and return block (module) objects.
      *
-     * @param Collection<string>                   $blocks
+     * @param Collection<int,string>               $blocks
      * @param Collection<int,ModuleBlockInterface> $active_blocks
      *
      * @return Collection<int,ModuleBlockInterface>
      */
     private function filterActiveBlocks(Collection $blocks, Collection $active_blocks): Collection
     {
-        return $blocks->map(static function (string $block_name) use ($active_blocks): ?ModuleBlockInterface {
-            return $active_blocks->filter(static function (ModuleInterface $block) use ($block_name): bool {
-                return $block->name() === $block_name;
-            })->first();
-        })->filter();
+        return $blocks->map(static fn (string $block_name): ModuleBlockInterface|null => $active_blocks->filter(static fn (ModuleInterface $block): bool => $block->name() === $block_name)->first())
+            ->filter();
     }
 }

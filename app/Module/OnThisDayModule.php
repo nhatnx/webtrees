@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,12 +19,13 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
-use Fisharebest\Webtrees\Carbon;
+use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Gedcom;
-use Fisharebest\Webtrees\GedcomTag;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\CalendarService;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Str;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -52,36 +53,36 @@ class OnThisDayModule extends AbstractModule implements ModuleBlockInterface
 
     // All standard GEDCOM 5.5.1 events except CENS, RESI and EVEN
     private const ALL_EVENTS = [
-        'ADOP',
-        'ANUL',
-        'BAPM',
-        'BARM',
-        'BASM',
-        'BIRT',
-        'BLES',
-        'BURI',
-        'CHR',
-        'CHRA',
-        'CONF',
-        'CREM',
-        'DEAT',
-        'DIV',
-        'DIVF',
-        'EMIG',
-        'ENGA',
-        'FCOM',
-        'GRAD',
-        'IMMI',
-        'MARB',
-        'MARC',
-        'MARL',
-        'MARR',
-        'MARS',
-        'NATU',
-        'ORDN',
-        'PROB',
-        'RETI',
-        'WILL',
+        'ADOP' => 'INDI:ADOP',
+        'ANUL' => 'FAM:ANUL',
+        'BAPM' => 'INDI:BAPM',
+        'BARM' => 'INDI:BARM',
+        'BASM' => 'INDI:BASM',
+        'BIRT' => 'INDI:BIRT',
+        'BLES' => 'INDI:BLES',
+        'BURI' => 'INDI:BURI',
+        'CHR'  => 'INDI:CHR',
+        'CHRA' => 'INDI:CHRA',
+        'CONF' => 'INDI:CONF',
+        'CREM' => 'INDI:CREM',
+        'DEAT' => 'INDI:DEAT',
+        'DIV'  => 'FAM:DIV',
+        'DIVF' => 'FAM:DIVF',
+        'EMIG' => 'INDI:EMIG',
+        'ENGA' => 'FAM:ENGA',
+        'FCOM' => 'INDI:FCOM',
+        'GRAD' => 'INDI:GRAD',
+        'IMMI' => 'INDI:IMMI',
+        'MARB' => 'FAM:MARB',
+        'MARC' => 'FAM:MARC',
+        'MARL' => 'FAM:MARL',
+        'MARR' => 'FAM:MARR',
+        'MARS' => 'FAM:MARS',
+        'NATU' => 'INDI:NATU',
+        'ORDN' => 'INDI:ORDN',
+        'PROB' => 'INDI:PROB',
+        'RETI' => 'INDI:RETI',
+        'WILL' => 'INDI:WILL',
     ];
 
     private const DEFAULT_EVENTS = [
@@ -115,10 +116,10 @@ class OnThisDayModule extends AbstractModule implements ModuleBlockInterface
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
@@ -139,18 +140,23 @@ class OnThisDayModule extends AbstractModule implements ModuleBlockInterface
 
         // If we are only showing living individuals, then we don't need to search for DEAT events.
         if ($filter) {
-            $event_array  = array_diff($event_array, Gedcom::DEATH_EVENTS);
+            $event_array = array_diff($event_array, Gedcom::DEATH_EVENTS);
         }
 
         $events_filter = implode('|', $event_array);
 
-        $startjd = Carbon::now()->julianDay();
+        $startjd = Registry::timestampFactory()->now()->julianDay();
         $endjd   = $startjd;
 
         $facts = $calendar_service->getEventsList($startjd, $endjd, $events_filter, $filter, $sortStyle, $tree);
 
         if ($facts->isEmpty()) {
-            $content = view('modules/todays_events/empty');
+            if ($filter && Auth::check()) {
+                $message = I18N::translate('No events for living individuals exist for today.');
+            } else {
+                $message = I18N::translate('No events exist for today.');
+            }
+            $content = view('modules/todays_events/empty', ['message' => $message]);
         } elseif ($infoStyle === 'list') {
             $content = view('lists/anniversaries-list', [
                 'id'         => $block_id,
@@ -216,18 +222,21 @@ class OnThisDayModule extends AbstractModule implements ModuleBlockInterface
      * Update the configuration for a block.
      *
      * @param ServerRequestInterface $request
-     * @param int     $block_id
+     * @param int                    $block_id
      *
      * @return void
      */
     public function saveBlockConfiguration(ServerRequestInterface $request, int $block_id): void
     {
-        $params = (array) $request->getParsedBody();
+        $filter     = Validator::parsedBody($request)->string('filter');
+        $info_style = Validator::parsedBody($request)->string('infoStyle');
+        $sort_style = Validator::parsedBody($request)->string('sortStyle');
+        $events     = Validator::parsedBody($request)->array('events');
 
-        $this->setBlockSetting($block_id, 'filter', $params['filter']);
-        $this->setBlockSetting($block_id, 'infoStyle', $params['infoStyle']);
-        $this->setBlockSetting($block_id, 'sortStyle', $params['sortStyle']);
-        $this->setBlockSetting($block_id, 'events', implode(',', $params['events'] ?? []));
+        $this->setBlockSetting($block_id, 'filter', $filter);
+        $this->setBlockSetting($block_id, 'infoStyle', $info_style);
+        $this->setBlockSetting($block_id, 'sortStyle', $sort_style);
+        $this->setBlockSetting($block_id, 'events', implode(',', $events));
     }
 
     /**
@@ -250,8 +259,8 @@ class OnThisDayModule extends AbstractModule implements ModuleBlockInterface
         $event_array = explode(',', $events);
 
         $all_events = [];
-        foreach (self::ALL_EVENTS as $event) {
-            $all_events[$event] = GedcomTag::getLabel($event);
+        foreach (self::ALL_EVENTS as $event => $tag) {
+            $all_events[$event] = Registry::elementFactory()->make($tag)->label();
         }
 
         $info_styles = [

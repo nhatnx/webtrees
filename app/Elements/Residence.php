@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,17 +19,30 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
+use Fisharebest\Webtrees\Tree;
+
 /**
  * Residence
  */
-class Residence extends AbstractElement
+class Residence extends ResidenceWithValue
 {
-    protected const SUBTAGS = [
-        'DATE' => '0:1',
-        'PLAC' => '0:1',
-        'NOTE' => '0:M',
-        'OBJE' => '0:M',
-        'SOUR' => '0:M',
-        'RESN' => '0:1',
-    ];
+    /**
+     * An edit control for this data.
+     *
+     * @param string $id
+     * @param string $name
+     * @param string $value
+     * @param Tree   $tree
+     *
+     * @return string
+     */
+    public function edit(string $id, string $name, string $value, Tree $tree): string
+    {
+        if ($value === '') {
+            return $this->editHidden($id, $name, $value);
+        }
+
+        // Value not allowed in GEDCOM 5.5.1, but if a value is present, then edit it.
+        return parent::edit($id, $name, $value, $tree);
+    }
 }

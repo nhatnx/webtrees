@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -24,6 +24,7 @@ use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\Module\ModuleInterface;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\TreeService;
+use Fisharebest\Webtrees\Tree;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
@@ -34,11 +35,9 @@ abstract class AbstractModuleComponentPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var ModuleService */
-    private $module_service;
+    private ModuleService $module_service;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
      * @param ModuleService $module_service
@@ -51,9 +50,11 @@ abstract class AbstractModuleComponentPage implements RequestHandlerInterface
     }
 
     /**
-     * @param string $interface
-     * @param string $title
-     * @param string $description
+     * @template T of ModuleInterface
+     *
+     * @param class-string<T> $interface
+     * @param string          $title
+     * @param string          $description
      *
      * @return ResponseInterface
      */
@@ -68,14 +69,10 @@ abstract class AbstractModuleComponentPage implements RequestHandlerInterface
         $access_summary = $modules
             ->mapWithKeys(function (ModuleInterface $module) use ($interface): array {
                 $access_levels = $this->tree_service->all()
-                    ->map(static function ($tree) use ($interface, $module): int {
-                        return $module->accessLevel($tree, $interface);
-                    })
+                    ->map(static fn (Tree $tree): int => $module->accessLevel($tree, $interface))
                     ->uniqueStrict()
                     ->values()
-                    ->map(static function (int $level): string {
-                        return Auth::accessLevelNames()[$level];
-                    })
+                    ->map(static fn (int $level): string => Auth::accessLevelNames()[$level])
                     ->all();
 
                 return [$module->name() => $access_levels];

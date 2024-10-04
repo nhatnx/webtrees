@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,7 +22,6 @@ namespace Fisharebest\Webtrees;
 use Fisharebest\Webtrees\Http\RequestHandlers\MediaFileDownload;
 use Fisharebest\Webtrees\Http\RequestHandlers\MediaFileThumbnail;
 use League\Flysystem\FilesystemException;
-use League\Flysystem\FilesystemOperator;
 use League\Flysystem\UnableToCheckFileExistence;
 use League\Flysystem\UnableToReadFile;
 use League\Flysystem\UnableToRetrieveMetadata;
@@ -30,13 +29,15 @@ use League\Flysystem\UnableToRetrieveMetadata;
 use function bin2hex;
 use function getimagesizefromstring;
 use function http_build_query;
+use function in_array;
 use function intdiv;
+use function is_array;
 use function ksort;
 use function md5;
 use function pathinfo;
 use function random_bytes;
 use function str_contains;
-use function strtolower;
+use function strtoupper;
 
 use const PATHINFO_EXTENSION;
 
@@ -54,24 +55,17 @@ class MediaFile
         'image/webp',
     ];
 
-    /** @var string The filename */
-    private $multimedia_file_refn = '';
+    private string $multimedia_file_refn = '';
 
-    /** @var string The file extension; jpeg, txt, mp4, etc. */
-    private $multimedia_format = '';
+    private string $multimedia_format = '';
 
-    /** @var string The type of document; newspaper, microfiche, etc. */
-    private $source_media_type = '';
-    /** @var string The filename */
+    private string $source_media_type = '';
 
-    /** @var string The name of the document */
-    private $descriptive_title = '';
+    private string $descriptive_title = '';
 
-    /** @var Media $media The media object to which this file belongs */
-    private $media;
+    private Media $media;
 
-    /** @var string */
-    private $fact_id;
+    private string $fact_id;
 
     /**
      * Create a MediaFile from raw GEDCOM data.
@@ -86,7 +80,6 @@ class MediaFile
 
         if (preg_match('/^\d FILE (.+)/m', $gedcom, $match)) {
             $this->multimedia_file_refn = $match[1];
-            $this->multimedia_format    = pathinfo($match[1], PATHINFO_EXTENSION);
         }
 
         if (preg_match('/^\d FORM (.+)/m', $gedcom, $match)) {
@@ -279,7 +272,7 @@ class MediaFile
      */
     public function mimeType(): string
     {
-        $extension = strtolower(pathinfo($this->multimedia_file_refn, PATHINFO_EXTENSION));
+        $extension = strtoupper(pathinfo($this->multimedia_file_refn, PATHINFO_EXTENSION));
 
         return Mime::TYPES[$extension] ?? Mime::DEFAULT_TYPE;
     }
@@ -287,7 +280,7 @@ class MediaFile
     /**
      * Generate a URL to download a media file.
      *
-     * @param string $disposition How should the image be returned - "attachment" or "inline"
+     * @param string $disposition How should the image be returned: "attachment" or "inline"
      *
      * @return string
      */
@@ -306,29 +299,35 @@ class MediaFile
     /**
      * A list of image attributes
      *
-     * @param FilesystemOperator $data_filesystem
-     *
-     * @return array<string>
+     * @return array<string,string>
      */
-    public function attributes(FilesystemOperator $data_filesystem): array
+    public function attributes(): array
     {
         $attributes = [];
 
-        if (!$this->isExternal() || $this->fileExists($data_filesystem)) {
+        if (!$this->isExternal() || $this->fileExists()) {
             try {
-                $bytes                       = $this->media()->tree()->mediaFilesystem($data_filesystem)->fileSize($this->filename());
-                $kb                          = intdiv($bytes + 1023, 1024);
-                $attributes['__FILE_SIZE__'] = I18N::translate('%s KB', I18N::number($kb));
-            } catch (FilesystemException | UnableToRetrieveMetadata $ex) {
+                $bytes = $this->media()->tree()->mediaFilesystem()->fileSize($this->filename());
+                $kb    = intdiv($bytes + 1023, 1024);
+                $text  = I18N::translate('%s KB', I18N::number($kb));
+
+                $attributes[I18N::translate('File size')] = $text;
+            } catch (FilesystemException | UnableToRetrieveMetadata) {
                 // External/missing files have no size.
             }
 
-            $filesystem = $this->media()->tree()->mediaFilesystem($data_filesystem);
             try {
-                $data                         = $filesystem->read($this->filename());
-                [$width, $height]             = getimagesizefromstring($data);
-                $attributes['__IMAGE_SIZE__'] = I18N::translate('%1$s × %2$s pixels', I18N::number($width), I18N::number($height));
-            } catch (FilesystemException | UnableToReadFile $ex) {
+                $data       = $this->media()->tree()->mediaFilesystem()->read($this->filename());
+                $image_size = getimagesizefromstring($data);
+
+                if (is_array($image_size)) {
+                    [$width, $height] = $image_size;
+
+                    $text = I18N::translate('%1$s × %2$s pixels', I18N::number($width), I18N::number($height));
+
+                    $attributes[I18N::translate('Image dimensions')] = $text;
+                }
+            } catch (FilesystemException | UnableToReadFile) {
                 // Cannot read the file.
             }
         }
@@ -339,15 +338,13 @@ class MediaFile
     /**
      * Read the contents of a media file.
      *
-     * @param FilesystemOperator $data_filesystem
-     *
      * @return string
      */
-    public function fileContents(FilesystemOperator $data_filesystem): string
+    public function fileContents(): string
     {
         try {
-            return $this->media->tree()->mediaFilesystem($data_filesystem)->read($this->multimedia_file_refn);
-        } catch (FilesystemException | UnableToReadFile $ex) {
+            return $this->media->tree()->mediaFilesystem()->read($this->multimedia_file_refn);
+        } catch (FilesystemException | UnableToReadFile) {
             return '';
         }
     }
@@ -355,15 +352,13 @@ class MediaFile
     /**
      * Check if the file exists on this server
      *
-     * @param FilesystemOperator $data_filesystem
-     *
      * @return bool
      */
-    public function fileExists(FilesystemOperator $data_filesystem): bool
+    public function fileExists(): bool
     {
         try {
-            return $this->media->tree()->mediaFilesystem($data_filesystem)->fileExists($this->multimedia_file_refn);
-        } catch (FilesystemException | UnableToCheckFileExistence $ex) {
+            return $this->media->tree()->mediaFilesystem()->fileExists($this->multimedia_file_refn);
+        } catch (FilesystemException | UnableToCheckFileExistence) {
             return false;
         }
     }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,20 +19,20 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\SurnameTradition;
 
+use Fisharebest\Webtrees\Fact;
+use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\TestCase;
+use Illuminate\Support\Collection;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class SpanishSurnameTradition
- */
+#[CoversClass(LithuanianSurnameTradition::class)]
+#[CoversClass(PatrilinealSurnameTradition::class)]
 class LithuanianSurnameTraditionTest extends TestCase
 {
-    /** @var SurnameTraditionInterface */
-    private $surname_tradition;
+    private SurnameTraditionInterface $surname_tradition;
 
     /**
      * Prepare the environment for these tests
-     *
-     * @return void
      */
     protected function setUp(): void
     {
@@ -42,297 +42,320 @@ class LithuanianSurnameTraditionTest extends TestCase
     }
 
     /**
-     * Test whether married surnames are used
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
-     */
-    public function testMarriedSurnames(): void
-    {
-        self::assertTrue($this->surname_tradition->hasMarriedNames());
-    }
-
-    /**
      * Test whether surnames are used
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testSurnames(): void
     {
-        self::assertTrue($this->surname_tradition->hasSurnames());
+        self::assertSame('//', $this->surname_tradition->defaultName());
     }
 
     /**
      * Test new son names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewSonNames(): void
     {
+        $father_fact = $this->createMock(Fact::class);
+        $father_fact->method('value')->willReturn('John /White/');
+
+        $father = $this->createMock(Individual::class);
+        $father->method('facts')->willReturn(new Collection([$father_fact]));
+
+        $mother_fact = $this->createMock(Fact::class);
+        $mother_fact->method('value')->willReturn('Mary /Black/');
+
+        $mother = $this->createMock(Individual::class);
+        $mother->method('facts')->willReturn(new Collection([$mother_fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/White/',
-                'SURN' => 'White',
-            ],
-            $this->surname_tradition->newChildNames('John /White/', 'Mary /Black/', 'M')
+            ["1 NAME /White/\n2 TYPE BIRTH\n2 SURN White"],
+            $this->surname_tradition->newChildNames($father, $mother, 'M')
         );
     }
 
     /**
      * Test new daughter names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewDaughterNames(): void
     {
+        $father_fact = $this->createMock(Fact::class);
+        $father_fact->method('value')->willReturn('John /White/');
+
+        $father = $this->createMock(Individual::class);
+        $father->method('facts')->willReturn(new Collection([$father_fact]));
+
+        $mother_fact = $this->createMock(Fact::class);
+        $mother_fact->method('value')->willReturn('Mary /Black/');
+
+        $mother = $this->createMock(Individual::class);
+        $mother->method('facts')->willReturn(new Collection([$mother_fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/White/',
-                'SURN' => 'White',
-            ],
-            $this->surname_tradition->newChildNames('John /White/', 'Mary /Black/', 'F')
+            ["1 NAME /White/\n2 TYPE BIRTH\n2 SURN White"],
+            $this->surname_tradition->newChildNames($father, $mother, 'F')
         );
     }
 
     /**
      * Test new daughter names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewDaughterNamesInflected(): void
     {
+        $father_fact = $this->createMock(Fact::class);
+        $father_fact->method('value')->willReturn('John /Whita/');
+
+        $father = $this->createMock(Individual::class);
+        $father->method('facts')->willReturn(new Collection([$father_fact]));
+
+        $mother_fact = $this->createMock(Fact::class);
+        $mother_fact->method('value')->willReturn('Mary /Black/');
+
+        $mother = $this->createMock(Individual::class);
+        $mother->method('facts')->willReturn(new Collection([$mother_fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/Whitaitė/',
-                'SURN' => 'Whita',
-            ],
-            $this->surname_tradition->newChildNames('John /Whita/', 'Mary /Black/', 'F')
+            ["1 NAME /Whitaitė/\n2 TYPE BIRTH\n2 SURN Whita"],
+            $this->surname_tradition->newChildNames($father, $mother, 'F')
         );
+
+        $father_fact = $this->createMock(Fact::class);
+        $father_fact->method('value')->willReturn('John /Whitas/');
+
+        $father = $this->createMock(Individual::class);
+        $father->method('facts')->willReturn(new Collection([$father_fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/Whitaitė/',
-                'SURN' => 'Whitas',
-            ],
-            $this->surname_tradition->newChildNames('John /Whitas/', 'Mary /Black/', 'F')
+            ["1 NAME /Whitaitė/\n2 TYPE BIRTH\n2 SURN Whitas"],
+            $this->surname_tradition->newChildNames($father, $mother, 'F')
         );
+
+        $father_fact = $this->createMock(Fact::class);
+        $father_fact->method('value')->willReturn('John /Whitis/');
+
+        $father = $this->createMock(Individual::class);
+        $father->method('facts')->willReturn(new Collection([$father_fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/Whitytė/',
-                'SURN' => 'Whitis',
-            ],
-            $this->surname_tradition->newChildNames('John /Whitis/', 'Mary /Black/', 'F')
+            ["1 NAME /Whitytė/\n2 TYPE BIRTH\n2 SURN Whitis"],
+            $this->surname_tradition->newChildNames($father, $mother, 'F')
         );
+
+        $father_fact = $this->createMock(Fact::class);
+        $father_fact->method('value')->willReturn('John /Whitys/');
+
+        $father = $this->createMock(Individual::class);
+        $father->method('facts')->willReturn(new Collection([$father_fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/Whitytė/',
-                'SURN' => 'Whitys',
-            ],
-            $this->surname_tradition->newChildNames('John /Whitys/', 'Mary /Black/', 'F')
+            ["1 NAME /Whitytė/\n2 TYPE BIRTH\n2 SURN Whitys"],
+            $this->surname_tradition->newChildNames($father, $mother, 'F')
         );
+
+        $father_fact = $this->createMock(Fact::class);
+        $father_fact->method('value')->willReturn('John /Whitius/');
+
+        $father = $this->createMock(Individual::class);
+        $father->method('facts')->willReturn(new Collection([$father_fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/Whitiūtė/',
-                'SURN' => 'Whitius',
-            ],
-            $this->surname_tradition->newChildNames('John /Whitius/', 'Mary /Black/', 'F')
+            ["1 NAME /Whitiūtė/\n2 TYPE BIRTH\n2 SURN Whitius"],
+            $this->surname_tradition->newChildNames($father, $mother, 'F')
         );
+
+        $father_fact = $this->createMock(Fact::class);
+        $father_fact->method('value')->willReturn('John /Whitus/');
+
+        $father = $this->createMock(Individual::class);
+        $father->method('facts')->willReturn(new Collection([$father_fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/Whitutė/',
-                'SURN' => 'Whitus',
-            ],
-            $this->surname_tradition->newChildNames('John /Whitus/', 'Mary /Black/', 'F')
+            ["1 NAME /Whitutė/\n2 TYPE BIRTH\n2 SURN Whitus"],
+            $this->surname_tradition->newChildNames($father, $mother, 'F')
         );
     }
 
     /**
      * Test new child names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewChildNames(): void
     {
+        $father_fact = $this->createMock(Fact::class);
+        $father_fact->method('value')->willReturn('John /White/');
+
+        $father = $this->createMock(Individual::class);
+        $father->method('facts')->willReturn(new Collection([$father_fact]));
+
+        $mother_fact = $this->createMock(Fact::class);
+        $mother_fact->method('value')->willReturn('Mary /Black/');
+
+        $mother = $this->createMock(Individual::class);
+        $mother->method('facts')->willReturn(new Collection([$mother_fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/White/',
-                'SURN' => 'White',
-            ],
-            $this->surname_tradition->newChildNames('John /White/', 'Mary /Black/', 'U')
+            ["1 NAME /White/\n2 TYPE BIRTH\n2 SURN White"],
+            $this->surname_tradition->newChildNames($father, $mother, 'U')
         );
     }
 
     /**
      * Test new child names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewChildNamesWithNoParentsNames(): void
     {
         self::assertSame(
-            ['NAME' => '//'],
-            $this->surname_tradition->newChildNames('', '', 'U')
+            ["1 NAME //\n2 TYPE BIRTH"],
+            $this->surname_tradition->newChildNames(null, null, 'U')
         );
     }
 
     /**
      * Test new father names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewFatherNames(): void
     {
+        $fact = $this->createMock(Fact::class);
+        $fact->method('value')->willReturn('John /White/');
+
+        $individual = $this->createMock(Individual::class);
+        $individual->method('facts')->willReturn(new Collection([$fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/White/',
-                'SURN' => 'White',
-            ],
-            $this->surname_tradition->newParentNames('John /White/', 'M')
+            ["1 NAME /White/\n2 TYPE BIRTH\n2 SURN White"],
+            $this->surname_tradition->newParentNames($individual, 'M')
         );
     }
 
     /**
      * Test new father names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewFatherNamesInflected(): void
     {
+        $fact = $this->createMock(Fact::class);
+        $fact->method('value')->willReturn('Mary /Whitaitė/');
+
+        $individual = $this->createMock(Individual::class);
+        $individual->method('facts')->willReturn(new Collection([$fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/Whitas/',
-                'SURN' => 'Whitas',
-            ],
-            $this->surname_tradition->newParentNames('Mary /Whitaitė/', 'M')
+            ["1 NAME /Whitas/\n2 TYPE BIRTH\n2 SURN Whitas"],
+            $this->surname_tradition->newParentNames($individual, 'M')
         );
+
+        $fact = $this->createMock(Fact::class);
+        $fact->method('value')->willReturn('Mary /Whitytė/');
+
+        $individual = $this->createMock(Individual::class);
+        $individual->method('facts')->willReturn(new Collection([$fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/Whitis/',
-                'SURN' => 'Whitis',
-            ],
-            $this->surname_tradition->newParentNames('Mary /Whitytė/', 'M')
+            ["1 NAME /Whitis/\n2 TYPE BIRTH\n2 SURN Whitis"],
+            $this->surname_tradition->newParentNames($individual, 'M')
         );
+
+        $fact = $this->createMock(Fact::class);
+        $fact->method('value')->willReturn('Mary /Whitiūtė/');
+
+        $individual = $this->createMock(Individual::class);
+        $individual->method('facts')->willReturn(new Collection([$fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/Whitius/',
-                'SURN' => 'Whitius',
-            ],
-            $this->surname_tradition->newParentNames('Mary /Whitiūtė/', 'M')
+            ["1 NAME /Whitius/\n2 TYPE BIRTH\n2 SURN Whitius"],
+            $this->surname_tradition->newParentNames($individual, 'M')
         );
+
+        $fact = $this->createMock(Fact::class);
+        $fact->method('value')->willReturn('Mary /Whitutė/');
+
+        $individual = $this->createMock(Individual::class);
+        $individual->method('facts')->willReturn(new Collection([$fact]));
+
         self::assertSame(
-            [
-                'NAME' => '/Whitus/',
-                'SURN' => 'Whitus',
-            ],
-            $this->surname_tradition->newParentNames('Mary /Whitutė/', 'M')
+            ["1 NAME /Whitus/\n2 TYPE BIRTH\n2 SURN Whitus"],
+            $this->surname_tradition->newParentNames($individual, 'M')
         );
     }
 
     /**
      * Test new mother names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewMotherNames(): void
     {
+        $fact = $this->createMock(Fact::class);
+        $fact->method('value')->willReturn('John /White/');
+
+        $individual = $this->createMock(Individual::class);
+        $individual->method('facts')->willReturn(new Collection([$fact]));
+
         self::assertSame(
-            ['NAME' => '//'],
-            $this->surname_tradition->newParentNames('John /White/', 'F')
+            ["1 NAME //\n2 TYPE BIRTH"],
+            $this->surname_tradition->newParentNames($individual, 'F')
         );
     }
 
     /**
      * Test new parent names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewParentNames(): void
     {
+        $fact = $this->createMock(Fact::class);
+        $fact->method('value')->willReturn('John /White/');
+
+        $individual = $this->createMock(Individual::class);
+        $individual->method('facts')->willReturn(new Collection([$fact]));
+
         self::assertSame(
-            ['NAME' => '//'],
-            $this->surname_tradition->newParentNames('John /White/', 'U')
+            ["1 NAME //\n2 TYPE BIRTH"],
+            $this->surname_tradition->newParentNames($individual, 'U')
         );
     }
 
     /**
      * Test new husband names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewHusbandNames(): void
     {
+        $fact = $this->createMock(Fact::class);
+        $fact->method('value')->willReturn('Mary /Black/');
+
+        $individual = $this->createMock(Individual::class);
+        $individual->method('facts')->willReturn(new Collection([$fact]));
+
         self::assertSame(
-            ['NAME' => '//'],
-            $this->surname_tradition->newSpouseNames('Mary /Black/', 'M')
+            ["1 NAME //\n2 TYPE BIRTH"],
+            $this->surname_tradition->newSpouseNames($individual, 'M')
         );
     }
 
     /**
      * Test new wife names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewWifeNames(): void
     {
+        $fact = $this->createMock(Fact::class);
+        $fact->method('value')->willReturn('John /White/');
+
+        $individual = $this->createMock(Individual::class);
+        $individual->method('facts')->willReturn(new Collection([$fact]));
+
         self::assertSame(
-            [
-                'NAME'   => '//',
-                '_MARNM' => '/White/',
-            ],
-            $this->surname_tradition->newSpouseNames('John /White/', 'F')
+            ["1 NAME //\n2 TYPE BIRTH", "1 NAME /White/\n2 TYPE MARRIED\n2 SURN White"],
+            $this->surname_tradition->newSpouseNames($individual, 'F')
         );
     }
 
     /**
      * Test new spouse names
-     *
-     * @covers \Fisharebest\Webtrees\SurnameTradition\LithuanianSurnameTradition
-     * @covers \Fisharebest\Webtrees\SurnameTradition\PatrilinealSurnameTradition
-     *
-     * @return void
      */
     public function testNewSpouseNames(): void
     {
+        $fact = $this->createMock(Fact::class);
+        $fact->method('value')->willReturn('John /White/');
+
+        $individual = $this->createMock(Individual::class);
+        $individual->method('facts')->willReturn(new Collection([$fact]));
+
         self::assertSame(
-            ['NAME' => '//'],
-            $this->surname_tradition->newSpouseNames('Chris /Green/', 'U')
+            ["1 NAME //\n2 TYPE BIRTH"],
+            $this->surname_tradition->newSpouseNames($individual, 'U')
         );
     }
 }

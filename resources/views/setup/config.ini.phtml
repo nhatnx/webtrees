@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * @var string $baseurl
  * @var string $dbhost
@@ -8,7 +10,6 @@
  * @var string $dbpass
  * @var string $dbport
  * @var string $dbtype
- * @var string $dbuser
  * @var string $tblpfx
  */
 
@@ -22,3 +23,4 @@ dbpass="<?= addcslashes($dbpass, '"') ?>"
 dbname="<?= addcslashes($dbname, '"') ?>"
 tblpfx="<?= addcslashes($tblpfx, '"') ?>"
 base_url="<?= addcslashes($baseurl, '"') ?>"
+rewrite_urls="0"

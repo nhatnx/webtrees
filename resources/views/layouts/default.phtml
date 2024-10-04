@@ -1,14 +1,20 @@
 <?php
 
-use Fisharebest\Webtrees\DebugBar;
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\FlashMessages;
+use Fisharebest\Webtrees\Http\RequestHandlers\AppleTouchIconPng;
+use Fisharebest\Webtrees\Http\RequestHandlers\BrowserconfigXml;
 use Fisharebest\Webtrees\Http\RequestHandlers\SearchQuickAction;
+use Fisharebest\Webtrees\Http\RequestHandlers\WebmanifestJson;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Module\ModuleFooterInterface;
 use Fisharebest\Webtrees\Module\ModuleGlobalInterface;
 use Fisharebest\Webtrees\Module\ModuleThemeInterface;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Fisharebest\Webtrees\View;
 use Fisharebest\Webtrees\Webtrees;
 use Psr\Http\Message\ServerRequestInterface;
@@ -39,41 +45,34 @@ use Psr\Http\Message\ServerRequestInterface;
             <?php endif ?>
         </title>
 
+        <!--iOS-->
+        <link rel="apple-touch-icon" sizes="180x180" href="<?= e(route(AppleTouchIconPng::class)) ?>">
         <!--Generic favicons-->
         <link rel="icon" sizes="32x32" href="<?= e(asset('favicon-32.png')) ?>">
-        <link rel="icon" sizes="128x128" href="<?= e(asset('favicon-128.png')) ?>">
         <link rel="icon" sizes="192x192" href="<?= e(asset('favicon-192.png')) ?>">
-        <!--Android-->
-        <link rel="shortcut icon" sizes="196x196" href="<?= e(asset('favicon-196.png')) ?>">
-        <!--iPad-->
-        <link rel="apple-touch-icon" sizes="152x152" href="<?= e(asset('favicon-152.png')) ?>">
-        <!--iPhone-->
-        <link rel="apple-touch-icon" sizes="180x180" href="<?= e(asset('favicon-180.png')) ?>">
         <!--IE11/Edge-->
-        <meta name="msapplication-config" content="<?= e(asset('browserconfig.xml')) ?>">
+        <meta name="msapplication-config" content="<?= e(route(BrowserconfigXml::class)) ?>">
 
-        <link rel="manifest" href="<?= e(asset('site.webmanifest')) ?>">
+        <link rel="manifest" href="<?= e(route(WebmanifestJson::class)) ?>" crossorigin="use-credentials">
 
         <link rel="stylesheet" href="<?= e(asset('css/vendor.min.css')) ?>">
-        <?php foreach (app(ModuleThemeInterface::class)->stylesheets() as $stylesheet) : ?>
+        <?php foreach (Registry::container()->get(ModuleThemeInterface::class)->stylesheets() as $stylesheet) : ?>
             <link rel="stylesheet" href="<?= e($stylesheet) ?>">
         <?php endforeach ?>
 
         <?= View::stack('styles') ?>
 
-        <?= app(ModuleService::class)->findByInterface(ModuleGlobalInterface::class)->map(static function (ModuleGlobalInterface $module): string {
+        <?= Registry::container()->get(ModuleService::class)->findByInterface(ModuleGlobalInterface::class)->map(static function (ModuleGlobalInterface $module): string {
             return $module->headContent();
         })->implode('') ?>
-
-        <?= DebugBar::renderHead() ?>
     </head>
 
-    <body class="wt-global wt-theme-<?= e(app(ModuleThemeInterface::class)->name()) ?> wt-route-<?= e(substr(strrchr($request->getAttribute('route')->name, '\\'),1)) ?>">
+    <body class="wt-global wt-theme-<?= e(Registry::container()->get(ModuleThemeInterface::class)->name()) ?> wt-route-<?= e(basename(strtr(Validator::attributes($request)->route()->name ?? '/', ['\\' => '/']))) ?>">
         <header class="wt-header-wrapper d-print-none">
             <div class="container-lg wt-header-container">
                 <div class="row wt-header-content">
                     <div class="wt-accessibility-links position-fixed">
-                        <a class="sr-only sr-only-focusable btn btn-info btn-sm" href="#content">
+                        <a class="visually-hidden visually-hidden-focusable btn btn-info btn-sm" href="#content">
                             <?= /* I18N: Skip over the headers and menus, to the main content of the page */
                             I18N::translate('Skip to content') ?>
                         </a>
@@ -84,27 +83,25 @@ use Psr\Http\Message\ServerRequestInterface;
                         <h1 class="col wt-site-title"><?= e($tree->title()) ?></h1>
 
                         <div class="col wt-header-search">
-                            <form method="post"
-                                  action="<?= e(route(SearchQuickAction::class, ['tree' => $tree->name()])) ?>"
-                                  class="wt-header-search-form" role="search">
-                                <?= csrf_field() ?>
+                            <form method="post" action="<?= e(route(SearchQuickAction::class, ['tree' => $tree->name()])) ?>" class="wt-header-search-form" role="search">
                                 <div class="input-group">
-                                    <label class="sr-only" for="quick-search"><?= I18N::translate('Search') ?></label>
-                                    <input type="search" class="form-control wt-header-search-field" id="quick-search"
-                                           name="query" size="15" placeholder="<?= I18N::translate('Search') ?>">
-                                    <div class="input-group-append">
-                                        <button type="submit" class="btn btn-primary wt-header-search-button">
-                                            <?= view('icons/search') ?>
-                                        </button>
-                                    </div>
+                                    <label class="visually-hidden" for="quick-search"><?= I18N::translate('Search') ?></label>
+
+                                    <input type="search" class="form-control wt-header-search-field" id="quick-search" name="query" size="15" placeholder="<?= I18N::translate('Search') ?>">
+
+                                    <button type="submit" class="btn btn-primary wt-header-search-button" aria-label="<?= I18N::translate('Search') ?>">
+                                        <?= view('icons/search') ?>
+                                    </button>
                                 </div>
+
+                                <?= csrf_field() ?>
                             </form>
                         </div>
                     <?php endif ?>
 
                     <div class="col wt-secondary-navigation">
                         <ul class="nav wt-user-menu">
-                            <?php foreach (app(ModuleThemeInterface::class)->userMenu($tree) as $menu) : ?>
+                            <?php foreach (Registry::container()->get(ModuleThemeInterface::class)->userMenu($tree) as $menu) : ?>
                                 <?= view('components/menu-item', ['menu' => $menu]) ?>
                             <?php endforeach ?>
                         </ul>
@@ -113,7 +110,7 @@ use Psr\Http\Message\ServerRequestInterface;
                     <?php if ($tree !== null) : ?>
                         <nav class="col wt-primary-navigation">
                             <ul class="nav wt-genealogy-menu">
-                                <?php foreach (app(ModuleThemeInterface::class)->genealogyMenu($tree) as $menu) : ?>
+                                <?php foreach (Registry::container()->get(ModuleThemeInterface::class)->genealogyMenu($tree) as $menu) : ?>
                                     <?= view('components/menu-item', ['menu' => $menu]) ?>
                                 <?php endforeach ?>
                             </ul>
@@ -128,9 +125,7 @@ use Psr\Http\Message\ServerRequestInterface;
                 <div class="flash-messages">
                     <?php foreach (FlashMessages::getMessages() as $message) : ?>
                         <div class="alert alert-<?= e($message->status) ?> alert-dismissible" role="alert">
-                            <button type="button" class="close" data-dismiss="alert"
-                                    aria-label="<?= I18N::translate('close') ?>">
-                                <span aria-hidden="true">&times;</span>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= I18N::translate('close') ?>">
                             </button>
                             <?= $message->text ?>
                         </div>
@@ -142,7 +137,7 @@ use Psr\Http\Message\ServerRequestInterface;
         </main>
 
         <footer class="container-lg wt-footers d-print-none">
-            <?= app(ModuleService::class)->findByInterface(ModuleFooterInterface::class)->map(static function (ModuleFooterInterface $module) use ($request): string {
+            <?= Registry::container()->get(ModuleService::class)->findByInterface(ModuleFooterInterface::class)->map(static function (ModuleFooterInterface $module) use ($request): string {
                 return $module->getFooter($request);
             })->implode('') ?>
         </footer>
@@ -160,11 +155,11 @@ use Psr\Http\Message\ServerRequestInterface;
                     width: "85%",
                     height: "85%",
                     current: "",
-                    previous: '<i class="fas fa-arrow-left wt-icon-flip-rtl" title="<?= I18N::translate('previous') ?>"></i>',
-                    next: '<i class="fas fa-arrow-right wt-icon-flip-rtl" title="<?= I18N::translate('next') ?>"></i>',
-                    slideshowStart: '<i class="fas fa-play" title="<?= I18N::translate('Play') ?>"></i>',
-                    slideshowStop: '<i class="fas fa-stop" title="<?= I18N::translate('Stop') ?>"></i>',
-                    close: '<i class="fas fa-times" title="<?= I18N::translate('close') ?>"></i>',
+                    previous: '<i class="fa-solid fa-arrow-left wt-icon-flip-rtl" title="<?= I18N::translate('previous') ?>"></i>',
+                    next: '<i class="fa-solid fa-arrow-right wt-icon-flip-rtl" title="<?= I18N::translate('next') ?>"></i>',
+                    slideshowStart: '<i class="fa-solid fa-play" title="<?= I18N::translate('Play') ?>"></i>',
+                    slideshowStop: '<i class="fa-solid fa-stop" title="<?= I18N::translate('Stop') ?>"></i>',
+                    close: '<i class="fa-solid fa-times" title="<?= I18N::translate('close') ?>"></i>',
                     title: function () {
                         return this.dataset.title;
                     },
@@ -172,6 +167,7 @@ use Psr\Http\Message\ServerRequestInterface;
                     rel: "gallery", // Turn all images on the page into a slideshow
                     slideshow: true,
                     slideshowAuto: false,
+                    slideshowSpeed: 4000,
                     // Add wheelzoom to the displayed image
                     onComplete: function () {
                         // Disable click on image triggering next image
@@ -186,10 +182,8 @@ use Psr\Http\Message\ServerRequestInterface;
 
         <?= View::stack('javascript') ?>
 
-        <?= app(ModuleService::class)->findByInterface(ModuleGlobalInterface::class)->map(static function (ModuleGlobalInterface $module): string {
+        <?= Registry::container()->get(ModuleService::class)->findByInterface(ModuleGlobalInterface::class)->map(static function (ModuleGlobalInterface $module): string {
             return $module->bodyContent();
         })->implode('') ?>
-
-        <?= DebugBar::render() ?>
     </body>
 </html>

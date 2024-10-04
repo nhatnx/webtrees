@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,17 +21,17 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\FlashMessages;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Services\LinkedRecordService;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Database\Query\Expression;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function e;
 use function in_array;
 use function preg_replace;
@@ -44,6 +44,16 @@ use function str_replace;
  */
 class MergeFactsAction implements RequestHandlerInterface
 {
+    private LinkedRecordService $linked_record_service;
+
+    /**
+     * @param LinkedRecordService $linked_record_service
+     */
+    public function __construct(LinkedRecordService $linked_record_service)
+    {
+        $this->linked_record_service = $linked_record_service;
+    }
+
     /**
      * @param ServerRequestInterface $request
      *
@@ -51,16 +61,11 @@ class MergeFactsAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $params = (array) $request->getParsedBody();
-
-        $xref1 = $params['xref1'] ?? '';
-        $xref2 = $params['xref2'] ?? '';
-
-        $keep1 = $params['keep1'] ?? [];
-        $keep2 = $params['keep2'] ?? [];
+        $tree  = Validator::attributes($request)->tree();
+        $xref1 = Validator::parsedBody($request)->isXref()->string('xref1');
+        $xref2 = Validator::parsedBody($request)->isXref()->string('xref2');
+        $keep1 = Validator::parsedBody($request)->array('keep1');
+        $keep2 = Validator::parsedBody($request)->array('keep2');
 
         // Merge record2 into record1
         $record1 = Registry::gedcomRecordFactory()->make($xref1, $tree);
@@ -89,7 +94,7 @@ class MergeFactsAction implements RequestHandlerInterface
         }
 
         // Update records that link to the one we will be removing.
-        $linking_records = $record2->linkingRecords();
+        $linking_records = $this->linked_record_service->allLinkedRecords($record2);
 
         foreach ($linking_records as $record) {
             if (!$record->isPendingDeletion()) {
@@ -101,7 +106,7 @@ class MergeFactsAction implements RequestHandlerInterface
                 ), 'info');
                 $gedcom = str_replace('@' . $xref2 . '@', '@' . $xref1 . '@', $record->gedcom());
                 $gedcom = preg_replace(
-                    '/(\n1.*@.+@.*(?:(?:\n[2-9].*)*))((?:\n1.*(?:\n[2-9].*)*)*\1)/',
+                    '/(\n1.*@.+@.*(?:\n[2-9].*)*)((?:\n1.*(?:\n[2-9].*)*)*\1)/',
                     '$2',
                     $gedcom
                 );
@@ -116,12 +121,18 @@ class MergeFactsAction implements RequestHandlerInterface
             ->where('setting_value', '=', $xref2)
             ->update(['setting_value' => $xref1]);
 
+        // Merge stories, etc.
+        DB::table('block')
+            ->where('gedcom_id', '=', $tree->id())
+            ->where('xref', '=', $xref2)
+            ->update(['xref' => $xref1]);
+
         // Merge hit counters
         $hits = DB::table('hit_counter')
             ->where('gedcom_id', '=', $tree->id())
             ->whereIn('page_parameter', [$xref1, $xref2])
             ->groupBy(['page_name'])
-            ->pluck(new Expression('SUM(page_count)'), 'page_name');
+            ->pluck(new Expression('SUM(page_count) AS total'), 'page_name');
 
         foreach ($hits as $page_name => $page_count) {
             DB::table('hit_counter')

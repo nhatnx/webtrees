@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,8 +21,12 @@ namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ServerRequestInterface;
+
+use function view;
 
 /**
  * Class GoogleAnalyticsModule - add support for Google analytics.
@@ -89,24 +93,31 @@ class GoogleAnalyticsModule extends AbstractModule implements ModuleAnalyticsInt
     /**
      * Embed placeholders in the snippet.
      *
-     * @param string[] $parameters
+     * @param array<string> $parameters
      *
      * @return string
      */
     public function analyticsSnippet(array $parameters): string
     {
-        $request = app(ServerRequestInterface::class);
+        $request = Registry::container()->get(ServerRequestInterface::class);
 
         // Add extra dimensions (i.e. filtering categories)
-        $tree = $request->getAttribute('tree');
-        $user = $request->getAttribute('user');
+        $tree = Validator::attributes($request)->treeOptional();
+        $user = Validator::attributes($request)->user();
 
-        $parameters['dimensions'] = (object) [
-            'dimension1' => $tree instanceof Tree ? $tree->name() : '-',
-            'dimension2' => $tree instanceof Tree ? Auth::accessLevel($tree, $user) : '-',
-        ];
+        if (str_starts_with($parameters['GOOGLE_ANALYTICS_ID'], 'UA-')) {
+            $parameters['dimensions'] = (object) [
+                'dimension1' => $tree instanceof Tree ? $tree->name() : '-',
+                'dimension2' => $tree instanceof Tree ? Auth::accessLevel($tree, $user) : '-',
+            ];
 
-        return view('modules/google-analytics/snippet', $parameters);
+            return view('modules/google-analytics/snippet', $parameters);
+        }
+
+        $parameters['tree_name'] = $tree instanceof Tree ? $tree->name() : '-';
+        $parameters['access_level'] = $tree instanceof Tree ? Auth::accessLevel($tree, $user) : '-';
+
+        return view('modules/google-analytics/snippet-v4', $parameters);
     }
 
     /**

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,43 +19,46 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Statistics\Repository;
 
-use Fisharebest\Webtrees\Gedcom;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Place;
 use Fisharebest\Webtrees\Statistics\Google\ChartDistribution;
+use Fisharebest\Webtrees\Statistics\Repository\Interfaces\IndividualRepositoryInterface;
 use Fisharebest\Webtrees\Statistics\Repository\Interfaces\PlaceRepositoryInterface;
 use Fisharebest\Webtrees\Statistics\Service\CountryService;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
-use stdClass;
 
 use function array_key_exists;
+use function arsort;
+use function preg_match;
+use function view;
 
 /**
  * A repository providing methods for place related statistics.
  */
 class PlaceRepository implements PlaceRepositoryInterface
 {
-    /**
-     * @var Tree
-     */
-    private $tree;
+    private Tree $tree;
+
+    private CountryService $country_service;
+
+    private IndividualRepositoryInterface $individual_repository;
 
     /**
-     * @var CountryService
+     * @param Tree                          $tree
+     * @param CountryService                $country_service
+     * @param IndividualRepositoryInterface $individual_repository
      */
-    private $country_service;
-
-    /**
-     * BirthPlaces constructor.
-     *
-     * @param Tree $tree
-     */
-    public function __construct(Tree $tree)
-    {
-        $this->tree          = $tree;
-        $this->country_service = new CountryService();
+    public function __construct(
+        Tree $tree,
+        CountryService $country_service,
+        IndividualRepositoryInterface $individual_repository
+    ) {
+        $this->tree                  = $tree;
+        $this->country_service       = $country_service;
+        $this->individual_repository = $individual_repository;
     }
 
     /**
@@ -63,52 +66,35 @@ class PlaceRepository implements PlaceRepositoryInterface
      *
      * @param string $fact
      * @param string $what
-     * @param bool   $country
      *
-     * @return int[]
+     * @return array<int>
      */
-    private function queryFactPlaces(string $fact, string $what = 'ALL', bool $country = false): array
+    private function queryFactPlaces(string $fact, string $what): array
     {
         $rows = [];
 
         if ($what === 'INDI') {
-            $rows = DB::table('individuals')->select(['i_gedcom as tree'])->where(
-                'i_file',
-                '=',
-                $this->tree->id()
-            )->where(
-                'i_gedcom',
-                'LIKE',
-                "%\n2 PLAC %"
-            )->get()->all();
+            $rows = DB::table('individuals')
+                ->select(['i_gedcom as tree'])
+                ->where('i_file', '=', $this->tree->id())
+                ->where('i_gedcom', 'LIKE', "%\n2 PLAC %")
+                ->get()
+                ->all();
         } elseif ($what === 'FAM') {
-            $rows = DB::table('families')->select(['f_gedcom as tree'])->where(
-                'f_file',
-                '=',
-                $this->tree->id()
-            )->where(
-                'f_gedcom',
-                'LIKE',
-                "%\n2 PLAC %"
-            )->get()->all();
+            $rows = DB::table('families')->select(['f_gedcom as tree'])
+                ->where('f_file', '=', $this->tree->id())
+                ->where('f_gedcom', 'LIKE', "%\n2 PLAC %")
+                ->get()
+                ->all();
         }
 
         $placelist = [];
 
         foreach ($rows as $row) {
-            if (preg_match('/\n1 ' . $fact . '(?:\n[2-9].*)*\n2 PLAC (.+)/', $row->tree, $match)) {
-                if ($country) {
-                    $tmp   = explode(Gedcom::PLACE_SEPARATOR, $match[1]);
-                    $place = end($tmp);
-                } else {
-                    $place = $match[1];
-                }
+            if (preg_match('/\n1 ' . $fact . '(?:\n[2-9].*)*\n2 PLAC (.+)/', $row->tree, $match) === 1) {
+                $place = $match[1];
 
-                if (isset($placelist[$place])) {
-                    ++$placelist[$place];
-                } else {
-                    $placelist[$place] = 1;
-                }
+                $placelist[$place] = ($placelist[$place] ?? 0) + 1;
             }
         }
 
@@ -116,71 +102,11 @@ class PlaceRepository implements PlaceRepositoryInterface
     }
 
     /**
-     * Query places.
-     *
-     * @param string $what
-     * @param string $fact
-     * @param int    $parent
-     * @param bool   $country
-     *
-     * @return int[]|stdClass[]
-     */
-    public function statsPlaces(string $what = 'ALL', string $fact = '', int $parent = 0, bool $country = false): array
-    {
-        if ($fact) {
-            return $this->queryFactPlaces($fact, $what, $country);
-        }
-
-        $query = DB::table('places')
-            ->join('placelinks', static function (JoinClause $join): void {
-                $join->on('pl_file', '=', 'p_file')
-                    ->on('pl_p_id', '=', 'p_id');
-            })
-            ->where('p_file', '=', $this->tree->id());
-
-        if ($parent > 0) {
-            // Used by placehierarchy map modules
-            $query->select(['p_place AS place'])
-                ->selectRaw('COUNT(*) AS tot')
-                ->where('p_id', '=', $parent)
-                ->groupBy(['place']);
-        } else {
-            $query->select(['p_place AS country'])
-                ->selectRaw('COUNT(*) AS tot')
-                ->where('p_parent_id', '=', 0)
-                ->groupBy(['country'])
-                ->orderByDesc('tot')
-                ->orderBy('country');
-        }
-
-        if ($what === 'INDI') {
-            $query->join('individuals', static function (JoinClause $join): void {
-                $join->on('pl_file', '=', 'i_file')
-                    ->on('pl_gid', '=', 'i_id');
-            });
-        } elseif ($what === 'FAM') {
-            $query->join('families', static function (JoinClause $join): void {
-                $join->on('pl_file', '=', 'f_file')
-                    ->on('pl_gid', '=', 'f_id');
-            });
-        }
-
-        return $query
-            ->get()
-            ->map(static function (stdClass $entry) {
-                // Map total value to integer
-                $entry->tot = (int) $entry->tot;
-                return $entry;
-            })
-            ->all();
-    }
-
-    /**
      * Get the top 10 places list.
      *
-     * @param array<string,int> $places
+     * @param array<int> $places
      *
-     * @return array<array<string,mixed>>
+     * @return array<array<string,int|Place>>
      */
     private function getTop10Places(array $places): array
     {
@@ -190,7 +116,7 @@ class PlaceRepository implements PlaceRepositoryInterface
         arsort($places);
 
         foreach ($places as $place => $count) {
-            $tmp     = new Place($place, $this->tree);
+            $tmp     = new Place((string) $place, $this->tree);
             $top10[] = [
                 'place' => $tmp,
                 'count' => $count,
@@ -209,7 +135,7 @@ class PlaceRepository implements PlaceRepositoryInterface
     /**
      * Renders the top 10 places list.
      *
-     * @param array<string,int> $places
+     * @param array<int|string,int> $places
      *
      * @return string
      */
@@ -265,10 +191,23 @@ class PlaceRepository implements PlaceRepositoryInterface
      */
     public function commonCountriesList(): string
     {
-        $countries = $this->statsPlaces();
+        $countries = DB::table('places')
+            ->join('placelinks', static function (JoinClause $join): void {
+                $join
+                    ->on('pl_file', '=', 'p_file')
+                    ->on('pl_p_id', '=', 'p_id');
+            })
+            ->where('p_file', '=', $this->tree->id())
+            ->where('p_parent_id', '=', 0)
+            ->groupBy(['p_place'])
+            ->orderByDesc(new Expression('COUNT(*)'))
+            ->orderBy('p_place')
+            ->pluck(new Expression('COUNT(*) AS total'), 'p_place')
+            ->map(static fn (string $col): int => (int) $col)
+            ->all();
 
         if ($countries === []) {
-            return '';
+            return I18N::translate('This information is not available.');
         }
 
         $top10 = [];
@@ -289,13 +228,13 @@ class PlaceRepository implements PlaceRepositoryInterface
         I18N::init($old_language);
 
         $all_db_countries = [];
-        foreach ($countries as $place) {
-            $country = trim($place->country);
+
+        foreach ($countries as $country => $count) {
             if (array_key_exists($country, $country_names)) {
                 if (isset($all_db_countries[$country_names[$country]][$country])) {
-                    $all_db_countries[$country_names[$country]][$country] += (int) $place->tot;
+                    $all_db_countries[$country_names[$country]][$country] += (int) $count;
                 } else {
-                    $all_db_countries[$country_names[$country]][$country] = (int) $place->tot;
+                    $all_db_countries[$country_names[$country]][$country] = (int) $count;
                 }
             }
         }
@@ -305,7 +244,7 @@ class PlaceRepository implements PlaceRepositoryInterface
 
         foreach ($all_db_countries as $country_code => $country) {
             foreach ($country as $country_name => $tot) {
-                $tmp     = new Place($country_name, $this->tree);
+                $tmp = new Place($country_name, $this->tree);
 
                 $top10[] = [
                     'place' => $tmp,
@@ -363,7 +302,7 @@ class PlaceRepository implements PlaceRepositoryInterface
         string $chart_type = '',
         string $surname = ''
     ): string {
-        return (new ChartDistribution($this->tree))
+        return (new ChartDistribution($this->tree, $this->country_service, $this->individual_repository))
             ->chartDistribution($chart_shows, $chart_type, $surname);
     }
 }

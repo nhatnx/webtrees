@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -32,21 +32,18 @@ use function implode;
  */
 class AbstractCensusColumn
 {
-    /** @var CensusInterface */
-    private $census;
+    private CensusInterface $census;
 
-    /** @var string */
-    private $abbr;
+    private string $abbr;
 
-    /** @var string */
-    private $title;
+    private string $title;
 
     /**
      * Create a column for a census
      *
-     * @param CensusInterface $census - The census to which this column forms part.
-     * @param string          $abbr   - The abbreviated on-screen name "BiC"
-     * @param string          $title  - The full column heading "Born in the county"
+     * @param CensusInterface $census The census to which this column forms part.
+     * @param string          $abbr   The abbreviated on-screen name "BiC"
+     * @param string          $title  The full column heading "Born in the county"
      */
     public function __construct(CensusInterface $census, string $abbr, string $title)
     {
@@ -67,12 +64,8 @@ class AbstractCensusColumn
 
     /**
      * Find the father of an individual
-     *
-     * @param Individual $individual
-     *
-     * @return Individual|null
      */
-    public function father(Individual $individual): ?Individual
+    public function father(Individual $individual): Individual|null
     {
         $family = $individual->childFamilies()->first();
 
@@ -85,12 +78,8 @@ class AbstractCensusColumn
 
     /**
      * Find the mother of an individual
-     *
-     * @param Individual $individual
-     *
-     * @return Individual|null
      */
-    public function mother(Individual $individual): ?Individual
+    public function mother(Individual $individual): Individual|null
     {
         $family = $individual->childFamilies()->first();
 
@@ -103,18 +92,12 @@ class AbstractCensusColumn
 
     /**
      * Find the current spouse family of an individual
-     *
-     * @param Individual $individual
-     *
-     * @return Family|null
      */
-    public function spouseFamily(Individual $individual): ?Family
+    public function spouseFamily(Individual $individual): Family|null
     {
         return $individual->spouseFamilies()
-            ->filter(function (Family $family): bool {
                 // Exclude families that were created after this census date
-                return Date::compare($family->getMarriageDate(), $this->date()) <= 0;
-            })
+            ->filter(fn (Family $family): bool => Date::compare($family->getMarriageDate(), $this->date()) <= 0)
             ->sort(Family::marriageDateComparator())
             ->last();
     }
@@ -122,8 +105,6 @@ class AbstractCensusColumn
     /**
      * What was an individual's likely name on a given date, allowing
      * for marriages and married names.
-     *
-     * @param Individual $individual
      *
      * @return array<string>
      */
@@ -156,8 +137,6 @@ class AbstractCensusColumn
 
     /**
      * When did this census occur
-     *
-     * @return Date
      */
     public function date(): Date
     {
@@ -177,9 +156,9 @@ class AbstractCensusColumn
     /**
      * Extract the country (last part) of a place name.
      *
-     * @param string $place - e.g. "London, England"
+     * @param string $place e.g. "London, England"
      *
-     * @return string - e.g. "England"
+     * @return string e.g. "England"
      */
     protected function lastPartOfPlace(string $place): string
     {
@@ -191,9 +170,9 @@ class AbstractCensusColumn
     /**
      * Remove the country of a place name, where it is the same as the census place
      *
-     * @param string $place - e.g. "London, England"
+     * @param string $place e.g. "London, England"
      *
-     * @return string - e.g. "London" (for census of England) and "London, England" elsewhere
+     * @return string e.g. "London" (for census of England) and "London, England" elsewhere
      */
     protected function notCountry(string $place): string
     {

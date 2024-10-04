@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,14 +21,12 @@ namespace Fisharebest\Webtrees\Factories;
 
 use Closure;
 use Fisharebest\Webtrees\Contracts\FamilyFactoryInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
-use stdClass;
 
-use function assert;
 use function preg_match;
 
 /**
@@ -47,10 +45,10 @@ class FamilyFactory extends AbstractGedcomRecordFactory implements FamilyFactory
      *
      * @return Family|null
      */
-    public function make(string $xref, Tree $tree, string $gedcom = null): ?Family
+    public function make(string $xref, Tree $tree, string|null $gedcom = null): Family|null
     {
-        return Registry::cache()->array()->remember(__CLASS__ . $xref . '@' . $tree->id(), function () use ($xref, $tree, $gedcom) {
-            $gedcom  = $gedcom ?? $this->gedcom($xref, $tree);
+        return Registry::cache()->array()->remember(self::class . $xref . '@' . $tree->id(), function () use ($xref, $tree, $gedcom) {
+            $gedcom ??= $this->gedcom($xref, $tree);
             $pending = $this->pendingChanges($tree)->get($xref);
 
             if ($gedcom === null && ($pending === null || !preg_match(self::TYPE_CHECK_REGEX, $pending))) {
@@ -67,7 +65,7 @@ class FamilyFactory extends AbstractGedcomRecordFactory implements FamilyFactory
                 ->get()
                 ->map(Registry::individualFactory()->mapper($tree));
 
-            return new Family($xref, $gedcom ?? '', $pending, $tree);
+            return $this->new($xref, $gedcom ?? '', $pending, $tree);
         });
     }
 
@@ -76,16 +74,11 @@ class FamilyFactory extends AbstractGedcomRecordFactory implements FamilyFactory
      *
      * @param Tree $tree
      *
-     * @return Closure
+     * @return Closure(object):Family
      */
     public function mapper(Tree $tree): Closure
     {
-        return function (stdClass $row) use ($tree): Family {
-            $family = $this->make($row->f_id, $tree, $row->f_gedcom);
-            assert($family instanceof Family);
-
-            return $family;
-        };
+        return fn (object $row): Family => $this->make($row->f_id, $tree, $row->f_gedcom);
     }
 
     /**
@@ -99,7 +92,7 @@ class FamilyFactory extends AbstractGedcomRecordFactory implements FamilyFactory
      *
      * @return Family
      */
-    public function new(string $xref, string $gedcom, ?string $pending, Tree $tree): Family
+    public function new(string $xref, string $gedcom, string|null $pending, Tree $tree): Family
     {
         return new Family($xref, $gedcom, $pending, $tree);
     }
@@ -112,7 +105,7 @@ class FamilyFactory extends AbstractGedcomRecordFactory implements FamilyFactory
      *
      * @return string|null
      */
-    protected function gedcom(string $xref, Tree $tree): ?string
+    protected function gedcom(string $xref, Tree $tree): string|null
     {
         return DB::table('families')
             ->where('f_id', '=', $xref)

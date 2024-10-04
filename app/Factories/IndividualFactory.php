@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,17 +21,15 @@ namespace Fisharebest\Webtrees\Factories;
 
 use Closure;
 use Fisharebest\Webtrees\Contracts\IndividualFactoryInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
-use stdClass;
 
-use function assert;
 use function preg_match;
 
 /**
- * Make a Individual object.
+ * Make an Individual object.
  */
 class IndividualFactory extends AbstractGedcomRecordFactory implements IndividualFactoryInterface
 {
@@ -46,10 +44,10 @@ class IndividualFactory extends AbstractGedcomRecordFactory implements Individua
      *
      * @return Individual|null
      */
-    public function make(string $xref, Tree $tree, string $gedcom = null): ?Individual
+    public function make(string $xref, Tree $tree, string|null $gedcom = null): Individual|null
     {
-        return Registry::cache()->array()->remember(__CLASS__ . $xref . '@' . $tree->id(), function () use ($xref, $tree, $gedcom) {
-            $gedcom  = $gedcom ?? $this->gedcom($xref, $tree);
+        return Registry::cache()->array()->remember(self::class . $xref . '@' . $tree->id(), function () use ($xref, $tree, $gedcom) {
+            $gedcom ??= $this->gedcom($xref, $tree);
             $pending = $this->pendingChanges($tree)->get($xref);
 
             if ($gedcom === null && ($pending === null || !preg_match(self::TYPE_CHECK_REGEX, $pending))) {
@@ -57,7 +55,7 @@ class IndividualFactory extends AbstractGedcomRecordFactory implements Individua
             }
             $xref = $this->extractXref($gedcom ?? $pending, $xref);
 
-            return new Individual($xref, $gedcom ?? '', $pending, $tree);
+            return $this->new($xref, $gedcom ?? '', $pending, $tree);
         });
     }
 
@@ -66,16 +64,11 @@ class IndividualFactory extends AbstractGedcomRecordFactory implements Individua
      *
      * @param Tree $tree
      *
-     * @return Closure
+     * @return Closure(object):Individual
      */
     public function mapper(Tree $tree): Closure
     {
-        return function (stdClass $row) use ($tree): Individual {
-            $individual = $this->make($row->i_id, $tree, $row->i_gedcom);
-            assert($individual instanceof Individual);
-
-            return $individual;
-        };
+        return fn (object $row): Individual => $this->make($row->i_id, $tree, $row->i_gedcom);
     }
 
     /**
@@ -89,7 +82,7 @@ class IndividualFactory extends AbstractGedcomRecordFactory implements Individua
      *
      * @return Individual
      */
-    public function new(string $xref, string $gedcom, ?string $pending, Tree $tree): Individual
+    public function new(string $xref, string $gedcom, string|null $pending, Tree $tree): Individual
     {
         return new Individual($xref, $gedcom, $pending, $tree);
     }
@@ -102,7 +95,7 @@ class IndividualFactory extends AbstractGedcomRecordFactory implements Individua
      *
      * @return string|null
      */
-    protected function gedcom(string $xref, Tree $tree): ?string
+    protected function gedcom(string $xref, Tree $tree): string|null
     {
         return DB::table('individuals')
             ->where('i_id', '=', $xref)

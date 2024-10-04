@@ -1,6 +1,6 @@
 /**
  * webtrees: online genealogy
- * Copyright (C) 2019 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -27,7 +27,7 @@
 @import "_chart-timeline.css";
 
 /* Lines for "vertical" charts, such as the ancestors and descendants chart. */
-.wt-chart-vertical-indent {
+.wt-chart-horizontal-indent {
     width: 3rem;
 }
 

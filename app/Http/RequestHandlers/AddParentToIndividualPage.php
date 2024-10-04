@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,12 +23,13 @@ use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Services\GedcomEditService;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
+use function route;
 
 /**
  * Add a new parent to an individual, creating a one-parent family.
@@ -37,6 +38,16 @@ class AddParentToIndividualPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
+    private GedcomEditService $gedcom_edit_service;
+
+    /**
+     * @param GedcomEditService $gedcom_edit_service
+     */
+    public function __construct(GedcomEditService $gedcom_edit_service)
+    {
+        $this->gedcom_edit_service = $gedcom_edit_service;
+    }
+
     /**
      * @param ServerRequestInterface $request
      *
@@ -44,33 +55,35 @@ class AddParentToIndividualPage implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getQueryParams()['xref'];
-
+        $tree       = Validator::attributes($request)->tree();
+        $xref       = Validator::attributes($request)->isXref()->string('xref');
+        $sex        = Validator::attributes($request)->string('sex');
         $individual = Registry::individualFactory()->make($xref, $tree);
         $individual = Auth::checkIndividualAccess($individual, true);
 
-        $gender = $request->getQueryParams()['gender'];
+        // Name facts.
+        $surname_tradition = Registry::surnameTraditionFactory()
+            ->make($tree->getPreference('SURNAME_TRADITION'));
 
-        if ($gender === 'F') {
-            $title  = $individual->fullName() . ' - ' . I18N::translate('Add a mother');
-            $famtag = 'WIFE';
+        $names = $surname_tradition->newParentNames($individual, $sex);
+
+        $facts = [
+            'i' => $this->gedcom_edit_service->newIndividualFacts($tree, $sex, $names),
+        ];
+
+        if ($sex === 'F') {
+            $title = I18N::translate('Add a mother');
         } else {
-            $title  = $individual->fullName() . ' - ' . I18N::translate('Add a father');
-            $famtag = 'HUSB';
+            $title = I18N::translate('Add a father');
         }
 
         return $this->viewResponse('edit/new-individual', [
-            'next_action' => AddParentToIndividualAction::class,
-            'tree'        => $tree,
-            'title'       => $title,
-            'individual'  => $individual,
-            'family'      => null,
-            'name_fact'   => null,
-            'famtag'      => $famtag,
-            'gender'      => $gender,
+            'facts'               => $facts,
+            'gedcom_edit_service' => $this->gedcom_edit_service,
+            'post_url'            => route(AddParentToIndividualAction::class, ['tree' => $tree->name(), 'xref' => $xref]),
+            'title'               => $individual->fullName() . ' - ' . $title,
+            'tree'                => $tree,
+            'url'                 => Validator::queryParams($request)->isLocalUrl()->string('url', $individual->url()),
         ]);
     }
 }

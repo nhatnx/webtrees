@@ -1,6 +1,6 @@
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,26 +22,19 @@
 @import "_colorbox.css";
 @import "_lists.css";
 @import "_markdown.css";
+@import "_maps.css";
 @import "_mime-type-icons.css";
 @import "_on-screen-keyboard.css";
 @import "_pages.css";
 @import "_sortable.css";
+@import "_tab-album.css";
 @import "_tab-relatives.css";
 
 /* Some icons need to be reversed on right-to-left pages */
+/* rtl:ignore */
 [dir=rtl] .wt-icon-flip-rtl
 {
     transform: scale(-1, 1);
-}
-
-/* Bootstrap 4.5.1 toggle buttons don't work when labels have additional markup */
-[data-toggle=buttons] > label > .wt-icon-sex {
-    pointer-events: none;
-}
-
-/* Remove border-radius for left-to-right input groups on right-to-left pages */
-[dir=rtl] .input-group[dir=ltr] [dir=ltr] {
-    border-radius: 0;
 }
 
 /* rtl:ignore */
@@ -50,54 +43,24 @@ th.align-digits {
     text-align: right;
 }
 
-/* Allows twitter typeahead to work with bootstrap input groups */
-.input-group > .twitter-typeahead {
-    flex: 1 1;
-}
-
-/* Allows select2 to work with bootstrap input groups */
-.input-group > .select2-container {
-    flex: 1 1;
-}
-
-/* Workaround for dropdown menu position on RTL with popper.js */
-/* See also https://github.com/FezVrasta/popper.js/issues/695 */
-[dir=rtl] .wt-genealogy-menu .dropdown-menu {
-    right: 0;
-    left: auto !important;
-}
-
-/*
- * https://github.com/fisharebest/webtrees/issues/2291
- * Chrome 72 has problems with all cards in the control panel.
- * Chrome 73 has problems with the family-tree card in the control panel.
- * Chrome 76 seems OK.
- * https://github.com/fisharebest/webtrees/issues/2813
- * Safari 13 has the same issue.
- */
-.wt-control-panel .card {
-    display: block;
-}
-
-/*
- * Flexbox fixes for IE11
- */
-@media (-ms-high-contrast: active), (-ms-high-contrast: none) {
-    /* Move the body down below the mangled header */
-    div.wt-main-container {
-        padding-top: 4rem;
-    }
-}
-
 /* Keep the page as tall as the window, so the footer can remain at the bottom. */
-.wt-global {
+body {
     display: flex;
     min-height: 100vh;
     flex-direction: column;
 }
 
-.wt-main-container {
+main {
     flex: 1;
+}
+
+/* Bootstrap 5 underlines links by default */
+a {
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
 }
 
 /* Scrollbars */
@@ -115,8 +78,77 @@ th.align-digits {
 }
 
 /* Expand/collapse icons on accordions, etc. */
-[data-toggle=collapse][aria-expanded=true] > .wt-icon-expand {
+[data-bs-toggle=collapse][aria-expanded=true] > .wt-icon-expand {
     display: none;
-}[data-toggle=collapse][aria-expanded=false] > .wt-icon-collapse {
+}[data-bs-toggle=collapse][aria-expanded=false] > .wt-icon-collapse {
     display: none;
+}
+
+/* Accordions */
+.accordion-button,
+.accordion-button:not(.collapsed) {
+    background-color: rgba(0,0,0,.03);
+    color: currentcolor;
+}
+
+.accordion-button:after {
+    display: none;
+}
+
+/* Link styling */
+a, .btn-link, .nav-link {
+    color: var(--link-color);
+    text-decoration: var(--link-decoration);
+}
+
+a:hover, .btn-link:hover, .nav-link:hover {
+    color: var(--link-color-hover);
+    text-decoration: var(--link-decoration-hover);
+}
+
+/* Some menus (e.g. languages) can be longer than a page */
+.dropdown-menu {
+    max-height: 90vh;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+}
+
+/* User-generated text */
+.ut {
+    /* RTL text on LTR pages (or vice-versa) */
+    unicode-bidi: isolate;
+
+    /* Long words without spaces can break the page layout */
+    overflow-wrap: break-word;
+}
+
+.wt-nested-edit-fields {
+    padding-left: 1rem;
+    margin-left: 1rem;
+    border-left: solid 4px grey;
+}
+
+.wt-text-overflow-elipsis {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Enter/exit fullscreen mode */
+.wt-icon-exit-fullscreen {
+    display: none;
+}
+.wt-icon-enter-fullscreen {
+    display: inline;
+}
+:fullscreen .wt-icon-exit-fullscreen {
+    display: inline;
+}
+:fullscreen .wt-icon-enter-fullscreen {
+    display: none;
+}
+
+/* Leaflet sets this to 1000, which conflicts with bootstrap dropdowns */
+.leaflet-bottom, .leaflet-top {
+    z-index: 999;
 }

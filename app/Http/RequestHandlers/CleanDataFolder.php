@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,12 +19,14 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\TreeService;
-use League\Flysystem\Filesystem;
+use Fisharebest\Webtrees\Validator;
 use League\Flysystem\FilesystemException;
+use League\Flysystem\FilesystemReader;
 use League\Flysystem\StorageAttributes;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -39,12 +41,9 @@ class CleanDataFolder implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
-     * CleanDataFolder constructor.
-     *
      * @param TreeService $tree_service
      */
     public function __construct(TreeService $tree_service)
@@ -70,8 +69,8 @@ class CleanDataFolder implements RequestHandlerInterface
             'config.ini.php',
         ];
 
-        if ($request->getAttribute('dbtype') === 'sqlite') {
-            $protected[] = $request->getAttribute('dbname') . '.sqlite';
+        if (Validator::attributes($request)->string('dbtype', DB::MYSQL) === DB::SQLITE) {
+            $protected[] = Validator::attributes($request)->string('dbname') . '.sqlite';
         }
 
         // Protect the media folders
@@ -84,7 +83,7 @@ class CleanDataFolder implements RequestHandlerInterface
 
         // List the top-level contents of the data folder
         try {
-            $entries = $data_filesystem->listContents('', Filesystem::LIST_SHALLOW)
+            $entries = $data_filesystem->listContents('', FilesystemReader::LIST_SHALLOW)
                 ->map(static function (StorageAttributes $attributes): string {
                     if ($attributes->isDir()) {
                         return $attributes->path() . '/';
@@ -93,10 +92,9 @@ class CleanDataFolder implements RequestHandlerInterface
                     return $attributes->path();
                 })
                 ->toArray();
-        } catch (FilesystemException $ex) {
+        } catch (FilesystemException) {
             $entries = [];
         }
-
 
         return $this->viewResponse('admin/clean-data', [
             'title'     => I18N::translate('Clean up data folder'),

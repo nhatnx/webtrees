@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -42,14 +42,11 @@ class MapDataList implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var MapDataService */
-    private $map_data_service;
+    private MapDataService $map_data_service;
 
-    /** @var ModuleService */
-    private $module_service;
+    private ModuleService $module_service;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
      * Dependency injection.
@@ -85,8 +82,8 @@ class MapDataList implements RequestHandlerInterface
         }
 
         // Request for a non-existent location?
-        if ($parent_id !== null &&  $parent->id() === null) {
-            return redirect(route(__CLASS__));
+        if ($parent_id !== null && $parent->id() === null) {
+            return redirect(route(self::class));
         }
 
         // Automatically import any new/missing places.
@@ -101,14 +98,14 @@ class MapDataList implements RequestHandlerInterface
         $tmp = $parent->parent();
 
         while ($tmp->id() !== null) {
-            $breadcrumbs[route(__CLASS__, ['parent_id' => $tmp->id()])] = $tmp->locationName();
+            $breadcrumbs[route(self::class, ['parent_id' => $tmp->id()])] = $tmp->locationName();
 
             $tmp = $tmp->parent();
         }
 
         $title = I18N::translate('Geographic data');
 
-        $breadcrumbs[route(__CLASS__)] = $title;
+        $breadcrumbs[route(self::class)] = $title;
 
         $breadcrumbs[route(ControlPanel::class)] = I18N::translate('Control panel');
 

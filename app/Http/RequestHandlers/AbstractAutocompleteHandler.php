@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -38,8 +38,7 @@ abstract class AbstractAutocompleteHandler implements RequestHandlerInterface
     // Tell the browser to cache the results
     protected const CACHE_LIFE = 1200;
 
-    /** @var SearchService */
-    protected $search_service;
+    protected SearchService $search_service;
 
     /**
      * @param SearchService $search_service
@@ -57,18 +56,16 @@ abstract class AbstractAutocompleteHandler implements RequestHandlerInterface
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $data = $this->search($request)
-            ->map(static function (string $datum): array {
-                return ['value' => $datum];
-            });
+            ->map(static fn (string $datum): array => ['value' => $datum]);
 
         return response($data)
-            ->withHeader('Cache-Control', 'public,max-age=' . static::CACHE_LIFE);
+            ->withHeader('cache-control', 'public,max-age=' . static::CACHE_LIFE);
     }
 
     /**
      * @param ServerRequestInterface $request
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     abstract protected function search(ServerRequestInterface $request): Collection;
 }

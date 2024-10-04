@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -26,25 +26,19 @@ use Fisharebest\Webtrees\Tree;
 /**
  * Make a Submitter object.
  */
-interface SubmitterFactoryInterface
+interface SubmitterFactoryInterface extends GedcomRecordFactoryInterface
 {
     /**
      * Create a submitter.
-     *
-     * @param string      $xref
-     * @param Tree        $tree
-     * @param string|null $gedcom
-     *
-     * @return Submitter|null
      */
-    public function make(string $xref, Tree $tree, string $gedcom = null): ?Submitter;
+    public function make(string $xref, Tree $tree, string|null $gedcom = null): Submitter|null;
 
     /**
      * Create a submitter from a row in the database.
      *
      * @param Tree $tree
      *
-     * @return Closure
+     * @return Closure(object):Submitter
      */
     public function mapper(Tree $tree): Closure;
 
@@ -59,5 +53,5 @@ interface SubmitterFactoryInterface
      *
      * @return Submitter
      */
-    public function new(string $xref, string $gedcom, ?string $pending, Tree $tree): Submitter;
+    public function new(string $xref, string $gedcom, string|null $pending, Tree $tree): Submitter;
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,6 +19,7 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Services;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
 use Illuminate\Support\Collection;
 use SQLite3;
@@ -51,22 +52,23 @@ class ServerCheckService
     private const PHP_SUPPORT_URL   = 'https://www.php.net/supported-versions.php';
     private const PHP_MINOR_VERSION = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
     private const PHP_SUPPORT_DATES = [
-        '7.3' => '2021-12-06',
-        '7.4' => '2022-11-28',
-        '8.0' => '2023-11-26',
+        '8.1' => '2025-12-31',
+        '8.2' => '2026-12-31',
+        '8.3' => '2027-12-31',
+        '8.4' => '2028-12-31',
     ];
 
-    // As required by illuminate/database 5.8
-    private const MINIMUM_SQLITE_VERSION = '3.7.11';
+    // As required by illuminate/database 8.x
+    private const MINIMUM_SQLITE_VERSION = '3.8.8';
 
     /**
      * Things that may cause webtrees to break.
      *
      * @param string $driver
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
-    public function serverErrors($driver = ''): Collection
+    public function serverErrors(string $driver = ''): Collection
     {
         $errors = Collection::make([
             $this->databaseDriverErrors($driver),
@@ -88,19 +90,17 @@ class ServerCheckService
      *
      * @param string $driver
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
-    public function serverWarnings($driver = ''): Collection
+    public function serverWarnings(string $driver = ''): Collection
     {
         $warnings = Collection::make([
             $this->databaseDriverWarnings($driver),
             $this->checkPhpExtension('curl'),
-            $this->checkPhpExtension('exif'),
             $this->checkPhpExtension('fileinfo'),
             $this->checkPhpExtension('gd'),
             $this->checkPhpExtension('intl'),
             $this->checkPhpExtension('zip'),
-            $this->checkPhpExtension('simplexml'),
             $this->checkPhpIni('file_uploads', true),
             $this->checkSystemTemporaryFolder(),
             $this->checkPhpVersion(),
@@ -137,13 +137,13 @@ class ServerCheckService
      */
     private function checkPhpIni(string $varname, bool $expected): string
     {
-        $ini_get = (bool) ini_get($varname);
+        $actual = (bool) ini_get($varname);
 
-        if ($expected && $ini_get !== $expected) {
+        if ($expected && !$actual) {
             return I18N::translate('The PHP.INI setting “%1$s” is disabled.', $varname);
         }
 
-        if (!$expected && $ini_get !== $expected) {
+        if (!$expected && $actual) {
             return I18N::translate('The PHP.INI setting “%1$s” is enabled.', $varname);
         }
 
@@ -159,12 +159,10 @@ class ServerCheckService
      */
     public function isFunctionDisabled(string $function): bool
     {
-        $disable_functions = explode(',', ini_get('disable_functions'));
-        $disable_functions = array_map(static function (string $func): string {
-            return strtolower(trim($func));
-        }, $disable_functions);
-
         $function = strtolower($function);
+
+        $disable_functions = explode(',', (string) ini_get('disable_functions'));
+        $disable_functions = array_map(static fn (string $func): string => strtolower(trim($func)), $disable_functions);
 
         return in_array($function, $disable_functions, true) || !function_exists($function);
     }
@@ -276,18 +274,18 @@ class ServerCheckService
     /**
      * @param string $driver
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     private function databaseDriverErrors(string $driver): Collection
     {
         switch ($driver) {
-            case 'mysql':
+            case DB::MYSQL:
                 return Collection::make([
                     $this->checkPhpExtension('pdo'),
                     $this->checkPhpExtension('pdo_mysql'),
                 ]);
 
-            case 'sqlite':
+            case DB::SQLITE:
                 return Collection::make([
                     $this->checkPhpExtension('pdo'),
                     $this->checkPhpExtension('sqlite3'),
@@ -295,13 +293,13 @@ class ServerCheckService
                     $this->checkSqliteVersion(),
                 ]);
 
-            case 'pgsql':
+            case DB::POSTGRES:
                 return Collection::make([
                     $this->checkPhpExtension('pdo'),
                     $this->checkPhpExtension('pdo_pgsql'),
                 ]);
 
-            case 'sqlsvr':
+            case DB::SQL_SERVER:
                 return Collection::make([
                     $this->checkPhpExtension('pdo'),
                     $this->checkPhpExtension('pdo_odbc'),
@@ -315,22 +313,22 @@ class ServerCheckService
     /**
      * @param string $driver
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     private function databaseDriverWarnings(string $driver): Collection
     {
         switch ($driver) {
-            case 'sqlite':
+            case DB::SQLITE:
                 return new Collection([
                     I18N::translate('SQLite is only suitable for small sites, testing and evaluation.'),
                 ]);
 
-            case 'pgsql':
+            case DB::POSTGRES:
                 return new Collection([
                     I18N::translate('Support for PostgreSQL is experimental.'),
                 ]);
 
-            case 'sqlsvr':
+            case DB::SQL_SERVER:
                 return new Collection([
                     I18N::translate('Support for SQL Server is experimental.'),
                 ]);

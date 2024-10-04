@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,11 +21,10 @@ namespace Fisharebest\Webtrees\Report;
 
 use DomainException;
 use Exception;
+use XMLParser;
 
-use function call_user_func;
 use function fclose;
 use function feof;
-use function fopen;
 use function fread;
 use function method_exists;
 use function sprintf;
@@ -46,11 +45,11 @@ use const XML_OPTION_CASE_FOLDING;
  */
 class ReportParserBase
 {
-    /** @var resource The XML parser */
-    protected $xml_parser;
+    // The XML parser
+    protected XMLParser $xml_parser;
 
     /** @var string Text contents of tags */
-    protected $text = '';
+    protected string $text = '';
 
     /**
      * Create a parser for a report
@@ -63,7 +62,7 @@ class ReportParserBase
     {
         $this->xml_parser = xml_parser_create();
 
-        xml_parser_set_option($this->xml_parser, XML_OPTION_CASE_FOLDING, false);
+        xml_parser_set_option($this->xml_parser, XML_OPTION_CASE_FOLDING, 0);
 
         xml_set_element_handler(
             $this->xml_parser,
@@ -84,10 +83,6 @@ class ReportParserBase
 
         $fp = fopen($report, 'rb');
 
-        if ($fp === false) {
-            throw new Exception('Cannot open ' . $report);
-        }
-
         while ($data = fread($fp, 4096)) {
             if (!xml_parse($this->xml_parser, $data, feof($fp))) {
                 throw new DomainException(sprintf(
@@ -106,9 +101,9 @@ class ReportParserBase
     /**
      * XML handler for an opening (or self-closing) tag.
      *
-     * @param resource $parser The resource handler for the xml parser
-     * @param string   $name   The name of the xml element parsed
-     * @param string[] $attrs  An array of key value pairs for the attributes
+     * @param resource      $parser The resource handler for the xml parser
+     * @param string        $name   The name of the xml element parsed
+     * @param array<string> $attrs  An array of key value pairs for the attributes
      *
      * @return void
      */
@@ -117,7 +112,7 @@ class ReportParserBase
         $method = $name . 'StartHandler';
 
         if (method_exists($this, $method)) {
-            call_user_func([$this, $method], $attrs);
+            $this->$method($attrs);
         }
     }
 
@@ -134,7 +129,7 @@ class ReportParserBase
         $method = $name . 'EndHandler';
 
         if (method_exists($this, $method)) {
-            call_user_func([$this, $method]);
+            $this->$method();
         }
     }
 

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,6 +21,8 @@ namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Localization\Locale\LocaleEs;
 use Fisharebest\Localization\Locale\LocaleInterface;
+use Fisharebest\Webtrees\Encodings\UTF8;
+use Illuminate\Database\Query\Builder;
 
 /**
  * Class LanguageSpanish.
@@ -30,10 +32,61 @@ class LanguageSpanish extends AbstractModule implements ModuleLanguageInterface
     use ModuleLanguageTrait;
 
     /**
+     * Phone-book ordering of letters.
+     *
+     * @return array<int,string>
+     */
+    public function alphabet(): array
+    {
+        return [
+            'A',
+            'B',
+            'C',
+            'D',
+            'E',
+            'F',
+            'G',
+            'H',
+            'I',
+            'J',
+            'K',
+            'L',
+            'M',
+            'N',
+            UTF8::LATIN_CAPITAL_LETTER_N_WITH_TILDE,
+            'O',
+            'P',
+            'Q',
+            'R',
+            'S',
+            'T',
+            'U',
+            'V',
+            'W',
+            'X',
+            'Y',
+            'Z',
+        ];
+    }
+
+    /**
      * @return LocaleInterface
      */
     public function locale(): LocaleInterface
     {
         return new LocaleEs();
+    }
+
+    /**
+     * Letters with diacritics that are considered distinct letters in this language.
+     *
+     * @return array<string,string>
+     */
+    protected function normalizeExceptions(): array
+    {
+        return [
+            'N' . UTF8::COMBINING_TILDE => UTF8::LATIN_CAPITAL_LETTER_N_WITH_TILDE,
+            'n' . UTF8::COMBINING_TILDE => UTF8::LATIN_SMALL_LETTER_N_WITH_TILDE,
+        ];
     }
 }

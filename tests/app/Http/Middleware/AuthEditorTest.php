@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,34 +21,28 @@ namespace Fisharebest\Webtrees\Http\Middleware;
 
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Contracts\UserInterface;
-use Fisharebest\Webtrees\Exceptions\HttpAccessDeniedException;
 use Fisharebest\Webtrees\GuestUser;
+use Fisharebest\Webtrees\Http\Exceptions\HttpAccessDeniedException;
 use Fisharebest\Webtrees\TestCase;
 use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\User;
+use PHPUnit\Framework\Attributes\CoversClass;
 use Psr\Http\Server\RequestHandlerInterface;
 
 use function response;
 
-/**
- * Test the AuthEditor middleware.
- *
- * @covers \Fisharebest\Webtrees\Http\Middleware\AuthEditor
- */
+#[CoversClass(AuthEditor::class)]
 class AuthEditorTest extends TestCase
 {
-    /**
-     * @return void
-     */
     public function testAllowed(): void
     {
-        $handler = self::createMock(RequestHandlerInterface::class);
+        $handler = $this->createMock(RequestHandlerInterface::class);
         $handler->method('handle')->willReturn(response('lorem ipsum'));
 
-        $user = self::createMock(User::class);
+        $user = $this->createMock(User::class);
         $user->method('getPreference')->with(UserInterface::PREF_IS_ADMINISTRATOR)->willReturn('');
 
-        $tree = self::createMock(Tree::class);
+        $tree = $this->createMock(Tree::class);
         $tree->method('getUserPreference')->with($user, UserInterface::PREF_TREE_ROLE)->willReturn(UserInterface::ROLE_EDITOR);
 
         $request    = self::createRequest()->withAttribute('tree', $tree)->withAttribute('user', $user);
@@ -59,21 +53,18 @@ class AuthEditorTest extends TestCase
         self::assertSame('lorem ipsum', (string) $response->getBody());
     }
 
-    /**
-     * @return void
-     */
     public function testNotAllowed(): void
     {
         $this->expectException(HttpAccessDeniedException::class);
         $this->expectExceptionMessage('You do not have permission to view this page.');
 
-        $handler = self::createMock(RequestHandlerInterface::class);
+        $handler = $this->createMock(RequestHandlerInterface::class);
         $handler->method('handle')->willReturn(response('lorem ipsum'));
 
-        $user = self::createMock(User::class);
+        $user = $this->createMock(User::class);
         $user->method('getPreference')->with(UserInterface::PREF_IS_ADMINISTRATOR)->willReturn('');
 
-        $tree = self::createMock(Tree::class);
+        $tree = $this->createMock(Tree::class);
         $tree->method('getUserPreference')->with($user, UserInterface::PREF_TREE_ROLE)->willReturn(UserInterface::ROLE_MEMBER);
 
         $request    = self::createRequest()->withAttribute('tree', $tree)->withAttribute('user', $user);
@@ -82,15 +73,12 @@ class AuthEditorTest extends TestCase
         $middleware->process($request, $handler);
     }
 
-    /**
-     * @return void
-     */
     public function testNotLoggedIn(): void
     {
-        $handler = self::createMock(RequestHandlerInterface::class);
+        $handler = $this->createMock(RequestHandlerInterface::class);
         $handler->method('handle')->willReturn(response('lorem ipsum'));
 
-        $tree = self::createMock(Tree::class);
+        $tree = $this->createMock(Tree::class);
 
         $request    = self::createRequest()->withAttribute('tree', $tree)->withAttribute('user', new GuestUser());
         $middleware = new AuthEditor();

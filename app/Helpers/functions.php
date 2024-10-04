@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -17,33 +17,15 @@
 
 declare(strict_types=1);
 
-use Aura\Router\RouterContainer;
 use Fig\Http\Message\StatusCodeInterface;
-use Fisharebest\Webtrees\Application;
-use Fisharebest\Webtrees\Html;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Session as WebtreesSession;
+use Fisharebest\Webtrees\Validator;
 use Fisharebest\Webtrees\View as WebtreesView;
 use Fisharebest\Webtrees\Webtrees;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Message\StreamFactoryInterface;
-
-/**
- * Get the IoC container, or fetch something from it.
- *
- * @param string|null $abstract
- *
- * @return mixed
- */
-function app(string $abstract = null)
-{
-    if ($abstract === null) {
-        return Application::getInstance();
-    }
-
-    return Application::getInstance()->make($abstract);
-}
 
 /**
  * Generate a URL to an asset file in the public folder.
@@ -55,7 +37,7 @@ function app(string $abstract = null)
  */
 function asset(string $path): string
 {
-    if (substr($path, -1) === '/') {
+    if (str_ends_with($path, '/')) {
         $version = '';
     } elseif (Webtrees::STABILITY === '') {
         $version = '?v=' . Webtrees::VERSION;
@@ -63,7 +45,8 @@ function asset(string $path): string
         $version = '?v=' . filemtime(Webtrees::ROOT_DIR . 'public/' . $path);
     }
 
-    $base_url = app(ServerRequestInterface::class)->getAttribute('base_url');
+    $request  = Registry::container()->get(ServerRequestInterface::class);
+    $base_url = Validator::attributes($request)->string('base_url');
 
     return $base_url . '/public/' . $path . $version;
 }
@@ -94,107 +77,47 @@ function csrf_token(): string
  *
  * @return ResponseInterface
  */
-function redirect(string $url, $code = StatusCodeInterface::STATUS_FOUND): ResponseInterface
+function redirect(string $url, int $code = StatusCodeInterface::STATUS_FOUND): ResponseInterface
 {
-    /** @var ResponseFactoryInterface $response_factory */
-    $response_factory = app(ResponseFactoryInterface::class);
+    $response_factory = Registry::container()->get(ResponseFactoryInterface::class);
 
     return $response_factory
         ->createResponse($code)
-        ->withHeader('Location', $url);
+        ->withHeader('location', $url);
 }
 
 /**
  * Create a response.
  *
- * @param mixed    $content
- * @param int      $code
- * @param string[] $headers
+ * @param array<mixed>|object|string $content
+ * @param int                        $code
+ * @param array<string>              $headers
  *
  * @return ResponseInterface
  */
-function response($content = '', $code = StatusCodeInterface::STATUS_OK, $headers = []): ResponseInterface
+function response(array|object|string $content = '', int $code = StatusCodeInterface::STATUS_OK, array $headers = []): ResponseInterface
 {
-    if ($content === '' && $code === StatusCodeInterface::STATUS_OK) {
-        $code = StatusCodeInterface::STATUS_NO_CONTENT;
-    }
-
-    if ($headers === []) {
-        if (is_string($content)) {
-            $headers = [
-                'Content-Type'   => 'text/html; charset=UTF-8',
-                'Content-Length' => (string) strlen($content),
-            ];
-        } else {
-            $content = json_encode($content, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
-            $headers = [
-                'Content-Type'   => 'application/json',
-                'Content-Length' => (string) strlen($content),
-            ];
-        }
-    }
-
-    /** @var ResponseFactoryInterface $response_factory */
-    $response_factory = app(ResponseFactoryInterface::class);
-
-    /** @var StreamFactoryInterface $stream_factory */
-    $stream_factory = app(StreamFactoryInterface::class);
-
-    $stream = $stream_factory->createStream($content);
-
-    $response = $response_factory
-        ->createResponse($code)
-        ->withBody($stream);
-
-    foreach ($headers as $key => $value) {
-        $response = $response->withHeader($key, $value);
-    }
-
-    return $response;
+    return Registry::responseFactory()->response($content, $code, $headers);
 }
 
 /**
  * Generate a URL for a named route.
  *
- * @param string  $route_name
- * @param mixed[] $parameters
+ * @param string                                    $route_name
+ * @param array<bool|int|string|array<string>|null> $parameters
  *
  * @return string
  */
 function route(string $route_name, array $parameters = []): string
 {
-    $request          = app(ServerRequestInterface::class);
-    $base_url         = $request->getAttribute('base_url');
-    $router_container = app(RouterContainer::class);
-    $route            = $router_container->getMap()->getRoute($route_name);
-
-    // Generate the URL.
-    $url = $router_container->getGenerator()->generate($route_name, $parameters);
-
-    // Aura ignores parameters that are not tokens.  We need to add them as query parameters.
-    $parameters = array_filter($parameters, static function (string $key) use ($route): bool {
-        return !str_contains($route->path, '{' . $key . '}') && !str_contains($route->path, '{/' . $key . '}');
-    }, ARRAY_FILTER_USE_KEY);
-
-    if ($request->getAttribute('rewrite_urls') === '1') {
-        // Make the pretty URL absolute.
-        $base_path = parse_url($base_url, PHP_URL_PATH) ?? '';
-        $url = $base_url . substr($url, strlen($base_path));
-    } else {
-        // Turn the pretty URL into an ugly one.
-        $path       = parse_url($url, PHP_URL_PATH);
-        $parameters = ['route' => $path] + $parameters;
-        $url        = $base_url . '/index.php';
-    }
-
-    return Html::url($url, $parameters);
+    return Registry::routeFactory()->route($route_name, $parameters);
 }
 
 /**
- * Cerate and render a view in a single operation.
+ * Create and render a view in a single operation.
  *
- * @param string  $name
- * @param mixed[] $data
+ * @param string       $name
+ * @param array<mixed> $data
  *
  * @return string
  */

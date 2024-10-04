@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,23 +23,21 @@ use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Statistics\Service\ColorService;
 
 use function count;
+use function view;
 
 /**
  * A chart showing the mortality.
  */
 class ChartMortality
 {
-    /**
-     * @var ColorService
-     */
-    private $color_service;
+    private ColorService $color_service;
 
     /**
-     * Constructor.
+     * @param ColorService $color_service
      */
-    public function __construct()
+    public function __construct(ColorService $color_service)
     {
-        $this->color_service = new ColorService();
+        $this->color_service = $color_service;
     }
 
     /**
@@ -55,11 +53,11 @@ class ChartMortality
     public function chartMortality(
         int $tot_l,
         int $tot_d,
-        string $color_living = null,
-        string $color_dead = null
+        string|null $color_living = null,
+        string|null $color_dead = null
     ): string {
-        $color_living = $color_living ?? '#ffffff';
-        $color_dead   = $color_dead   ?? '#cccccc';
+        $color_living ??= '#ffffff';
+        $color_dead ??= '#cccccc';
 
         $data = [
             [
@@ -68,13 +66,13 @@ class ChartMortality
             ]
         ];
 
-        if ($tot_l || $tot_d) {
+        if ($tot_l > 0 || $tot_d > 0) {
             $data[] = [
                 I18N::translate('Living'),
                 $tot_l
             ];
 
-            $data[] =  [
+            $data[] = [
                 I18N::translate('Dead'),
                 $tot_d
             ];

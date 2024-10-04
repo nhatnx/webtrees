@@ -13,54 +13,51 @@ use Fisharebest\Webtrees\I18N;
 
 ?>
 
-<div class="row form-group">
-    <label class="col-sm-3 col-form-label" for="search">
+<div class="row mb-3">
+    <label class="col-sm-3 col-form-label" for="search-for">
         <?= I18N::translate('Search text/pattern') ?>
     </label>
 
     <div class="col-sm-9">
-        <input class="form-control" id="search" name="search">
+        <input class="form-control" id="search-for" name="search-for">
     </div>
 </div>
 
-<div class="row form-group">
-    <label class="col-sm-3 col-form-label" for="replace">
+<div class="row mb-3">
+    <label class="col-sm-3 col-form-label" for="replace-with">
         <?= I18N::translate('Replacement text') ?>
     </label>
 
     <div class="col-sm-9">
-        <input class="form-control" id="replace" name="replace">
+        <input class="form-control" id="replace-with" name="replace-with">
     </div>
 </div>
 
-<div class="row form-group">
+<div class="row mb-3">
     <label class="col-sm-3 col-form-label">
         <?= I18N::translate('Search method') ?>
     </label>
 
     <div class="col-sm-9">
         <?= view('components/select', ['name' => 'method', 'options' => $methods, 'selected' => $default_method]) ?>
-        <p class="small text-muted">
+        <div class="form-text">
             <?= I18N::translate('Regular expressions are an advanced pattern matching technique.') ?>
-            <?= I18N::translate('See %s for more information.', '<a href="http://php.net/manual/regexp.reference.php">php.net/manual/regexp.reference.php</a>') ?>
-        </p>
+            <?= I18N::translate('See %s for more information.', '<a href="https://php.net/manual/regexp.reference.php">php.net/manual/regexp.reference.php</a>') ?>
+        </div>
     </div>
 </div>
 
-<div class="row form-group">
+<div class="row mb-3">
     <label class="col-sm-3 col-form-label" for="case">
-        <?= I18N::translate('Case insensitive') ?>
+        <?= I18N::translate('Match both upper and lower case letters.') ?>
     </label>
 
     <div class="col-sm-9">
         <?= view('components/radios-inline', ['name' => 'case', 'selected' => '', 'options' => [''  => I18N::translate('no'), 'i' => I18N::translate('yes')]]) ?>
-        <p class="small text-muted">
-            <?= /* I18N: Help text for "Case insensitive" searches */ I18N::translate('Match both upper and lower case letters.') ?>
-        </p>
     </div>
 </div>
 
-<div class="row form-group">
+<div class="row mb-3">
     <label class="col-sm-3 col-form-label" for="type">
         <?= I18N::translate('Records') ?>
     </label>

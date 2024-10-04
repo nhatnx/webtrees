@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -33,11 +33,29 @@ use function view;
  * name written in kanji, then the ROMANIZED_TYPE subordinate to the ROMN tag
  * would indicate romaji. See page 61.
  */
-class NameRomanizedVariation extends AbstractElement
+class NameRomanizedVariation extends NamePersonal
 {
-    protected const SUBTAGS = ['NPFX', 'GIVN', 'SPFX','SURN', 'NSFX', 'NICK', 'TYPE'];
+    protected const SUBTAGS = [
+        'TYPE' => '1:1',
+        'NPFX' => '0:1',
+        'GIVN' => '0:1',
+        'SPFX' => '0:1',
+        'SURN' => '0:1',
+        'NSFX' => '0:1',
+        'NICK' => '0:1',
+        'NOTE' => '0:M',
+        'SOUR' => '0:M',
+    ];
 
-    protected const MAXIMUM_LENGTH = 120;
+    /**
+     * Should we collapse the children of this element when editing?
+     *
+     * @return bool
+     */
+    public function collapseChildren(): bool
+    {
+        return true;
+    }
 
     /**
      * An edit control for this data.
@@ -53,8 +71,11 @@ class NameRomanizedVariation extends AbstractElement
     {
         return
             '<div class="input-group">' .
-            '<input class="form-control" type="text" id="' . e($id) . '" name="' . e($name) . '" value="' . e($value) . '" />' .
-            view('help/link', ['topic' => 'ROMN']) .
+            view('edit/input-addon-edit-name', ['id' => $id]) .
+            '<input class="form-control" type="text" id="' . e($id) . '-disabled" name="' . e($name) . '" value="' . e($value) . '" readonly="readonly" disabled="disabled" />' .
+            '<input class="form-control d-none" type="text" id="' . e($id) . '" name="' . e($name) . '" value="' . e($value) . '" />' .
+            view('edit/input-addon-keyboard', ['id' => $id]) .
+            view('edit/input-addon-help', ['topic' => 'ROMN']) .
             '</div>';
     }
 }

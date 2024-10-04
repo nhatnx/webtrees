@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,14 +22,14 @@ namespace Fisharebest\Webtrees\Exceptions;
 use Exception;
 use Fisharebest\Webtrees\I18N;
 
+use function e;
+
 /**
  * Exception thrown when importing invalid GEDCOM data.
  */
 class GedcomErrorException extends Exception
 {
     /**
-     * GedcomErrorException constructor.
-     *
      * @param string $gedcom
      */
     public function __construct(string $gedcom)

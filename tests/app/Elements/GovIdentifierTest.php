@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,13 +19,11 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
-/**
- * Test harness for the class GovIdentifier
- *
- * @covers \Fisharebest\Webtrees\Elements\AbstractElement
- * @covers \Fisharebest\Webtrees\Elements\GovIdentifier
- */
-class GovIdentifierTest extends AbstractElementTest
+use PHPUnit\Framework\Attributes\CoversClass;
+
+#[CoversClass(AbstractElement::class)]
+#[CoversClass(GovIdentifier::class)]
+class GovIdentifierTest extends AbstractElementTestCase
 {
     /**
      * Standard tests for all elements.
@@ -37,13 +35,10 @@ class GovIdentifierTest extends AbstractElementTest
         self::$element = new GovIdentifier('label');
     }
 
-    /**
-     * @return void
-     */
     public function testCanonical(): void
     {
-        self::assertSame('FOO BAR BAZ', self::$element->canonical("Foo  bAr  baZ"));
-        self::assertSame('FOO BAR BAZ', self::$element->canonical("\t Foo\t bAr \tbaZ\t "));
-        self::assertSame('FOO BAR BAZ', self::$element->canonical("\nFoo \n\r bAr \r\n baZ\r"));
+        self::assertSame('Foo bAr baZ', self::$element->canonical('Foo  bAr  baZ'));
+        self::assertSame('Foo bAr baZ', self::$element->canonical("\t Foo\t bAr \tbaZ\t "));
+        self::assertSame('Foo bAr baZ', self::$element->canonical("\nFoo \n\r bAr \r\n baZ\r"));
     }
 }

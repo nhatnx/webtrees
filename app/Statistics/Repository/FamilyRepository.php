@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,43 +20,56 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Statistics\Repository;
 
 use Exception;
-use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Statistics\Google\ChartChildren;
 use Fisharebest\Webtrees\Statistics\Google\ChartDivorce;
 use Fisharebest\Webtrees\Statistics\Google\ChartFamilyLargest;
 use Fisharebest\Webtrees\Statistics\Google\ChartMarriage;
 use Fisharebest\Webtrees\Statistics\Google\ChartMarriageAge;
 use Fisharebest\Webtrees\Statistics\Google\ChartNoChildrenFamilies;
+use Fisharebest\Webtrees\Statistics\Service\CenturyService;
+use Fisharebest\Webtrees\Statistics\Service\ColorService;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 use stdClass;
 
+use function arsort;
+use function asort;
+use function e;
+use function floor;
+use function implode;
 use function in_array;
+use function str_replace;
+use function view;
 
 /**
- *
+ * A repository providing methods for family related statistics.
  */
 class FamilyRepository
 {
-    /**
-     * @var Tree
-     */
-    private $tree;
+    private CenturyService $century_service;
+
+    private ColorService $color_service;
+
+    private Tree $tree;
 
     /**
-     * Constructor.
-     *
-     * @param Tree $tree
+     * @param CenturyService $century_service
+     * @param ColorService   $color_service
+     * @param Tree           $tree
      */
-    public function __construct(Tree $tree)
+    public function __construct(CenturyService $century_service, ColorService $color_service, Tree $tree)
     {
-        $this->tree = $tree;
+        $this->century_service = $century_service;
+        $this->color_service   = $color_service;
+        $this->tree            = $tree;
     }
 
     /**
@@ -77,7 +90,6 @@ class FamilyRepository
             return '';
         }
 
-        /** @var Family $family */
         $family = Registry::familyFactory()->mapper($this->tree)($row);
 
         if (!$family->canShow()) {
@@ -132,7 +144,7 @@ class FamilyRepository
      *
      * @param int $total
      *
-     * @return array<stdClass>
+     * @return array<array<string,int|Family>>
      */
     private function topTenGrandFamilyQuery(int $total): array
     {
@@ -235,7 +247,7 @@ class FamilyRepository
      *
      * @return string
      */
-    public function noChildrenFamiliesList($type = 'list'): string
+    public function noChildrenFamiliesList(string $type = 'list'): string
     {
         $families = DB::table('families')
             ->where('f_file', '=', $this->tree->id())
@@ -246,7 +258,6 @@ class FamilyRepository
 
         $top10 = [];
 
-        /** @var Family $family */
         foreach ($families as $family) {
             if ($type === 'list') {
                 $top10[] = '<li><a href="' . e($family->url()) . '">' . $family->fullName() . '</a></li>';
@@ -260,7 +271,6 @@ class FamilyRepository
         } else {
             $top10 = implode('; ', $top10);
         }
-
 
         if ($type === 'list') {
             return '<ul>' . $top10 . '</ul>';
@@ -281,7 +291,7 @@ class FamilyRepository
     {
         $no_child_fam = $this->noChildrenFamiliesQuery();
 
-        return (new ChartNoChildrenFamilies($this->tree))
+        return (new ChartNoChildrenFamilies($this->century_service, $this->tree))
             ->chartNoChildrenFamilies($no_child_fam, $year1, $year2);
     }
 
@@ -290,12 +300,10 @@ class FamilyRepository
      *
      * @param int $total The total number of records to query
      *
-     * @return array<stdClass>
+     * @return array<object>
      */
     private function ageBetweenSiblingsQuery(int $total): array
     {
-        $prefix = DB::connection()->getTablePrefix();
-
         return DB::table('link AS link1')
             ->join('link AS link2', static function (JoinClause $join): void {
                 $join
@@ -320,7 +328,7 @@ class FamilyRepository
             ->where('link1.l_type', '=', 'CHIL')
             ->where('link1.l_file', '=', $this->tree->id())
             ->distinct()
-            ->select(['link1.l_from AS family', 'link1.l_to AS ch1', 'link2.l_to AS ch2', new Expression($prefix . 'child2.d_julianday2 - ' . $prefix . 'child1.d_julianday1 AS age')])
+            ->select(['link1.l_from AS family', 'link1.l_to AS ch1', 'link2.l_to AS ch2', new Expression(DB::prefix('child2.d_julianday2') . ' - ' . DB::prefix('child1.d_julianday1') . ' AS age')])
             ->orderBy('age', 'DESC')
             ->take($total)
             ->get()
@@ -356,7 +364,7 @@ class FamilyRepository
      *
      * @param int $total The total number of records to query
      *
-     * @return array<mixed>
+     * @return array<string,Individual|Family|string>
      * @throws Exception
      */
     private function ageBetweenSiblingsNoList(int $total): array
@@ -368,7 +376,7 @@ class FamilyRepository
             $child1 = Registry::individualFactory()->make($fam->ch1, $this->tree);
             $child2 = Registry::individualFactory()->make($fam->ch2, $this->tree);
 
-            if ($child1->canShow() && $child2->canShow()) {
+            if ($family !== null && $child1 !== null && $child2 !== null && $child1->canShow() && $child2->canShow()) {
                 // ! Single array (no list)
                 return [
                     'child1' => $child1,
@@ -388,7 +396,7 @@ class FamilyRepository
      * @param int  $total The total number of records to query
      * @param bool $one   Include each family only once if true
      *
-     * @return array<string,array>
+     * @return array<int,array<string,Individual|Family|string>>
      * @throws Exception
      */
     private function ageBetweenSiblingsList(int $total, bool $one): array
@@ -405,7 +413,7 @@ class FamilyRepository
             $age = $this->calculateAge((int) $fam->age);
 
             if ($one && !in_array($fam->family, $dist, true)) {
-                if ($child1->canShow() && $child2->canShow()) {
+                if ($family !== null && $child1 !== null && $child2 !== null && $child1->canShow() && $child2->canShow()) {
                     $top10[] = [
                         'child1' => $child1,
                         'child2' => $child2,
@@ -415,7 +423,7 @@ class FamilyRepository
 
                     $dist[] = $fam->family;
                 }
-            } elseif (!$one && $child1->canShow() && $child2->canShow()) {
+            } elseif (!$one && $family !== null && $child1 !== null && $child2 !== null && $child1->canShow() && $child2->canShow()) {
                 $top10[] = [
                     'child1' => $child1,
                     'child2' => $child2,
@@ -463,7 +471,7 @@ class FamilyRepository
             $child1 = Registry::individualFactory()->make($fam->ch1, $this->tree);
             $child2 = Registry::individualFactory()->make($fam->ch2, $this->tree);
 
-            if ($child1->canShow() && $child2->canShow()) {
+            if ($family !== null && $child1 !== null && $child2 !== null && $child1->canShow() && $child2->canShow()) {
                 $return = '<a href="' . e($child2->url()) . '">' . $child2->fullName() . '</a> ';
                 $return .= I18N::translate('and') . ' ';
                 $return .= '<a href="' . e($child1->url()) . '">' . $child1->fullName() . '</a>';
@@ -540,12 +548,12 @@ class FamilyRepository
     }
 
     /**
-     * General query on familes/children.
+     * General query on families/children.
      *
      * @param int    $year1
      * @param int    $year2
      *
-     * @return stdClass[]
+     * @return array<stdClass>
      */
     public function statsChildrenQuery(int $year1 = -1, int $year2 = -1): array
     {
@@ -576,7 +584,7 @@ class FamilyRepository
      */
     public function statsChildren(): string
     {
-        return (new ChartChildren($this->tree))
+        return (new ChartChildren($this->century_service, $this->tree))
             ->chartChildren();
     }
 
@@ -624,12 +632,10 @@ class FamilyRepository
             ->get()
             ->map(Registry::familyFactory()->mapper($this->tree))
             ->filter(GedcomRecord::accessFilter())
-            ->map(static function (Family $family): array {
-                return [
-                    'family' => $family,
-                    'count'  => $family->numberOfChildren(),
-                ];
-            })
+            ->map(static fn (Family $family): array => [
+                'family' => $family,
+                'count'  => $family->numberOfChildren(),
+            ])
             ->all();
     }
 
@@ -675,11 +681,11 @@ class FamilyRepository
      * @return string
      */
     public function chartLargestFamilies(
-        string $color_from = null,
-        string $color_to = null,
+        string|null $color_from = null,
+        string|null $color_to = null,
         int $total = 10
     ): string {
-        return (new ChartFamilyLargest($this->tree))
+        return (new ChartFamilyLargest($this->color_service, $this->tree))
             ->chartLargestFamilies($color_from, $color_to, $total);
     }
 
@@ -740,13 +746,13 @@ class FamilyRepository
     public function monthFirstChildBySexQuery(int $year1 = -1, int $year2 = -1): Builder
     {
         return $this->monthFirstChildQuery($year1, $year2)
-                ->join('individuals', static function (JoinClause $join): void {
-                    $join
-                        ->on('i_file', '=', 'l_file')
-                        ->on('i_id', '=', 'l_to');
-                })
-                ->select(['d_month', 'i_sex', new Expression('COUNT(*) AS total')])
-                ->groupBy(['d_month', 'i_sex']);
+            ->join('individuals', static function (JoinClause $join): void {
+                $join
+                    ->on('i_file', '=', 'l_file')
+                    ->on('i_id', '=', 'l_to');
+            })
+            ->select(['d_month', 'i_sex', new Expression('COUNT(*) AS total')])
+            ->groupBy(['d_month', 'i_sex']);
     }
 
     /**
@@ -803,8 +809,6 @@ class FamilyRepository
             $age_dir = 'DESC';
         }
 
-        $prefix = DB::connection()->getTablePrefix();
-
         $row = DB::table('link AS parentfamily')
             ->join('link AS childfamily', static function (JoinClause $join): void {
                 $join
@@ -827,15 +831,15 @@ class FamilyRepository
             })
             ->where('childfamily.l_file', '=', $this->tree->id())
             ->where('parentfamily.l_type', '=', $sex_field)
-            ->where('childbirth.d_julianday2', '>', 'birth.d_julianday1')
-            ->select(['parentfamily.l_to AS id', new Expression($prefix . 'childbirth.d_julianday2 - ' . $prefix . 'birth.d_julianday1 AS age')])
+            ->where('childbirth.d_julianday2', '>', new Expression(DB::prefix('birth.d_julianday1')))
+            ->select(['parentfamily.l_to AS id', new Expression(DB::prefix('childbirth.d_julianday2') . ' - ' . DB::prefix('birth.d_julianday1') . ' AS age')])
             ->take(1)
             ->orderBy('age', $age_dir)
             ->get()
             ->first();
 
         if ($row === null) {
-            return '';
+            return I18N::translate('This information is not available.');
         }
 
         $person = Registry::individualFactory()->make($row->id, $this->tree);
@@ -843,7 +847,7 @@ class FamilyRepository
         switch ($type) {
             default:
             case 'full':
-                if ($person && $person->canShow()) {
+                if ($person !== null && $person->canShow()) {
                     $result = $person->formatList();
                 } else {
                     $result = I18N::translate('This information is private and cannot be shown.');
@@ -1008,8 +1012,6 @@ class FamilyRepository
      */
     private function ageOfMarriageQuery(string $type, string $age_dir, int $total): string
     {
-        $prefix = DB::connection()->getTablePrefix();
-
         $hrows = DB::table('families')
             ->where('f_file', '=', $this->tree->id())
             ->join('dates AS married', static function (JoinClause $join): void {
@@ -1027,7 +1029,7 @@ class FamilyRepository
             })
             ->whereColumn('married.d_julianday1', '<', 'husbdeath.d_julianday2')
             ->groupBy(['f_id'])
-            ->select(['f_id AS family', new Expression('MIN(' . $prefix . 'husbdeath.d_julianday2 - ' . $prefix . 'married.d_julianday1) AS age')])
+            ->select(['f_id AS family', new Expression('MIN(' . DB::prefix('husbdeath.d_julianday2') . ' - ' . DB::prefix('married.d_julianday1') . ') AS age')])
             ->get()
             ->all();
 
@@ -1048,7 +1050,7 @@ class FamilyRepository
             })
             ->whereColumn('married.d_julianday1', '<', 'wifedeath.d_julianday2')
             ->groupBy(['f_id'])
-            ->select(['f_id AS family', new Expression('MIN(' . $prefix . 'wifedeath.d_julianday2 - ' . $prefix . 'married.d_julianday1) AS age')])
+            ->select(['f_id AS family', new Expression('MIN(' . DB::prefix('wifedeath.d_julianday2') . ' - ' . DB::prefix('married.d_julianday1') . ') AS age')])
             ->get()
             ->all();
 
@@ -1069,7 +1071,7 @@ class FamilyRepository
             })
             ->whereColumn('married.d_julianday1', '<', 'divorced.d_julianday2')
             ->groupBy(['f_id'])
-            ->select(['f_id AS family', new Expression('MIN(' . $prefix . 'divorced.d_julianday2 - ' . $prefix . 'married.d_julianday1) AS age')])
+            ->select(['f_id AS family', new Expression('MIN(' . DB::prefix('divorced.d_julianday2') . ' - ' . DB::prefix('married.d_julianday1') . ') AS age')])
             ->get()
             ->all();
 
@@ -1115,8 +1117,13 @@ class FamilyRepository
             $husb = $family->husband();
             $wife = $family->wife();
 
-            if (($husb && ($husb->getAllDeathDates() || !$husb->isDead())) && ($wife && ($wife->getAllDeathDates() || !$wife->isDead()))) {
-                if ($family && $family->canShow()) {
+            if (
+                $husb instanceof Individual &&
+                $wife instanceof Individual &&
+                ($husb->getAllDeathDates() || !$husb->isDead()) &&
+                ($wife->getAllDeathDates() || !$wife->isDead())
+            ) {
+                if ($family->canShow()) {
                     if ($type === 'list') {
                         $top10[] = '<li><a href="' . e($family->url()) . '">' . $family->fullName() . '</a> (' . $age . ')' . '</li>';
                     } else {
@@ -1256,8 +1263,6 @@ class FamilyRepository
      */
     private function ageBetweenSpousesQuery(string $age_dir, int $total): array
     {
-        $prefix = DB::connection()->getTablePrefix();
-
         $query = DB::table('families')
             ->where('f_file', '=', $this->tree->id())
             ->join('dates AS wife', static function (JoinClause $join): void {
@@ -1278,11 +1283,11 @@ class FamilyRepository
         if ($age_dir === 'DESC') {
             $query
                 ->whereColumn('wife.d_julianday1', '>=', 'husb.d_julianday1')
-                ->orderBy(new Expression('MIN(' . $prefix . 'wife.d_julianday1) - MIN(' . $prefix . 'husb.d_julianday1)'), 'DESC');
+                ->orderBy(new Expression('MIN(' . DB::prefix('wife.d_julianday1') . ') - MIN(' . DB::prefix('husb.d_julianday1') . ')'), 'DESC');
         } else {
             $query
                 ->whereColumn('husb.d_julianday1', '>=', 'wife.d_julianday1')
-                ->orderBy(new Expression('MIN(' . $prefix . 'husb.d_julianday1) - MIN(' . $prefix . 'wife.d_julianday1)'), 'DESC');
+                ->orderBy(new Expression('MIN(' . DB::prefix('husb.d_julianday1') . ') - MIN(' . DB::prefix('wife.d_julianday1') . ')'), 'DESC');
         }
 
         return $query
@@ -1385,8 +1390,6 @@ class FamilyRepository
      */
     public function statsMarrAgeQuery(string $sex, int $year1 = -1, int $year2 = -1): array
     {
-        $prefix = DB::connection()->getTablePrefix();
-
         $query = DB::table('dates AS married')
             ->join('families', static function (JoinClause $join): void {
                 $join
@@ -1405,7 +1408,7 @@ class FamilyRepository
             ->where('married.d_fact', '=', 'MARR')
             ->whereIn('married.d_type', ['@#DGREGORIAN@', '@#DJULIAN@'])
             ->whereColumn('married.d_julianday1', '>', 'birth.d_julianday1')
-            ->select(['f_id', 'birth.d_gid', new Expression($prefix . 'married.d_julianday2 - ' . $prefix . 'birth.d_julianday1 AS age')]);
+            ->select(['f_id', 'birth.d_gid', new Expression(DB::prefix('married.d_julianday2') . ' - ' . DB::prefix('birth.d_julianday1') . ' AS age')]);
 
         if ($year1 >= 0 && $year2 >= 0) {
             $query->whereBetween('married.d_year', [$year1, $year2]);
@@ -1428,7 +1431,7 @@ class FamilyRepository
      */
     public function statsMarrAge(): string
     {
-        return (new ChartMarriageAge($this->tree))
+        return (new ChartMarriageAge($this->century_service, $this->tree))
             ->chartMarriageAge();
     }
 
@@ -1454,8 +1457,6 @@ class FamilyRepository
             $age_dir = 'DESC';
         }
 
-        $prefix = DB::connection()->getTablePrefix();
-
         $row = DB::table('families')
             ->join('dates AS married', static function (JoinClause $join): void {
                 $join
@@ -1477,15 +1478,15 @@ class FamilyRepository
                     ->where('birth.d_julianday1', '<>', 0);
             })
             ->where('f_file', '=', $this->tree->id())
-            ->where('married.d_julianday2', '>', 'birth.d_julianday1')
-            ->orderBy(new Expression($prefix . 'married.d_julianday2 - ' . $prefix . 'birth.d_julianday1'), $age_dir)
-            ->select(['f_id AS famid', $sex_field, new Expression($prefix . 'married.d_julianday2 - ' . $prefix . 'birth.d_julianday1 AS age'), 'i_id'])
+            ->where('married.d_julianday2', '>', new Expression(DB::prefix('birth.d_julianday1')))
+            ->orderBy(new Expression(DB::prefix('married.d_julianday2') . ' - ' . DB::prefix('birth.d_julianday1')), $age_dir)
+            ->select(['f_id AS famid', $sex_field, new Expression(DB::prefix('married.d_julianday2') . ' - ' . DB::prefix('birth.d_julianday1') . ' AS age'), 'i_id'])
             ->take(1)
             ->get()
             ->first();
 
         if ($row === null) {
-            return '';
+            return I18N::translate('This information is not available.');
         }
 
         $family = Registry::familyFactory()->make($row->famid, $this->tree);
@@ -1494,7 +1495,7 @@ class FamilyRepository
         switch ($type) {
             default:
             case 'full':
-                if ($family && $family->canShow()) {
+                if ($family !== null && $family->canShow()) {
                     $result = $family->formatList();
                 } else {
                     $result = I18N::translate('This information is private and cannot be shown.');
@@ -1709,9 +1710,9 @@ class FamilyRepository
      *
      * @return string
      */
-    public function statsMarr(string $color_from = null, string $color_to = null): string
+    public function statsMarr(string|null $color_from = null, string|null $color_to = null): string
     {
-        return (new ChartMarriage($this->tree))
+        return (new ChartMarriage($this->century_service, $this->color_service, $this->tree))
             ->chartMarriage($color_from, $color_to);
     }
 
@@ -1723,9 +1724,9 @@ class FamilyRepository
      *
      * @return string
      */
-    public function statsDiv(string $color_from = null, string $color_to = null): string
+    public function statsDiv(string|null $color_from = null, string|null $color_to = null): string
     {
-        return (new ChartDivorce($this->tree))
+        return (new ChartDivorce($this->century_service, $this->color_service, $this->tree))
             ->chartDivorce($color_from, $color_to);
     }
 }

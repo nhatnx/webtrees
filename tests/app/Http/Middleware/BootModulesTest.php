@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,30 +23,24 @@ use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Module\WebtreesTheme;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 use Psr\Http\Server\RequestHandlerInterface;
 
 use function response;
 
-/**
- * Test the BootModules middleware.
- *
- * @covers \Fisharebest\Webtrees\Http\Middleware\BootModules
- */
+#[CoversClass(BootModules::class)]
 class BootModulesTest extends TestCase
 {
-    /**
-     * @return void
-     */
     public function testMiddleware(): void
     {
         $theme = new WebtreesTheme();
 
-        $handler = self::createMock(RequestHandlerInterface::class);
+        $handler = $this->createMock(RequestHandlerInterface::class);
         $handler->method('handle')->willReturn(response('It works!'));
 
-        $module_service = self::createMock(ModuleService::class);
+        $module_service = $this->createMock(ModuleService::class);
         $module_service
-            ->expects(self::once())
+            ->expects($this->once())
             ->method('bootModules')
             ->with($theme);
 

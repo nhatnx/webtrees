@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,23 +19,24 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Collection;
 use Psr\Http\Message\ServerRequestInterface;
-
-use function assert;
 
 /**
  * Autocomplete handler for surnames
  */
 class AutoCompleteSurname extends AbstractAutocompleteHandler
 {
+    /**
+     * @param ServerRequestInterface $request
+     *
+     * @return Collection<int,string>
+     */
     protected function search(ServerRequestInterface $request): Collection
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $query = $request->getAttribute('query');
+        $tree  = Validator::attributes($request)->tree();
+        $query = Validator::queryParams($request)->string('query');
 
         return $this->search_service
             ->searchSurnames([$tree], [$query], 0, static::LIMIT);

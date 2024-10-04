@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,74 +19,53 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
-use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Module\ModuleMapAutocompleteInterface;
 use Fisharebest\Webtrees\Place;
-use Fisharebest\Webtrees\Site;
-use Fisharebest\Webtrees\Tree;
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\RequestException;
+use Fisharebest\Webtrees\Services\ModuleService;
+use Fisharebest\Webtrees\Services\SearchService;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Collection;
 use Psr\Http\Message\ServerRequestInterface;
-
-use function assert;
-use function is_array;
-use function json_decode;
-use function rawurlencode;
-
-use const JSON_THROW_ON_ERROR;
 
 /**
  * Autocomplete handler for places
  */
 class AutoCompletePlace extends AbstractAutocompleteHandler
 {
-    // Options for fetching files using GuzzleHTTP
-    private const GUZZLE_OPTIONS = [
-        'connect_timeout' => 3,
-        'read_timeout'    => 3,
-        'timeout'         => 3,
-    ];
+    private ModuleService $module_service;
 
+    /**
+     * @param ModuleService $module_service
+     * @param SearchService $search_service
+     */
+    public function __construct(ModuleService $module_service, SearchService $search_service)
+    {
+        parent::__construct($search_service);
+
+        $this->module_service = $module_service;
+    }
+
+    /**
+     * @param ServerRequestInterface $request
+     *
+     * @return Collection<int,string>
+     */
     protected function search(ServerRequestInterface $request): Collection
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $query = $request->getAttribute('query');
+        $tree  = Validator::attributes($request)->tree();
+        $query = Validator::queryParams($request)->string('query');
 
         $data = $this->search_service
             ->searchPlaces($tree, $query, 0, static::LIMIT)
-            ->map(static function (Place $place): string {
-                return $place->gedcomName();
-            });
+            ->map(static fn (Place $place): string => $place->gedcomName());
 
-        $geonames = Site::getPreference('geonames');
-
-        if ($data->isEmpty() && $geonames !== '') {
-            // No place found? Use an external gazetteer
-            $url =
-                'https://secure.geonames.org/searchJSON' .
-                '?name_startsWith=' . rawurlencode($query) .
-                '&lang=' . I18N::languageTag() .
-                '&fcode=CMTY&fcode=ADM4&fcode=PPL&fcode=PPLA&fcode=PPLC' .
-                '&style=full' .
-                '&username=' . rawurlencode($geonames);
-
-            // Read from the URL
-            $client = new Client();
-            try {
-                $json   = $client->get($url, self::GUZZLE_OPTIONS)->getBody()->__toString();
-                $places = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-                if (isset($places['geonames']) && is_array($places['geonames'])) {
-                    foreach ($places['geonames'] as $k => $place) {
-                        $data->add($place['name'] . ', ' . $place['adminName2'] . ', ' . $place['adminName1'] . ', ' . $place['countryName']);
-                    }
-                }
-            } catch (RequestException $ex) {
-                // Service down?  Quota exceeded?
+        // No place found? Use external gazetteers.
+        foreach ($this->module_service->findByInterface(ModuleMapAutocompleteInterface::class) as $module) {
+            if ($data->isEmpty()) {
+                $data = $data->concat($module->searchPlaceNames($query))->sort();
             }
         }
 
-        return new Collection($data);
+        return $data;
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -24,6 +24,7 @@ use Fisharebest\Webtrees\Tree;
 
 use function e;
 use function route;
+use function trim;
 
 /**
  * PLACE_NAME := {1,120}
@@ -35,6 +36,14 @@ use function route;
  */
 class PlaceName extends AbstractElement
 {
+    protected const SUBTAGS = [
+        'FORM' => '0:1',
+        'MAP' => '0:1',
+        'FONE' => '0:1',
+        'ROMN' => '0:1',
+        'NOTE' => '0:M',
+    ];
+
     /**
      * Convert a value to a canonical form.
      *
@@ -56,7 +65,17 @@ class PlaceName extends AbstractElement
         $value = strtr($value, [',' => ', ']);
         $value = strtr($value, [',  ' => ', ']);
 
-        return $value;
+        return trim($value);
+    }
+
+    /**
+     * Should we collapse the children of this element when editing?
+     *
+     * @return bool
+     */
+    public function collapseChildren(): bool
+    {
+        return true;
     }
 
     /**
@@ -71,6 +90,6 @@ class PlaceName extends AbstractElement
      */
     public function edit(string $id, string $name, string $value, Tree $tree): string
     {
-        return '<input data-autocomplete-url="' . e(route(AutoCompletePlace::class, ['tree' => $tree->name()])) . '" autocomplete="off" class="form-control" type="text" id="' . e($id) . '" name="' . e($name) . '" value="' . e($value) . '" />';
+        return '<input data-wt-autocomplete-url="' . e(route(AutoCompletePlace::class, ['tree' => $tree->name()])) . '" autocomplete="off" class="form-control" type="text" id="' . e($id) . '" name="' . e($name) . '" value="' . e($value) . '" />';
     }
 }

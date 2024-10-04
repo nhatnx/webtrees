@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -37,12 +37,9 @@ class FixCemeteryTag extends AbstractModule implements ModuleDataFixInterface
 {
     use ModuleDataFixTrait;
 
-    /** @var DataFixService */
-    private $data_fix_service;
+    private DataFixService $data_fix_service;
 
     /**
-     * FixMissingDeaths constructor.
-     *
      * @param DataFixService $data_fix_service
      */
     public function __construct(DataFixService $data_fix_service)
@@ -58,7 +55,7 @@ class FixCemeteryTag extends AbstractModule implements ModuleDataFixInterface
     public function title(): string
     {
         /* I18N: Name of a module */
-        return I18N::translate('Convert CEME tags to GEDCOM 5.5.1');
+        return I18N::translate('Convert %s tags to GEDCOM 5.5.1', 'INDI:BURI:CEME');
     }
 
     /**
@@ -101,9 +98,9 @@ class FixCemeteryTag extends AbstractModule implements ModuleDataFixInterface
      * @param Tree                 $tree
      * @param array<string,string> $params
      *
-     * @return Collection<string>|null
+     * @return Collection<int,string>|null
      */
-    protected function individualsToFix(Tree $tree, array $params): ?Collection
+    protected function individualsToFix(Tree $tree, array $params): Collection|null
     {
         return $this->individualsToFixQuery($tree, $params)
             ->where(static function (Builder $query): void {
@@ -125,9 +122,7 @@ class FixCemeteryTag extends AbstractModule implements ModuleDataFixInterface
     public function doesRecordNeedUpdate(GedcomRecord $record, array $params): bool
     {
         return $record->facts(['BURI'], false, null, true)
-            ->filter(static function (Fact $fact): bool {
-                return preg_match('/\n[23] CEME/', $fact->gedcom()) === 1;
-            })
+            ->filter(static fn (Fact $fact): bool => preg_match('/\n[23] CEME/', $fact->gedcom()) === 1)
             ->isNotEmpty();
     }
 

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,38 +20,36 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
+use Fisharebest\Webtrees\Services\GedcomImportService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\TestCase;
 use Fisharebest\Webtrees\User;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\LoginPage
- */
+#[CoversClass(LoginPage::class)]
 class LoginPageTest extends TestCase
 {
-    /**
-     * @return void
-     */
+    protected static bool $uses_database = true;
+
     public function testLoginPage(): void
     {
-        $tree_service = new TreeService();
-        $request  = self::createRequest();
-        $handler  = new LoginPage($tree_service);
-        $response = $handler->handle($request);
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $request               = self::createRequest();
+        $handler               = new LoginPage($tree_service);
+        $response              = $handler->handle($request);
 
         self::assertSame(StatusCodeInterface::STATUS_OK, $response->getStatusCode());
     }
 
-    /**
-     * @return void
-     */
     public function testLoginPageAlreadyLoggedIn(): void
     {
-        $tree_service = new TreeService();
-        $user     = self::createMock(User::class);
-        $request  = self::createRequest()->withAttribute('user', $user);
-        $handler  = new LoginPage($tree_service);
-        $response = $handler->handle($request);
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $user                  = $this->createMock(User::class);
+        $request               = self::createRequest()->withAttribute('user', $user);
+        $handler               = new LoginPage($tree_service);
+        $response              = $handler->handle($request);
 
         self::assertSame(StatusCodeInterface::STATUS_FOUND, $response->getStatusCode());
     }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,7 +19,7 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Schema;
 
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\DB;
 use Illuminate\Database\Schema\Blueprint;
 
 /**
@@ -27,11 +27,6 @@ use Illuminate\Database\Schema\Blueprint;
  */
 class Migration0 implements MigrationInterface
 {
-    /**
-     * Upgrade to to the next version.
-     *
-     * @return void
-     */
     public function upgrade(): void
     {
         DB::schema()->create('gedcom', static function (Blueprint $table): void {
@@ -88,7 +83,7 @@ class Migration0 implements MigrationInterface
             $table->string('setting_value', 255);
 
             // Default constraint names are too long for MySQL.
-            $key = DB::connection()->getTablePrefix() . $table->getTable() . '_primary';
+            $key = DB::prefix($table->getTable() . '_primary');
 
             $table->primary(['user_id', 'gedcom_id', 'setting_name'], $key);
             $table->index('gedcom_id');
@@ -244,7 +239,8 @@ class Migration0 implements MigrationInterface
 
             $table->primary(['m_file', 'm_id']);
             $table->unique(['m_id', 'm_file']);
-            $table->index(['m_ext', 'm_type']);
+            // Originally, this migration created an index on m_ext and m_type,
+            // but we drop those columns in migration 37.
         });
 
         DB::schema()->create('next_id', static function (Blueprint $table): void {
@@ -336,8 +332,8 @@ class Migration0 implements MigrationInterface
             $table->tinyInteger('access_level');
 
             // Default constraint names are too long for MySQL.
-            $key0 = DB::connection()->getTablePrefix() . $table->getTable() . '_primary';
-            $key1 = DB::connection()->getTablePrefix() . $table->getTable() . '_ix1';
+            $key0 = DB::prefix($table->getTable() . '_primary');
+            $key1 = DB::prefix($table->getTable() . '_ix1');
 
             $table->primary(['module_name', 'gedcom_id', 'component'], $key0);
             $table->unique(['gedcom_id', 'module_name', 'component'], $key1);
@@ -381,7 +377,7 @@ class Migration0 implements MigrationInterface
             $table->integer('page_count');
 
             // Default constraint names are too long for MySQL.
-            $key = DB::connection()->getTablePrefix() . $table->getTable() . '_primary';
+            $key = DB::prefix($table->getTable() . '_primary');
 
             $table->primary(['gedcom_id', 'page_name', 'page_parameter'], $key);
 
@@ -389,40 +385,26 @@ class Migration0 implements MigrationInterface
         });
 
         DB::schema()->create('session', static function (Blueprint $table): void {
-            $table->string('session_id', 32);
+            $table->string('session_id', 256);
             $table->timestamp('session_time')->useCurrent();
             $table->integer('user_id');
             $table->ipAddress('ip_address');
-            $table->binary('session_data');
+            $table->longText('session_data');
 
             $table->primary('session_id');
             $table->index('session_time');
             $table->index(['user_id', 'ip_address']);
         });
 
-        // See https://github.com/laravel/framework/issues/3544
-        if (DB::connection()->getDriverName() === 'mysql') {
-            $table = DB::connection()->getSchemaGrammar()->wrapTable('session');
-            $sql   = 'ALTER TABLE ' . $table . ' MODIFY session_data LONGBLOB';
-            DB::connection()->statement($sql);
-        }
-
         DB::schema()->create('gedcom_chunk', static function (Blueprint $table): void {
             $table->integer('gedcom_chunk_id', true);
             $table->integer('gedcom_id');
-            $table->binary('chunk_data');
+            $table->longText('chunk_data');
             $table->boolean('imported')->default(0);
 
             $table->index(['gedcom_id', 'imported']);
 
             $table->foreign('gedcom_id')->references('gedcom_id')->on('gedcom');
         });
-
-        // See https://github.com/laravel/framework/issues/3544
-        if (DB::connection()->getDriverName() === 'mysql') {
-            $table = DB::connection()->getSchemaGrammar()->wrapTable('gedcom_chunk');
-            $sql   = 'ALTER TABLE ' . $table . ' MODIFY chunk_data LONGBLOB';
-            DB::connection()->statement($sql);
-        }
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,13 +19,11 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
-/**
- * Test harness for the class LanguageId
- *
- * @covers \Fisharebest\Webtrees\Elements\AbstractElement
- * @covers \Fisharebest\Webtrees\Elements\LanguageId
- */
-class LanguageIdTest extends AbstractElementTest
+use PHPUnit\Framework\Attributes\CoversClass;
+
+#[CoversClass(AbstractElement::class)]
+#[CoversClass(LanguageId::class)]
+class LanguageIdTest extends AbstractElementTestCase
 {
     /**
      * Standard tests for all elements.
@@ -37,14 +35,11 @@ class LanguageIdTest extends AbstractElementTest
         static::$element = new LanguageId('label');
     }
 
-    /**
-     * @return void
-     */
     public function testCanonical(): void
     {
-        self::assertSame('English', self::$element->canonical("\t English\t "));
-        self::assertSame('Klingon', self::$element->canonical('kLiNgOn'));
-        self::assertSame('Anglo-Saxon', self::$element->canonical('anglo-saxon'));
-        self::assertSame('Catalan_Spn', self::$element->canonical('CATALAN_SPN'));
+        self::assertSame('ENGLISH', self::$element->canonical("\t English\t "));
+        self::assertSame('KLINGON', self::$element->canonical('kLiNgOn'));
+        self::assertSame('ANGLO-SAXON', self::$element->canonical('anglo-saxon'));
+        self::assertSame('CATALAN_SPN', self::$element->canonical('CATALAN_SPN'));
     }
 }

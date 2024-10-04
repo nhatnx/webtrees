@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,12 +19,10 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-
-use function assert;
 
 /**
  * Search for genealogy data
@@ -40,18 +38,13 @@ class SearchPhoneticAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $params = (array) $request->getParsedBody();
-
         return redirect(route(SearchPhoneticPage::class, [
-            'firstname'    => $params['firstname'] ?? '',
-            'lastname'     => $params['lastname'] ?? '',
-            'place'        => $params['place'] ?? '',
-            'search_trees' => $params['search_trees'] ?? [],
-            'soundex'      => $params['soundex'] ?? 'Russell',
-            'tree'         => $tree->name(),
+            'firstname'    => Validator::parsedBody($request)->string('firstname'),
+            'lastname'     => Validator::parsedBody($request)->string('lastname'),
+            'place'        => Validator::parsedBody($request)->string('place'),
+            'search_trees' => Validator::parsedBody($request)->array('search_trees'),
+            'soundex'      => Validator::parsedBody($request)->string('soundex'),
+            'tree'         => Validator::attributes($request)->tree()->name(),
         ]));
     }
 }

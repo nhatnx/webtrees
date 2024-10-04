@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,10 +19,8 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees;
 
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
-use stdClass;
 
 use function max;
 use function min;
@@ -36,11 +34,11 @@ use const PREG_SPLIT_NO_EMPTY;
  */
 class PlaceLocation
 {
-    /** @var string e.g. "Westminster, London, England" */
-    private $location_name;
+    // e.g. "Westminster, London, England"
+    private string $location_name;
 
-    /** @var Collection<string> The parts of a location name, e.g. ["Westminster", "London", "England"] */
-    private $parts;
+    /** @var Collection<int,string> The parts of a location name, e.g. ["Westminster", "London", "England"] */
+    private Collection $parts;
 
     /**
      * Create a place-location.
@@ -73,7 +71,7 @@ class PlaceLocation
      *
      * @return int|null
      */
-    public function id(): ?int
+    public function id(): int|null
     {
         // The "top-level" location won't exist in the database.
         if ($this->parts->isEmpty()) {
@@ -98,7 +96,7 @@ class PlaceLocation
                     ->value('id');
             }
 
-            $location_id = $location_id ?? DB::table('place_location')->insertGetId([
+            $location_id ??= DB::table('place_location')->insertGetId([
                     'parent_id' => $parent_id,
                     'place'     => $place,
                 ]);
@@ -139,9 +137,9 @@ class PlaceLocation
     }
 
     /**
-     * @return stdClass
+     * @return object
      */
-    private function details(): stdClass
+    private function details(): object
     {
         return Registry::cache()->array()->remember('location-details-' . $this->id(), function () {
             // The "top-level" location won't exist in the database.
@@ -171,20 +169,16 @@ class PlaceLocation
 
     /**
      * Latitude of the location.
-     *
-     * @return float|null
      */
-    public function latitude(): ?float
+    public function latitude(): float|null
     {
         return $this->details()->latitude;
     }
 
     /**
      * Longitude of the location.
-     *
-     * @return float|null
      */
-    public function longitude(): ?float
+    public function longitude(): float|null
     {
         return $this->details()->longitude;
     }
@@ -204,7 +198,7 @@ class PlaceLocation
      */
     public function boundingRectangle(): array
     {
-        if ($this->id() === 0) {
+        if ($this->id() === null) {
             return [[-180.0, -90.0], [180.0, 90.0]];
         }
 
@@ -218,9 +212,7 @@ class PlaceLocation
             })
             ->groupBy(['latitude'])
             ->pluck('latitude')
-            ->map(static function (string $x): float {
-                return (float) $x;
-            });
+            ->map(static fn (string $x): float => (float) $x);
 
         $longitudes = DB::table('place_location')
             ->whereNotNull('longitude')
@@ -231,9 +223,7 @@ class PlaceLocation
             })
             ->groupBy(['longitude'])
             ->pluck('longitude')
-            ->map(static function (string $x): float {
-                return (float) $x;
-            });
+            ->map(static fn (string $x): float => (float) $x);
 
         // No co-ordinates?  Use the parent place instead.
         if ($latitudes->isEmpty() || $longitudes->isEmpty()) {

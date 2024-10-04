@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,7 +19,6 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees;
 
-use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
@@ -56,22 +55,21 @@ class Log
      *
      * @return void
      */
-    private static function addLog(string $message, string $log_type, Tree $tree = null): void
+    private static function addLog(string $message, string $log_type, Tree|null $tree = null): void
     {
-        if (app()->has(ServerRequestInterface::class)) {
-            $request    = app(ServerRequestInterface::class);
-            $ip_address = $request->getAttribute('client-ip');
+        if (Registry::container()->has(ServerRequestInterface::class)) {
+            $request    = Registry::container()->get(ServerRequestInterface::class);
+            $ip_address = Validator::attributes($request)->string('client-ip');
         } else {
             $ip_address = '127.0.0.1';
         }
-        $tree_id    = $tree ? $tree->id() : null;
 
         DB::table('log')->insert([
             'log_type'    => $log_type,
             'log_message' => $message,
             'ip_address'  => $ip_address,
             'user_id'     => Auth::id(),
-            'gedcom_id'   => $tree_id,
+            'gedcom_id'   => $tree?->id(),
         ]);
     }
 
@@ -83,7 +81,7 @@ class Log
      *
      * @return void
      */
-    public static function addConfigurationLog(string $message, Tree $tree = null): void
+    public static function addConfigurationLog(string $message, Tree|null $tree = null): void
     {
         self::addLog($message, self::TYPE_CONFIGURATION, $tree);
     }
@@ -130,8 +128,8 @@ class Log
      * Unlike most webtrees activity, search is not restricted to a single tree,
      * so we need to record which trees were searched.
      *
-     * @param string $message
-     * @param Tree[] $trees Which trees were searched
+     * @param string      $message
+     * @param array<Tree> $trees Which trees were searched
      *
      * @return void
      */

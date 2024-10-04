@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -43,7 +43,6 @@ class HierarchicalRelationship extends AbstractElement
         return strtoupper(parent::canonical($value));
     }
 
-
     /**
      * A list of controlled values for this element
      *
@@ -59,7 +58,7 @@ class HierarchicalRelationship extends AbstractElement
             'CULT' => /* I18N: Type of location hierarchy */ I18N::translate('cultural'),
         ];
 
-        uasort($values, [I18N::class, 'strcasecmp']);
+        uasort($values, I18N::comparator());
 
         return $values;
     }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,39 +20,24 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Census;
 
 use Fisharebest\Webtrees\Date;
-use Fisharebest\Webtrees\Date\GregorianDate;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class CensusColumnBirthDayDotMonthYearTest
- */
+#[CoversClass(CensusColumnBirthDayDotMonthYear::class)]
+#[CoversClass(AbstractCensusColumn::class)]
 class CensusColumnBirthDayDotMonthYearTest extends TestCase
 {
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnBirthDayDotMonthYearTest
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
-     */
     public function testGenerateColumn(): void
     {
-        $cal_date = self::createMock(GregorianDate::class);
-        $cal_date->method('format')->willReturn('30. June 1832');
+        $individual = $this->createMock(Individual::class);
+        $individual->method('getEstimatedBirthDate')->willReturn(new Date('02 MAR 1800'));
 
-        $date = self::createMock(Date::class);
-        $date->method('minimumJulianDay')->willReturn(2390364);
-        $date->method('maximumJulianDay')->willReturn(2390364);
-        $date->method('minimumDate')->willReturn($cal_date);
-
-        $individual = self::createMock(Individual::class);
-        $individual->method('getBirthDate')->willReturn($date);
-
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
         $census->method('censusDate')->willReturn('30 JUN 1832');
 
         $column = new CensusColumnBirthDayDotMonthYear($census, '', '');
 
-        self::assertSame('30. June 1832', $column->generate($individual, $individual));
+        self::assertSame('2. March 1800', $column->generate($individual, $individual));
     }
 }

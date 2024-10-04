@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,34 +19,36 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees;
 
-use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ServerRequestInterface;
 use SessionHandlerInterface;
-use stdClass;
+
+use function date;
+use function time;
 
 /**
  * Session handling - stores sessions in the database.
  */
 class SessionDatabaseHandler implements SessionHandlerInterface
 {
-    /** @var ServerRequestInterface */
-    private $request;
+    private ServerRequestInterface $request;
 
-    /** @var stdClass|null The row from the session table */
-    private $row;
+    private ?object $row = null;
 
+    /**
+     * @param ServerRequestInterface $request
+     */
     public function __construct(ServerRequestInterface $request)
     {
         $this->request = $request;
     }
 
     /**
-     * @param string $save_path
+     * @param string $path
      * @param string $name
      *
      * @return bool
      */
-    public function open($save_path, $name): bool
+    public function open(string $path, string $name): bool
     {
         return true;
     }
@@ -64,12 +66,11 @@ class SessionDatabaseHandler implements SessionHandlerInterface
      *
      * @return string
      */
-    public function read($id): string
+    public function read(string $id): string
     {
         $this->row = DB::table('session')
             ->where('session_id', '=', $id)
             ->first();
-
 
         return $this->row->session_data ?? '';
     }
@@ -80,16 +81,16 @@ class SessionDatabaseHandler implements SessionHandlerInterface
      *
      * @return bool
      */
-    public function write($id, $data): bool
+    public function write(string $id, string $data): bool
     {
-        $ip_address   = $this->request->getAttribute('client-ip');
-        $session_time = Carbon::now();
-        $user_id      = (int) Auth::id();
+        $ip_address = Validator::attributes($this->request)->string('client-ip');
+        $user_id    = (int) Auth::id();
+        $now        = Registry::timestampFactory()->now();
 
         if ($this->row === null) {
             DB::table('session')->insert([
-                'session_id' => $id,
-                'session_time' => $session_time,
+                'session_id'   => $id,
+                'session_time' => $now->toDateTimeString(),
                 'user_id'      => $user_id,
                 'ip_address'   => $ip_address,
                 'session_data' => $data,
@@ -110,8 +111,9 @@ class SessionDatabaseHandler implements SessionHandlerInterface
                 $updates['session_data'] = $data;
             }
 
-            if ($session_time->subMinute()->gt($this->row->session_time)) {
-                $updates['session_time'] = $session_time;
+            // Only update session once a minute to reduce contention on the session table.
+            if ($now->subtractMinutes(1)->timestamp() > Registry::timestampFactory()->fromString($this->row->session_time)->timestamp()) {
+                $updates['session_time'] =  $now->toDateTimeString();
             }
 
             if ($updates !== []) {
@@ -129,7 +131,7 @@ class SessionDatabaseHandler implements SessionHandlerInterface
      *
      * @return bool
      */
-    public function destroy($id): bool
+    public function destroy(string $id): bool
     {
         DB::table('session')
             ->where('session_id', '=', $id)
@@ -139,16 +141,14 @@ class SessionDatabaseHandler implements SessionHandlerInterface
     }
 
     /**
-     * @param int $maxlifetime
+     * @param int $max_lifetime
      *
-     * @return bool
+     * @return int
      */
-    public function gc($maxlifetime): bool
+    public function gc(int $max_lifetime): int
     {
-        DB::table('session')
-            ->where('session_time', '<', Carbon::now()->subSeconds($maxlifetime))
+        return DB::table('session')
+            ->where('session_time', '<', date('Y-m-d H:i:s', time() - $max_lifetime))
             ->delete();
-
-        return true;
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,15 +19,14 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Module\ModuleBlockInterface;
 use Fisharebest\Webtrees\Services\HomePageService;
-use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function response;
 use function view;
 
@@ -37,8 +36,7 @@ use function view;
  */
 class UserPageBlock implements RequestHandlerInterface
 {
-    /** @var HomePageService */
-    private $home_page_service;
+    private HomePageService $home_page_service;
 
     /**
      * @param HomePageService $home_page_service
@@ -55,11 +53,9 @@ class UserPageBlock implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $user     = $request->getAttribute('user');
-        $block_id = $request->getQueryParams()['block_id'];
+        $tree     = Validator::attributes($request)->tree();
+        $user     = Validator::attributes($request)->user();
+        $block_id = Validator::queryParams($request)->integer('block_id');
 
         $block_id = (int) DB::table('block')
             ->where('block_id', '=', $block_id)

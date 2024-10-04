@@ -1,34 +1,28 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\I18N;
 
 ?>
 
-<div class="form-group row">
-    <label class="col-form-label col-sm-2" for="privacy-restriction">
-        <?= /* I18N: a restrction on viewing data */ I18N::translate('Privacy restriction') ?>
+<div class="row mb-3">
+    <label class="col-form-label col-sm-2" for="restriction">
+        <?= /* I18N: a restriction on viewing data */ I18N::translate('Restriction') ?>
     </label>
-    <div class="col-sm-4">
-        <select class="form-control" id="privacy-restriction" name="privacy-restriction">
+    <div class="col-sm-10">
+        <select class="form-select" id="restriction" name="restriction">
             <option value="">&nbsp;</option>
-            <option value="none">
+            <option value="NONE">
                 <?= I18N::translate('Show to visitors') ?>
             </option>
-            <option value="privacy">
+            <option value="PRIVACY">
                 <?= I18N::translate('Show to members') ?>
             </option>
-            <option value="confidential">
+            <option value="CONFIDENTIAL">
                 <?= I18N::translate('Show to managers') ?>
             </option>
-        </select>
-    </div>
-    <label class="col-form-label col-sm-2" for="edit-restriction">
-        <?= /* I18N: A restriction on editing data */ I18N::translate('Editing restriction') ?>
-    </label>
-    <div class="col-sm-4">
-        <select class="form-control" id="edit-restriction" name="edit-restriction">
-            <option value="">&nbsp;</option>
-            <option value="locked">
+            <option value="LOCKED">
                 <?= I18N::translate('Only managers can edit') ?>
             </option>
         </select>

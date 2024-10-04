@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,12 +22,11 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function redirect;
 
 /**
@@ -48,12 +47,9 @@ class MergeFactsPage implements RequestHandlerInterface
     {
         $this->layout = 'layouts/administration';
 
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref1 = $request->getQueryParams()['xref1'] ?? '';
-        $xref2 = $request->getQueryParams()['xref2'] ?? '';
-
+        $tree  = Validator::attributes($request)->tree();
+        $xref1 = Validator::queryParams($request)->isXref()->string('xref1');
+        $xref2 = Validator::queryParams($request)->isXref()->string('xref2');
         $title = I18N::translate('Merge records') . ' — ' . e($tree->title());
 
         $record1 = Registry::gedcomRecordFactory()->make($xref1, $tree);
@@ -82,13 +78,13 @@ class MergeFactsPage implements RequestHandlerInterface
         $facts2 = [];
 
         foreach ($record1->facts() as $fact) {
-            if (!$fact->isPendingDeletion() && $fact->getTag() !== 'CHAN') {
+            if (!$fact->isPendingDeletion() && !str_ends_with($fact->tag(), ':CHAN')) {
                 $facts1[$fact->id()] = $fact;
             }
         }
 
         foreach ($record2->facts() as $fact) {
-            if (!$fact->isPendingDeletion() && $fact->getTag() !== 'CHAN') {
+            if (!$fact->isPendingDeletion() && !str_ends_with($fact->tag(), ':CHAN')) {
                 $facts2[$fact->id()] = $fact;
             }
         }

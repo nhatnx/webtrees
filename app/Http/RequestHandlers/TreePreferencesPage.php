@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,9 +20,10 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Contracts\ElementInterface;
 use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Date;
-use Fisharebest\Webtrees\GedcomTag;
+use Fisharebest\Webtrees\Elements\UnknownElement;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Module\ModuleThemeInterface;
@@ -30,19 +31,15 @@ use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Services\UserService;
-use Fisharebest\Webtrees\SurnameTradition;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
+use Illuminate\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function app;
-use function array_merge;
-use function array_unique;
-use function assert;
 use function e;
 use function explode;
-use function uasort;
+use function in_array;
 
 /**
  * Edit the tree preferences.
@@ -51,15 +48,17 @@ class TreePreferencesPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var ModuleService */
-    private $module_service;
+    private ModuleService $module_service;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
+    /**
+     * @param ModuleService $module_service
+     * @param TreeService   $tree_service
+     * @param UserService   $user_service
+     */
     public function __construct(
         ModuleService $module_service,
         TreeService $tree_service,
@@ -79,9 +78,7 @@ class TreePreferencesPage implements RequestHandlerInterface
     {
         $this->layout = 'layouts/administration';
 
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
+        $tree        = Validator::attributes($request)->tree();
         $data_folder = Registry::filesystem()->dataName();
 
         $french_calendar_start    = new Date('22 SEP 1792');
@@ -105,8 +102,8 @@ class TreePreferencesPage implements RequestHandlerInterface
         ];
 
         $formats = [
-            /* I18N: None of the other options */
-            ''         => I18N::translate('none'),
+            /* I18N: https://en.wikipedia.org/wiki/Plain_text */
+            ''         => I18N::translate('plain text'),
             /* I18N: https://en.wikipedia.org/wiki/Markdown */
             'markdown' => I18N::translate('markdown'),
         ];
@@ -128,29 +125,6 @@ class TreePreferencesPage implements RequestHandlerInterface
             Auth::PRIV_HIDE => I18N::translate('Hide from everyone'),
         ];
 
-        $tags = array_unique(array_merge(
-            explode(',', $tree->getPreference('INDI_FACTS_ADD')),
-            explode(',', $tree->getPreference('INDI_FACTS_UNIQUE')),
-            explode(',', $tree->getPreference('FAM_FACTS_ADD')),
-            explode(',', $tree->getPreference('FAM_FACTS_UNIQUE')),
-            explode(',', $tree->getPreference('NOTE_FACTS_ADD')),
-            explode(',', $tree->getPreference('NOTE_FACTS_UNIQUE')),
-            explode(',', $tree->getPreference('SOUR_FACTS_ADD')),
-            explode(',', $tree->getPreference('SOUR_FACTS_UNIQUE')),
-            explode(',', $tree->getPreference('REPO_FACTS_ADD')),
-            explode(',', $tree->getPreference('REPO_FACTS_UNIQUE')),
-            ['SOUR', 'REPO', 'OBJE', '_PRIM', 'NOTE', 'SUBM', 'SUBN', '_UID', 'CHAN']
-        ));
-
-        $all_tags = [];
-        foreach ($tags as $tag) {
-            if ($tag) {
-                $all_tags[$tag] = GedcomTag::getLabel($tag);
-            }
-        }
-
-        uasort($all_tags, '\Fisharebest\Webtrees\I18N::strcasecmp');
-
         // For historical reasons, we have two fields in one
         $calendar_formats = explode('_and_', $tree->getPreference('CALENDAR_FORMAT') . '_and_');
 
@@ -159,32 +133,37 @@ class TreePreferencesPage implements RequestHandlerInterface
 
         $pedigree_individual = Registry::individualFactory()->make($tree->getPreference('PEDIGREE_ROOT_ID'), $tree);
 
-        $members = $this->user_service->all()->filter(static function (UserInterface $user) use ($tree): bool {
-            return Auth::isMember($tree, $user);
-        });
+        $members = $this->user_service->all()->filter(static fn (UserInterface $user): bool => Auth::isMember($tree, $user));
 
-        $all_fam_facts  = GedcomTag::getPicklistFacts('FAM');
-        $all_indi_facts = GedcomTag::getPicklistFacts('INDI');
-        $all_name_facts = GedcomTag::getPicklistFacts('NAME');
-        $all_plac_facts = GedcomTag::getPicklistFacts('PLAC');
-        $all_repo_facts = GedcomTag::getPicklistFacts('REPO');
-        $all_sour_facts = GedcomTag::getPicklistFacts('SOUR');
+        $ignore_facts = ['CHAN', 'CHIL', 'FAMC', 'FAMS', 'HUSB', 'SUBM', 'WIFE', 'NAME', 'SEX'];
 
-        $all_surname_traditions = SurnameTradition::allDescriptions();
+        $all_family_facts = Collection::make(Registry::elementFactory()->make('FAM')->subtags())
+            ->filter(static fn (string $value, string $key): bool => !in_array($key, $ignore_facts, true))
+            ->mapWithKeys(static fn (string $value, string $key): array => [$key => 'FAM:' . $key])
+            ->map(static fn (string $tag): ElementInterface => Registry::elementFactory()->make($tag))
+            ->filter(static fn (ElementInterface $element): bool => !$element instanceof UnknownElement)
+            ->map(static fn (ElementInterface $element): string => $element->label())
+            ->sort(I18N::comparator());
+
+        $all_individual_facts = Collection::make(Registry::elementFactory()->make('INDI')->subtags())
+            ->filter(static fn (string $value, string $key): bool => !in_array($key, $ignore_facts, true))
+            ->mapWithKeys(static fn (string $value, string $key): array => [$key => 'INDI:' . $key])
+            ->map(static fn (string $tag): ElementInterface => Registry::elementFactory()->make($tag))
+            ->filter(static fn (ElementInterface $element): bool => !$element instanceof UnknownElement)
+            ->map(static fn (ElementInterface $element): string => $element->label())
+            ->sort(I18N::comparator());
+
+        $all_surname_traditions = Registry::surnameTraditionFactory()->list();
 
         $tree_count = $this->tree_service->all()->count();
 
         $title = I18N::translate('Preferences') . ' — ' . e($tree->title());
 
-        $base_url = app(ServerRequestInterface::class)->getAttribute('base_url');
+        $base_url = Validator::attributes($request)->string('base_url');
 
         return $this->viewResponse('admin/trees-preferences', [
-            'all_fam_facts'            => $all_fam_facts,
-            'all_indi_facts'           => $all_indi_facts,
-            'all_name_facts'           => $all_name_facts,
-            'all_plac_facts'           => $all_plac_facts,
-            'all_repo_facts'           => $all_repo_facts,
-            'all_sour_facts'           => $all_sour_facts,
+            'all_family_facts'         => $all_family_facts,
+            'all_individual_facts'     => $all_individual_facts,
             'all_surname_traditions'   => $all_surname_traditions,
             'base_url'                 => $base_url,
             'calendar_formats'         => $calendar_formats,

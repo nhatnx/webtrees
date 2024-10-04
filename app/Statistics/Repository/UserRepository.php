@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,33 +21,30 @@ namespace Fisharebest\Webtrees\Statistics\Repository;
 
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Http\RequestHandlers\MessagePage;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Services\MessageService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Statistics\Repository\Interfaces\UserRepositoryInterface;
 use Fisharebest\Webtrees\Tree;
 
 use function count;
+use function e;
+use function route;
+use function view;
 
 /**
  * A repository providing methods for user related statistics.
  */
 class UserRepository implements UserRepositoryInterface
 {
-    /**
-     * @var Tree
-     */
-    private $tree;
-    /**
-     * @var UserService
-     */
-    private $user_service;
+    private Tree $tree;
+
+    private UserService $user_service;
 
     /**
-     * Constructor.
-     *
      * @param Tree        $tree
      * @param UserService $user_service
      */
@@ -64,7 +61,7 @@ class UserRepository implements UserRepositoryInterface
      *
      * @return string
      */
-    private function usersLoggedInQuery($type = 'nolist'): string
+    private function usersLoggedInQuery(string $type): string
     {
         $content   = '';
         $anonymous = 0;
@@ -89,7 +86,7 @@ class UserRepository implements UserRepositoryInterface
         }
 
         if ($count_logged_in > 0) {
-            if ($anonymous) {
+            if ($anonymous !== 0) {
                 if ($type === 'list') {
                     $content .= '<br><br>';
                 } else {
@@ -120,7 +117,7 @@ class UserRepository implements UserRepositoryInterface
 
                 $content .= ' - ' . e($user->userName());
 
-                if ($user->getPreference(UserInterface::PREF_CONTACT_METHOD) !== 'none' && Auth::id() !== $user->id()) {
+                if ($user->getPreference(UserInterface::PREF_CONTACT_METHOD) !== MessageService::CONTACT_METHOD_NONE && Auth::id() !== $user->id()) {
                     $content .= '<a href="' . e(route(MessagePage::class, ['to' => $user->userName(), 'tree' => $this->tree->name()])) . '" class="btn btn-link" title="' . I18N::translate('Send a message') . '">' . view('icons/email') . '</a>';
                 }
 
@@ -233,7 +230,7 @@ class UserRepository implements UserRepositoryInterface
      */
     public function userFullName(): string
     {
-        return Auth::check() ? '<span dir="auto">' . e(Auth::user()->realName()) . '</span>' : '';
+        return Auth::check() ? '<bdi>' . e(Auth::user()->realName()) . '</bdi>' : '';
     }
 
     /**

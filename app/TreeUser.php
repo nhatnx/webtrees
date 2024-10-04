@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -27,14 +27,9 @@ use Fisharebest\Webtrees\Services\UserService;
  */
 class TreeUser implements UserInterface
 {
-    /**
-     * @var Tree
-     */
-    private $tree;
+    private Tree $tree;
 
     /**
-     * TreeUser constructor.
-     *
      * @param Tree $tree
      */
     public function __construct(Tree $tree)
@@ -59,20 +54,18 @@ class TreeUser implements UserInterface
      */
     public function email(): string
     {
-        $user_service = app(UserService::class);
+        $user_service = Registry::container()->get(UserService::class);
         $contact_id   = (int) $this->getPreference('CONTACT_USER_ID');
 
-        if ($contact_id === 0) {
-            return '';
+        if ($contact_id !== 0) {
+            $contact = $user_service->find($contact_id);
+
+            if ($contact instanceof User) {
+                return $contact->email();
+            }
         }
 
-        $contact = $user_service->find($contact_id);
-
-        if ($contact instanceof User) {
-            return $contact->email();
-        }
-
-        return '';
+        return Site::getPreference('SMTP_FROM_NAME');
     }
 
     /**

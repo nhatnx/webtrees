@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,10 +19,12 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
-use Fisharebest\Webtrees\Functions\FunctionsPrintFacts;
+use Fisharebest\Webtrees\Fact;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Illuminate\Support\Collection;
+
+use function array_map;
 
 /**
  * Class ExtraInformationModule
@@ -43,6 +45,8 @@ class IndividualMetadataModule extends AbstractModule implements ModuleSidebarIn
         'RIN',
         'SSN',
         '_UID',
+        '_FSFTID',
+        '_WEBTAG',
     ];
 
     /**
@@ -96,24 +100,20 @@ class IndividualMetadataModule extends AbstractModule implements ModuleSidebarIn
      */
     public function getSidebarContent(Individual $individual): string
     {
-        ob_start();
+        $html = $individual->facts(static::HANDLED_FACTS)
+            ->map(static fn (Fact $fact): string => view('fact', ['fact' => $fact, 'record' => $individual]))
+            ->implode('<hr>');
 
-        foreach ($individual->facts(static::HANDLED_FACTS) as $fact) {
-            FunctionsPrintFacts::printFact($fact, $individual);
-        }
-
-        $html = ob_get_clean();
-
-        return strip_tags($html, '<a><div><span><i>');
+        return strip_tags($html, ['a', 'div', 'span', 'i', 'hr', 'br']);
     }
 
     /**
      * This module handles the following facts - so don't show them on the "Facts and events" tab.
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public function supportedFacts(): Collection
     {
-        return new Collection(static::HANDLED_FACTS);
+        return new Collection(array_map(static fn (string $tag): string => 'INDI:' . $tag, static::HANDLED_FACTS));
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,29 +22,29 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 use Fig\Http\Message\RequestMethodInterface;
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Individual;
-use Fisharebest\Webtrees\TestCase;
+use Fisharebest\Webtrees\Module\FixSearchAndReplace;
 use Fisharebest\Webtrees\Services\DataFixService;
 use Fisharebest\Webtrees\Services\DatatablesService;
+use Fisharebest\Webtrees\Services\GedcomImportService;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\TreeService;
+use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test DataFixDataTest class.
- *
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\DataFixData
- * @covers \Fisharebest\Webtrees\Module\FixSearchAndReplace
- */
+#[CoversClass(DataFixData::class)]
+#[CoversClass(FixSearchAndReplace::class)]
 class DataFixDataTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
     /**
      * Test request handler
      */
     public function testHandlerForFixSearchAndReplace(): void
     {
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
 
         $data_fix_service = new DataFixService();
         $datatables_service = new DatatablesService();
@@ -53,10 +53,10 @@ class DataFixDataTest extends TestCase
         $handler = new DataFixData($data_fix_service, $datatables_service, $module_service);
 
         $request = self::createRequest(RequestMethodInterface::METHOD_GET, [
-                'type' => Individual::RECORD_TYPE,
-                'search' => 'DOE',
-                'method' => 'exact',
-                'case'  =>  ''
+                'type'       => Individual::RECORD_TYPE,
+                'search-for' => 'DOE',
+                'method'     => 'exact',
+                'case'       =>  ''
             ])
             ->withAttribute('tree', $tree)
             ->withAttribute('data_fix', 'fix-search-and-replace');

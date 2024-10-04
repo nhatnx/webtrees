@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -34,6 +34,18 @@ class Form extends AbstractElement
     protected const MAXIMUM_LENGTH = 20;
 
     /**
+     * Convert a value to a canonical form.
+     *
+     * @param string $value
+     *
+     * @return string
+     */
+    public function canonical(string $value): string
+    {
+        return strtoupper(parent::canonical($value));
+    }
+
+    /**
      * Create a default value for this element.
      *
      * @param Tree $tree
@@ -43,5 +55,17 @@ class Form extends AbstractElement
     public function default(Tree $tree): string
     {
         return 'LINEAGE-LINKED';
+    }
+
+    /**
+     * A list of controlled values for this element
+     *
+     * @return array<int|string,string>
+     */
+    public function values(): array
+    {
+        return [
+            'LINEAGE-LINKED' => 'LINEAGE-LINKED',
+        ];
     }
 }

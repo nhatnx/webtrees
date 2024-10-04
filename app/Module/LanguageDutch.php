@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,6 +21,10 @@ namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Localization\Locale\LocaleInterface;
 use Fisharebest\Localization\Locale\LocaleNl;
+use Fisharebest\Webtrees\Encodings\UTF8;
+
+use function mb_substr;
+use function str_starts_with;
 
 /**
  * Class LanguageDutch.
@@ -30,10 +34,79 @@ class LanguageDutch extends AbstractModule implements ModuleLanguageInterface
     use ModuleLanguageTrait;
 
     /**
+     * Phone-book ordering of letters.
+     *
+     * @return array<int,string>
+     */
+    public function alphabet(): array
+    {
+        return [
+            'A',
+            'B',
+            'C',
+            'D',
+            'E',
+            'F',
+            'G',
+            'H',
+            'I',
+            'J',
+            'K',
+            'L',
+            'M',
+            'N',
+            'O',
+            'P',
+            'Q',
+            'R',
+            'S',
+            'T',
+            'U',
+            'V',
+            'W',
+            'X',
+            'Y',
+            'Z',
+            'IJ',
+        ];
+    }
+
+    /**
+     * Some languages use digraphs and trigraphs.
+     *
+     * @param string $string
+     *
+     * @return string
+     */
+    public function initialLetter(string $string): string
+    {
+        if (str_starts_with($string, 'IJ')) {
+            return 'IJ';
+        }
+
+        return mb_substr($string, 0, 1);
+    }
+
+    /**
      * @return LocaleInterface
      */
     public function locale(): LocaleInterface
     {
         return new LocaleNl();
+    }
+
+    /**
+     * Letters with diacritics that are considered distinct letters in this language.
+     *
+     * @return array<string,string>
+     */
+    protected function normalizeExceptions(): array
+    {
+        return [
+            'IJ' => UTF8::LATIN_CAPITAL_LIGATURE_IJ,
+            'Ij' => UTF8::LATIN_CAPITAL_LIGATURE_IJ,
+            'ij' => UTF8::LATIN_SMALL_LIGATURE_IJ,
+            'iJ' => UTF8::LATIN_SMALL_LIGATURE_IJ,
+        ];
     }
 }

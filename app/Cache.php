@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -29,12 +29,9 @@ use Symfony\Contracts\Cache\ItemInterface;
  */
 class Cache
 {
-    /** @var CacheInterface */
-    private $cache;
+    private CacheInterface $cache;
 
     /**
-     * Cache constructor.
-     *
      * @param CacheInterface $cache
      */
     public function __construct(CacheInterface $cache)
@@ -45,13 +42,15 @@ class Cache
     /**
      * Fetch an item from the cache - or create it where it does not exist.
      *
-     * @param string   $key
-     * @param Closure  $closure
-     * @param int|null $ttl
+     * @template T
      *
-     * @return mixed
+     * @param string       $key
+     * @param Closure(): T $closure
+     * @param int|null     $ttl
+     *
+     * @return T
      */
-    public function remember(string $key, Closure $closure, int $ttl = null)
+    public function remember(string $key, Closure $closure, int|null $ttl = null)
     {
         return $this->cache->get(md5($key), static function (ItemInterface $item) use ($closure, $ttl) {
             $item->expiresAfter($ttl);

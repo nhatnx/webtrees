@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,33 +20,29 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
+use Fisharebest\Webtrees\Exceptions\FileUploadException;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\MediaFileService;
 use Fisharebest\Webtrees\Services\PendingChangesService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
-use function in_array;
 use function response;
+use function view;
 
 /**
  * Process a form to create a new media object.
  */
 class CreateMediaObjectAction implements RequestHandlerInterface
 {
-    /** @var MediaFileService */
-    private $media_file_service;
+    private MediaFileService $media_file_service;
 
-    /** @var PendingChangesService */
-    private $pending_changes_service;
+    private PendingChangesService $pending_changes_service;
 
     /**
-     * CreateMediaObjectAction constructor.
-     *
      * @param MediaFileService      $media_file_service
      * @param PendingChangesService $pending_changes_service
      */
@@ -65,17 +61,28 @@ class CreateMediaObjectAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree        = Validator::attributes($request)->tree();
+        $note        = Validator::parsedBody($request)->string('media-note');
+        $title       = Validator::parsedBody($request)->string('title');
+        $type        = Validator::parsedBody($request)->string('type');
+        $restriction = Validator::parsedBody($request)->string('restriction');
 
-        $params              = (array) $request->getParsedBody();
-        $note                = $params['media-note'] ?? '';
-        $title               = $params['title'] ?? '';
-        $type                = $params['type'] ?? '';
-        $privacy_restriction = $params['privacy-restriction'] ?? '';
-        $edit_restriction    = $params['edit-restriction'] ?? '';
+        $note        = Registry::elementFactory()->make('OBJE:NOTE')->canonical($note);
+        $type        = Registry::elementFactory()->make('OBJE:FILE:FORM:TYPE')->canonical($type);
+        $title       = Registry::elementFactory()->make('OBJE:FILE:TITL')->canonical($title);
+        $restriction = Registry::elementFactory()->make('OBJE:RESN')->canonical($restriction);
 
-        $file = $this->media_file_service->uploadFile($request);
+        try {
+            $file = $this->media_file_service->uploadFile($request);
+        } catch (FileUploadException $exception) {
+            return response([
+                'value' => '',
+                'text'  => '',
+                'html'  => view('components/alert-danger', [
+                    'alert' => $exception->getMessage(),
+                ]),
+            ]);
+        }
 
         if ($file === '') {
             return response(['error_message' => I18N::translate('There was an error uploading your file.')], StatusCodeInterface::STATUS_NOT_ACCEPTABLE);
@@ -83,28 +90,21 @@ class CreateMediaObjectAction implements RequestHandlerInterface
 
         $gedcom = "0 @@ OBJE\n" . $this->media_file_service->createMediaFileGedcom($file, $type, $title, $note);
 
-        if (in_array($privacy_restriction, $this->media_file_service::PRIVACY_RESTRICTIONS, true)) {
-            $gedcom .= "\n1 RESN " . $privacy_restriction;
-        }
-
-        if (in_array($edit_restriction, $this->media_file_service::EDIT_RESTRICTIONS, true)) {
-            $gedcom .= "\n1 RESN " . $edit_restriction;
+        if ($restriction !== '') {
+            $gedcom .= "\n1 RESN " . strtr($restriction, ["\n" => "\n2 CONT "]);
         }
 
         $record = $tree->createMediaObject($gedcom);
-        $record = Registry::mediaFactory()->new($record->xref(), $record->gedcom(), null, $tree);
 
         // Accept the new record to keep the filesystem synchronized with the genealogy.
         $this->pending_changes_service->acceptRecord($record);
 
-        // id and text are for select2 / autocomplete
+        // value and text are for autocomplete
         // html is for interactive modals
         return response([
-            'id'   => '@' . $record->xref() . '@',
-            'text' => view('selects/media', [
-                'media' => $record,
-            ]),
-            'html' => view('modals/record-created', [
+            'value' => '@' . $record->xref() . '@',
+            'text'  => view('selects/media', ['media' => $record]),
+            'html'  => view('modals/record-created', [
                 'title' => I18N::translate('The media object has been created'),
                 'name'  => $record->fullName(),
                 'url'   => $record->url(),

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,12 +19,14 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
+use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\Http\RequestHandlers\CreateMediaObjectModal;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
 
 use function e;
+use function preg_match;
 use function route;
 use function trim;
 use function view;
@@ -57,13 +59,47 @@ class XrefMedia extends AbstractXrefElement
 
         return
             '<div class="input-group">' .
-            '<div class="input-group-prepend">' .
-            '<button class="btn btn-secondary" type="button" data-toggle="modal" data-backdrop="static" data-target="#wt-ajax-modal" data-href="' . e(route(CreateMediaObjectModal::class, ['tree' => $tree->name()])) . '" data-select-id="' . $id . '" title="' . I18N::translate('Create a media object') . '">' .
+            '<button class="btn btn-secondary" type="button" data-bs-toggle="modal" data-bs-backdrop="static" data-bs-target="#wt-ajax-modal" data-wt-href="' . e(route(CreateMediaObjectModal::class, ['tree' => $tree->name()])) . '" data-wt-select-id="' . $id . '" title="' . I18N::translate('Create a media object') . '">' .
             view('icons/add') .
             '</button>' .
-            '</div>' .
             $select .
             '</div>';
+    }
+
+    /**
+     * Create a label/value pair for this element.
+     *
+     * @param string $value
+     * @param Tree   $tree
+     *
+     * @return string
+     */
+    public function labelValue(string $value, Tree $tree): string
+    {
+        // Show the image instead of the label.
+        if (preg_match('/^@(' . Gedcom::REGEX_XREF . ')@$/', $value, $match) === 1) {
+            $media = Registry::mediaFactory()->make($match[1], $tree);
+
+            if ($media === null) {
+                return parent::labelValue($value, $tree);
+            }
+
+            $media_file = $media->mediaFiles()->first();
+
+            if ($media_file === null) {
+                return parent::labelValue($value, $tree);
+            }
+
+            $label = $media_file->displayImage(100, 100, 'contain', []);
+            $value = '<a href="' . e($media->url()) . '">' . $media->fullName() . '</a>';
+
+            $label_html = '<div class="pe-1 pb-1 wt-media-link-image">' . $label . '</div>';
+            $value_html = '<div class="wt-media-link-title">' . $value . '</div>';
+
+            return '<div class="d-flex align-items-center wt-media-link">' . $label_html . $value_html . '</div>';
+        }
+
+        return parent::labelValue($value, $tree);
     }
 
     /**

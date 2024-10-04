@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,31 +20,27 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
+use Fisharebest\Webtrees\Services\GedcomImportService;
 use Fisharebest\Webtrees\Services\TimeoutService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Services\UpgradeService;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test UpgradeController class.
- *
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\UpgradeWizardPage
- */
+#[CoversClass(UpgradeWizardPage::class)]
 class UpgradeWizardPageTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @return void
-     */
     public function testWizard(): void
     {
-        $timeout_service = new TimeoutService();
-        $tree_service    = new TreeService();
-        $upgrade_service = new UpgradeService($timeout_service);
-        $handler         = new UpgradeWizardPage($tree_service, $upgrade_service);
-        $request         = self::createRequest();
-        $response        = $handler->handle($request);
+        $timeout_service       = new TimeoutService();
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $upgrade_service       = new UpgradeService($timeout_service);
+        $handler               = new UpgradeWizardPage($tree_service, $upgrade_service);
+        $request               = self::createRequest();
+        $response              = $handler->handle($request);
 
         self::assertSame(StatusCodeInterface::STATUS_OK, $response->getStatusCode());
     }

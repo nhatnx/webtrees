@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -17,46 +17,37 @@
 
 declare(strict_types=1);
 
-namespace Fisharebest\Webtrees\Http\Controllers\Admin;
+namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Contracts\UserInterface;
-use Fisharebest\Webtrees\Http\RequestHandlers\AccountUpdate;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\TestCase;
 use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\User;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test the AccountUpdate request handler.
- *
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\AccountUpdate
- */
+#[CoversClass(AccountUpdate::class)]
 class AccountUpdateTest extends TestCase
 {
-    /**
-     * @return void
-     */
     public function testHandler(): void
     {
-        $user_service = self::createMock(UserService::class);
+        $user_service = $this->createMock(UserService::class);
 
-        $user = self::createMock(User::class);
-        $user->expects(self::once())->method('setEmail')->with('b');
-        $user->expects(self::once())->method('setPassword')->with('e');
-        $user->expects(self::once())->method('setRealName')->with('d');
-        $user->expects(self::once())->method('setUserName')->with('h');
+        $user = $this->createMock(User::class);
+        $user->expects($this->once())->method('setEmail')->with('b');
+        $user->expects($this->once())->method('setPassword')->with('e');
+        $user->expects($this->once())->method('setRealName')->with('d');
+        $user->expects($this->once())->method('setUserName')->with('h');
         $user->expects(self::exactly(4))
             ->method('setPreference')
-            ->withConsecutive(
-                [UserInterface::PREF_CONTACT_METHOD, 'a'],
-                [UserInterface::PREF_LANGUAGE, 'c'],
-                [UserInterface::PREF_TIME_ZONE, 'g'],
-                [UserInterface::PREF_IS_VISIBLE_ONLINE, 'i']
+            ->with(
+                self::withConsecutive([UserInterface::PREF_CONTACT_METHOD, UserInterface::PREF_LANGUAGE, UserInterface::PREF_TIME_ZONE, UserInterface::PREF_IS_VISIBLE_ONLINE]),
+                self::withConsecutive(['a', 'c', 'g', ''])
             );
 
-        $tree = self::createMock(Tree::class);
-        $tree->expects(self::once())->method('setUserPreference')->with($user, UserInterface::PREF_TREE_DEFAULT_XREF, 'f');
+        $tree = $this->createMock(Tree::class);
+        $tree->expects($this->once())->method('setUserPreference')->with($user, UserInterface::PREF_TREE_DEFAULT_XREF, 'f');
 
         $handler  = new AccountUpdate($user_service);
         $request  = self::createRequest()

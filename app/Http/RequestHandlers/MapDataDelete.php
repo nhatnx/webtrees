@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -28,12 +28,11 @@ use function redirect;
 use function route;
 
 /**
- * Delete a place location from the control panel.
+ * Delete a location from the control panel.
  */
 class MapDataDelete implements RequestHandlerInterface
 {
-    /** @var MapDataService */
-    private $map_data_service;
+    private MapDataService $map_data_service;
 
     /**
      * Dependency injection.
@@ -52,11 +51,11 @@ class MapDataDelete implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $place_id = (int) $request->getAttribute('place_id');
+        $location_id = (int) $request->getAttribute('location_id');
 
-        $place = $this->map_data_service->findById($place_id);
+        $place = $this->map_data_service->findById($location_id);
 
-        $this->map_data_service->deleteRecursively($place_id);
+        $this->map_data_service->deleteRecursively($location_id);
 
         $url = route(MapDataList::class, ['parent_id' => $place->parent()->id()]);
 

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -76,7 +76,7 @@ class SearchMenuModule extends AbstractModule implements ModuleMenuInterface
      *
      * @return Menu|null
      */
-    public function getMenu(Tree $tree): ?Menu
+    public function getMenu(Tree $tree): Menu|null
     {
         $submenu = [
             $this->menuSearchGeneral($tree),
@@ -130,7 +130,7 @@ class SearchMenuModule extends AbstractModule implements ModuleMenuInterface
      *
      * @return Menu|null
      */
-    protected function menuSearchAndReplace(Tree $tree): ?Menu
+    protected function menuSearchAndReplace(Tree $tree): Menu|null
     {
         if (Auth::isEditor($tree)) {
             $url = route(SearchReplacePage::class, ['tree' => $tree->name()]);

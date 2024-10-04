@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,6 +21,7 @@ namespace Fisharebest\Webtrees\Factories;
 
 use Closure;
 use Fisharebest\Webtrees\Contracts\GedcomRecordFactoryInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\GedcomRecord;
@@ -35,11 +36,7 @@ use Fisharebest\Webtrees\Source;
 use Fisharebest\Webtrees\Submission;
 use Fisharebest\Webtrees\Submitter;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use InvalidArgumentException;
-use stdClass;
-
-use function assert;
 
 /**
  * Make a GedcomRecord object.
@@ -48,14 +45,8 @@ class GedcomRecordFactory extends AbstractGedcomRecordFactory implements GedcomR
 {
     /**
      * Create a GedcomRecord object.
-     *
-     * @param string      $xref
-     * @param Tree        $tree
-     * @param string|null $gedcom
-     *
-     * @return GedcomRecord|null
      */
-    public function make(string $xref, Tree $tree, string $gedcom = null): ?GedcomRecord
+    public function make(string $xref, Tree $tree, string|null $gedcom = null): GedcomRecord|null
     {
         // We know the type of the record.  Return it directly.
         if ($gedcom !== null && preg_match('/^0(?: @[^@]+@)? ([A-Z_]+)/', $gedcom, $match)) {
@@ -95,8 +86,8 @@ class GedcomRecordFactory extends AbstractGedcomRecordFactory implements GedcomR
             Registry::submissionFactory()->make($xref, $tree, $gedcom) ??
             Registry::locationFactory()->make($xref, $tree, $gedcom) ??
             Registry::headerFactory()->make($xref, $tree, $gedcom) ??
-            Registry::cache()->array()->remember(__CLASS__ . $xref . '@' . $tree->id(), function () use ($xref, $tree, $gedcom) {
-                $gedcom = $gedcom ?? $this->gedcom($xref, $tree);
+            Registry::cache()->array()->remember(self::class . $xref . '@' . $tree->id(), function () use ($xref, $tree, $gedcom) {
+                $gedcom ??= $this->gedcom($xref, $tree);
 
                 $pending = $this->pendingChanges($tree)->get($xref);
 
@@ -122,7 +113,7 @@ class GedcomRecordFactory extends AbstractGedcomRecordFactory implements GedcomR
      *
      * @return GedcomRecord
      */
-    public function new(string $xref, string $gedcom, ?string $pending, Tree $tree): GedcomRecord
+    public function new(string $xref, string $gedcom, string|null $pending, Tree $tree): GedcomRecord
     {
         return new GedcomRecord($xref, $gedcom, $pending, $tree);
     }
@@ -132,16 +123,11 @@ class GedcomRecordFactory extends AbstractGedcomRecordFactory implements GedcomR
      *
      * @param Tree $tree
      *
-     * @return Closure
+     * @return Closure(object):GedcomRecord
      */
     public function mapper(Tree $tree): Closure
     {
-        return function (stdClass $row) use ($tree): GedcomRecord {
-            $record = $this->make($row->o_id, $tree, $row->o_gedcom);
-            assert($record instanceof GedcomRecord);
-
-            return $record;
-        };
+        return fn (object $row): GedcomRecord => $this->make($row->o_id, $tree, $row->o_gedcom);
     }
 
     /**
@@ -153,7 +139,7 @@ class GedcomRecordFactory extends AbstractGedcomRecordFactory implements GedcomR
      *
      * @return GedcomRecord
      */
-    private function newGedcomRecord(string $type, string $xref, string $gedcom, ?string $pending, Tree $tree): GedcomRecord
+    private function newGedcomRecord(string $type, string $xref, string $gedcom, string|null $pending, Tree $tree): GedcomRecord
     {
         switch ($type) {
             case Family::RECORD_TYPE:
@@ -213,7 +199,7 @@ class GedcomRecordFactory extends AbstractGedcomRecordFactory implements GedcomR
      *
      * @return string|null
      */
-    private function gedcom(string $xref, Tree $tree): ?string
+    private function gedcom(string $xref, Tree $tree): string|null
     {
         return DB::table('other')
             ->where('o_id', '=', $xref)

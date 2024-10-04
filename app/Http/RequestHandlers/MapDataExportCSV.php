@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,14 +19,13 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\PlaceLocation;
 use Fisharebest\Webtrees\Services\MapDataService;
-use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use RuntimeException;
-use stdClass;
 
 use function addcslashes;
 use function array_map;
@@ -49,8 +48,7 @@ use function stream_get_contents;
  */
 class MapDataExportCSV implements RequestHandlerInterface
 {
-    /** @var MapDataService */
-    private $map_data_service;
+    private MapDataService $map_data_service;
 
     /**
      * Dependency injection.
@@ -93,7 +91,7 @@ class MapDataExportCSV implements RequestHandlerInterface
         while ($queue !== []) {
             [$id, $hierarchy, $latitude, $longitude] = array_shift($queue);
 
-            if ($latitude !== null && !$longitude !== null) {
+            if ($latitude !== null && $longitude !== null) {
                 $places[] = (object) [
                     'hierarchy' => $hierarchy,
                     'latitude'  => $latitude,
@@ -129,20 +127,18 @@ class MapDataExportCSV implements RequestHandlerInterface
             $max_level = max($max_level, count($place->hierarchy));
         }
 
-        $places = array_map(function (stdClass $place) use ($max_level): array {
-            return array_merge(
-                [
-                    count($place->hierarchy) - 1,
-                ],
-                array_pad($place->hierarchy, $max_level, ''),
-                [
-                    $this->map_data_service->writeLongitude((float) $place->longitude),
-                    $this->map_data_service->writeLatitude((float) $place->latitude),
-                    '',
-                    '',
-                ]
-            );
-        }, $places);
+        $places = array_map(fn (object $place): array => array_merge(
+            [
+                count($place->hierarchy) - 1,
+            ],
+            array_pad($place->hierarchy, $max_level, ''),
+            [
+                $this->map_data_service->writeLongitude((float) $place->longitude),
+                $this->map_data_service->writeLatitude((float) $place->latitude),
+                '',
+                '',
+            ]
+        ), $places);
 
         // Create the header line for the output file (always English)
         $header = [
@@ -158,7 +154,7 @@ class MapDataExportCSV implements RequestHandlerInterface
         $header[] = 'Zoom';
         $header[] = 'Icon';
 
-        $resource = fopen('php://temp', 'wb+');
+        $resource = fopen('php://memory', 'wb+');
 
         if ($resource === false) {
             throw new RuntimeException('Failed to create temporary stream');
@@ -175,7 +171,7 @@ class MapDataExportCSV implements RequestHandlerInterface
         $filename = addcslashes($filename, '"');
 
         return response(stream_get_contents($resource))
-            ->withHeader('Content-Type', 'text/csv; charset=UTF-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+            ->withHeader('content-type', 'text/csv; charset=UTF-8')
+            ->withHeader('content-disposition', 'attachment; filename="' . $filename . '"');
     }
 }

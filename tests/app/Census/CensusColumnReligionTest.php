@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,75 +23,57 @@ use Fisharebest\Webtrees\Fact;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\TestCase;
 use Illuminate\Support\Collection;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class CensusColumnReligion
- */
+#[CoversClass(CensusColumnReligion::class)]
+#[CoversClass(AbstractCensusColumn::class)]
 class CensusColumnReligionTest extends TestCase
 {
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnOccupation
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     * @return void
-     */
     public function testNoReligion(): void
     {
-        $individual = self::createMock(Individual::class);
+        $individual = $this->createMock(Individual::class);
         $individual
             ->expects(self::exactly(2))
             ->method('facts')
-            ->withConsecutive([['RELI']], [])
+            ->with(self::withConsecutive([['RELI'], []]))
             ->willReturnOnConsecutiveCalls(new Collection(), new Collection());
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
 
         $column = new CensusColumnReligion($census, '', '');
 
         self::assertSame('', $column->generate($individual, $individual));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnOccupation
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     * @return void
-     */
     public function testRecordReligion(): void
     {
-        $individual = self::createMock(Individual::class);
-        $fact       = self::createMock(Fact::class);
+        $individual = $this->createMock(Individual::class);
+        $fact       = $this->createMock(Fact::class);
         $fact->method('value')->willReturn('Jedi');
         $individual->method('facts')->with(['RELI'])->willReturn(new Collection([$fact]));
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
 
         $column = new CensusColumnReligion($census, '', '');
 
         self::assertSame('Jedi', $column->generate($individual, $individual));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Census\CensusColumnOccupation
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     * @return void
-     */
     public function testEventReligion(): void
     {
-        $individual = self::createMock(Individual::class);
-        $fact       = self::createMock(Fact::class);
+        $individual = $this->createMock(Individual::class);
+        $fact       = $this->createMock(Fact::class);
         $fact->method('attribute')->with('RELI')->willReturn('Jedi');
         $individual
             ->expects(self::exactly(2))
             ->method('facts')
-            ->withConsecutive(
-                [['RELI']],
-                []
-            )
+            ->with(self::withConsecutive([['RELI'], []]))
             ->willReturnOnConsecutiveCalls(
                 new Collection(),
                 new Collection([$fact])
             );
 
-        $census = self::createMock(CensusInterface::class);
+        $census = $this->createMock(CensusInterface::class);
 
         $column = new CensusColumnReligion($census, '', '');
 

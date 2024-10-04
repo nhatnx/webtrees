@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
@@ -7,22 +9,22 @@ use Fisharebest\Webtrees\Tree;
 use Illuminate\Support\Collection;
 
 /**
- * @var Collection<Family>     $famlist
- * @var Collection<Individual> $indilist
- * @var Tree                                       $tree
+ * @var Collection<int,Family>     $famlist
+ * @var Collection<int,Individual> $indilist
+ * @var Tree                       $tree
  */
 
 ?>
 
 <ul class="nav nav-tabs" role="tablist">
     <li class="nav-item" role="presentation">
-        <a class="nav-link active<?= $indilist->isEmpty() ? ' text-muted' : '' ?>" data-toggle="tab" role="tab" href="#individuals">
+        <a class="nav-link active" data-bs-toggle="tab" role="tab" href="#individuals">
             <?= I18N::translate('Individuals') ?>
             <?= view('components/badge', ['count' => count($indilist)]) ?>
         </a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link<?= $famlist->isEmpty() ? ' text-muted' : '' ?>" data-toggle="tab" role="tab" href="#families">
+        <a class="nav-link" data-bs-toggle="tab" role="tab" href="#families">
             <?= I18N::translate('Families') ?>
             <?= view('components/badge', ['count' => count($famlist)]) ?>
         </a>

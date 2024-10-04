@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,14 +20,15 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Exceptions\HttpAccessDeniedException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpAccessDeniedException;
+use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
-use function assert;
 use function response;
 use function view;
 
@@ -36,8 +37,15 @@ use function view;
  */
 trait ModuleTabTrait
 {
-    /** @var int The default position for this tab.  It can be changed in the control panel. */
-    protected $tab_order;
+    // The default position for this tab.  It can be changed in the control panel.
+    protected int $tab_order;
+
+    /**
+     * How should this module be identified in the control panel, etc.?
+     *
+     * @return string
+     */
+    abstract public function title(): string;
 
     /**
      * The text that appears on the tab.
@@ -48,6 +56,18 @@ trait ModuleTabTrait
     {
         return $this->title();
     }
+
+    /**
+     * Get the current access level for a module
+     *
+     * @template T of ModuleInterface
+     *
+     * @param Tree            $tree
+     * @param class-string<T> $interface
+     *
+     * @return int
+     */
+    abstract public function accessLevel(Tree $tree, string $interface): int;
 
     /**
      * Users change change the order of tabs using the control panel.
@@ -84,11 +104,23 @@ trait ModuleTabTrait
     /**
      * This module handles the following facts - so don't show them on the "Facts and events" tab.
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public function supportedFacts(): Collection
     {
         return new Collection();
+    }
+
+    /**
+     * Generate the HTML content of this tab.
+     *
+     * @param Individual $individual
+     *
+     * @return string
+     */
+    public function getTabContent(Individual $individual): string
+    {
+        return '';
     }
 
     /**
@@ -98,15 +130,12 @@ trait ModuleTabTrait
      */
     public function getTabAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getQueryParams()['xref'];
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+        $xref = Validator::queryParams($request)->isXref()->string('xref');
 
         $record = Registry::individualFactory()->make($xref, $tree);
         $record = Auth::checkIndividualAccess($record);
-
-        $user = $request->getAttribute('user');
 
         if ($this->accessLevel($tree, ModuleTabInterface::class) < Auth::accessLevel($tree, $user)) {
             throw new HttpAccessDeniedException();

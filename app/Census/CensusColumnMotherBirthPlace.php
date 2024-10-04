@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -38,7 +38,7 @@ class CensusColumnMotherBirthPlace extends AbstractCensusColumn implements Censu
     {
         $mother = $this->mother($individual);
 
-        if ($mother) {
+        if ($mother instanceof Individual) {
             return $this->notCountry($mother->getBirthPlace()->gedcomName());
         }
 

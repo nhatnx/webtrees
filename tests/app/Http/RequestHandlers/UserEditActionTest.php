@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,26 +22,21 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 use Fig\Http\Message\RequestMethodInterface;
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Services\EmailService;
+use Fisharebest\Webtrees\Services\GedcomImportService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test UserEditActionTest class.
- *
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\UserEditAction
- */
+#[CoversClass(UserEditAction::class)]
 class UserEditActionTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @return void
-     */
     public function testHandler(): void
     {
         $mail_service = new EmailService();
-        $tree_service = new TreeService();
+        $tree_service = new TreeService(new GedcomImportService());
         $user_service = new UserService();
         $user         = $user_service->create('user', 'real', 'email', 'pass');
         $handler      = new UserEditAction($mail_service, $tree_service, $user_service);

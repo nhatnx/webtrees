@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,22 +21,16 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Fact;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
-use Fisharebest\Webtrees\Location;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
-use Illuminate\Support\Collection;
+use Fisharebest\Webtrees\Services\ClipboardService;
+use Fisharebest\Webtrees\Services\LinkedRecordService;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function array_search;
-use function assert;
-use function is_string;
 use function redirect;
-
-use const PHP_INT_MAX;
 
 /**
  * Show a location's page.
@@ -45,20 +39,19 @@ class LocationPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    // Show the repository's facts in this order:
-    private const FACT_ORDER = [
-        1 => '_LOC:NAME',
-        '_LOC:TYPE',
-        '_LOC:_POST',
-        '_LOC:_GOV',
-        '_LOC:MAP',
-        '_LOC:_MAIDENHEAD',
-        '_LOC:RELI',
-        '_LOC:EVEN',
-        '_LOC:_LOC',
-        '_LOC:_DMGD',
-        '_LOC:_AIDN',
-    ];
+    private ClipboardService $clipboard_service;
+
+    private LinkedRecordService $linked_record_service;
+
+    /**
+     * @param ClipboardService $clipboard_service
+     * @param LinkedRecordService $linked_record_service
+     */
+    public function __construct(ClipboardService $clipboard_service, LinkedRecordService $linked_record_service)
+    {
+        $this->clipboard_service     = $clipboard_service;
+        $this->linked_record_service = $linked_record_service;
+    }
 
     /**
      * @param ServerRequestInterface $request
@@ -67,46 +60,30 @@ class LocationPage implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getAttribute('xref');
-        assert(is_string($xref));
-
-        $location = Registry::locationFactory()->make($xref, $tree);
-        $location = Auth::checkLocationAccess($location, false);
+        $tree   = Validator::attributes($request)->tree();
+        $xref   = Validator::attributes($request)->isXref()->string('xref');
+        $slug   = Validator::attributes($request)->string('slug', '');
+        $record = Registry::locationFactory()->make($xref, $tree);
+        $record = Auth::checkLocationAccess($record, false);
 
         // Redirect to correct xref/slug
-        if ($location->xref() !== $xref || $request->getAttribute('slug') !== $location->slug()) {
-            return redirect($location->url(), StatusCodeInterface::STATUS_MOVED_PERMANENTLY);
+        if ($record->xref() !== $xref || Registry::slugFactory()->make($record) !== $slug) {
+            return redirect($record->url(), StatusCodeInterface::STATUS_MOVED_PERMANENTLY);
         }
 
-        return $this->viewResponse('gedcom-record-page', [
-            'facts'         => $this->facts($location),
-            'families'      => $location->linkedFamilies('_LOC'),
-            'individuals'   => $location->linkedIndividuals('_LOC'),
-            'notes'         => new Collection(),
-            'media_objects' => new Collection(),
-            'record'        => $location,
-            'sources'       => new Collection(),
-            'title'         => $location->fullName(),
-            'tree'          => $tree,
+        return $this->viewResponse('record-page', [
+            'clipboard_facts'      => $this->clipboard_service->pastableFacts($record),
+            'linked_families'      => $this->linked_record_service->linkedFamilies($record),
+            'linked_individuals'   => $this->linked_record_service->linkedIndividuals($record),
+            'linked_locations'     => $this->linked_record_service->linkedLocations($record),
+            'linked_media_objects' => null,
+            'linked_notes'         => null,
+            'linked_repositories'  => null,
+            'linked_sources'       => $this->linked_record_service->linkedSources($record),
+            'linked_submitters'    => null,
+            'record'               => $record,
+            'title'                => $record->fullName(),
+            'tree'                 => $tree,
         ]);
-    }
-
-    /**
-     * @param Location $location
-     *
-     * @return Collection<Fact>
-     */
-    private function facts(Location $location): Collection
-    {
-        return $location->facts()
-            ->sort(static function (Fact $x, Fact $y): int {
-                $sort_x = array_search($x->tag(), self::FACT_ORDER, true) ?: PHP_INT_MAX;
-                $sort_y = array_search($y->tag(), self::FACT_ORDER, true) ?: PHP_INT_MAX;
-
-                return $sort_x <=> $sort_y;
-            });
     }
 }

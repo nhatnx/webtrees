@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -24,16 +24,10 @@ use Fisharebest\Webtrees\Services\UserService;
 
 use function strip_tags;
 
-/**
- * Test the privacy logic
- */
 class Privacy extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @return void
-     */
     public function testRecordAccess(): void
     {
         $tree = $this->importTree('demo.ged');
@@ -121,8 +115,6 @@ class Privacy extends TestCase
         self::assertFalse(Auth::isMember($tree, $visitor), 'visitor isMember()');
 
         Auth::logout();
-
-
 
         Auth::login($admin);
         self::assertTrue($queen_elizabeth->canShow(), 'admin can see living individual with RESN=none');

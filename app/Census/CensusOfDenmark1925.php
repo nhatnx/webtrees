@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -37,7 +37,7 @@ class CensusOfDenmark1925 extends CensusOfDenmark implements CensusInterface
     /**
      * The columns of the census.
      *
-     * @return CensusColumnInterface[]
+     * @return array<CensusColumnInterface>
      */
     public function columns(): array
     {
@@ -47,7 +47,7 @@ class CensusOfDenmark1925 extends CensusOfDenmark implements CensusInterface
             new CensusColumnBirthDaySlashMonth($this, 'Fødselsdag', ''),
             new CensusColumnBirthYear($this, 'Fødselsaar', ''),
             new CensusColumnBirthPlace($this, 'Fødested', ''),
-            new CensusColumnNull($this, 'Statsbergerferhold', ''),
+            new CensusColumnNull($this, 'Statsborgerforhold', ''),
             new CensusColumnConditionDanish($this, 'Civilstand', 'Ægteskabelig Stillinge. Ugift (U), Gift (G), Enkemand eller Enke (E), Separeret (S), Fraskilt (F).'),
             new CensusColumnRelationToHead($this, 'Stilling i familien', 'Stilling i Familien: Husfader, Husmoder, Barn, Slangtning o.l., Tjenestetyende, Logerende, Pensioner'),
             new CensusColumnOccupation($this, 'Erhverv', 'Erhverv eller Livsstilling'),

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,25 +22,17 @@ namespace Fisharebest\Webtrees\Elements;
 use Fisharebest\Webtrees\Contracts\ElementInterface;
 use Fisharebest\Webtrees\Html;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
-use League\CommonMark\Block\Element\Document;
-use League\CommonMark\Block\Element\Paragraph;
-use League\CommonMark\Block\Renderer\DocumentRenderer;
-use League\CommonMark\Block\Renderer\ParagraphRenderer;
-use League\CommonMark\CommonMarkConverter;
-use League\CommonMark\Environment;
-use League\CommonMark\Inline\Element\Link;
-use League\CommonMark\Inline\Element\Text;
-use League\CommonMark\Inline\Parser\AutolinkParser;
-use League\CommonMark\Inline\Renderer\LinkRenderer;
-use League\CommonMark\Inline\Renderer\TextRenderer;
 
 use function array_key_exists;
 use function array_map;
 use function e;
 use function is_numeric;
-use function preg_replace;
-use function strpos;
+use function nl2br;
+use function str_contains;
+use function str_starts_with;
+use function strip_tags;
 use function trim;
 use function view;
 
@@ -49,28 +41,44 @@ use function view;
  */
 abstract class AbstractElement implements ElementInterface
 {
-    protected const REGEX_URL = '~((https?|ftp]):)(//([^\s/?#<>]*))?([^\s?#<>]*)(\?([^\s#<>]*))?(#[^\s?#<>]+)?~';
-
     // HTML attributes for an <input>
     protected const MAXIMUM_LENGTH = false;
     protected const PATTERN        = false;
 
+    private const WHITESPACE_LINE = [
+        "\t"       => ' ',
+        "\n"       => ' ',
+        "\r"       => ' ',
+        "\v"       => ' ', // Vertical tab
+        "\u{85}"   => ' ', // NEL - newline
+        "\u{2028}" => ' ', // LS - line separator
+        "\u{2029}" => ' ', // PS - paragraph separator
+    ];
+
+    private const WHITESPACE_TEXT = [
+        "\t"       => ' ',
+        "\r\n"     => "\n",
+        "\r"       => "\n",
+        "\v"       => "\n",
+        "\u{85}"   => "\n",
+        "\u{2028}" => "\n",
+        "\u{2029}" => "\n\n",
+    ];
+
     // Which child elements can appear under this element.
     protected const SUBTAGS = [];
 
-    /** @var string A label to describe this element */
-    private $label;
+    // A label to describe this element
+    private string $label;
 
-    /** @var array<string,string> */
-    private $subtags;
+    /** @var array<string,string> Subtags of this element */
+    private array $subtags;
 
     /**
-     * AbstractGedcomElement constructor.
-     *
      * @param string             $label
      * @param array<string>|null $subtags
      */
-    public function __construct(string $label, array $subtags = null)
+    public function __construct(string $label, array|null $subtags = null)
     {
         $this->label   = $label;
         $this->subtags = $subtags ?? static::SUBTAGS;
@@ -85,13 +93,37 @@ abstract class AbstractElement implements ElementInterface
      */
     public function canonical(string $value): string
     {
-        $value = strtr($value, ["\t" => ' ', "\r" => ' ', "\n" => ' ']);
+        $value = strtr($value, self::WHITESPACE_LINE);
 
-        while (strpos($value, '  ') !== false) {
+        while (str_contains($value, '  ')) {
             $value = strtr($value, ['  ' => ' ']);
         }
 
         return trim($value);
+    }
+
+    /**
+     * Convert a multi-line value to a canonical form.
+     *
+     * @param string $value
+     *
+     * @return string
+     */
+    protected function canonicalText(string $value): string
+    {
+        $value = strtr($value, self::WHITESPACE_TEXT);
+
+        return trim($value, "\n");
+    }
+
+    /**
+     * Should we collapse the children of this element when editing?
+     *
+     * @return bool
+     */
+    public function collapseChildren(): bool
+    {
+        return false;
     }
 
     /**
@@ -129,7 +161,7 @@ abstract class AbstractElement implements ElementInterface
             }
 
             // We may use markup to display values, but not when editing them.
-            $values = array_map('strip_tags', $values);
+            $values = array_map(static fn (string $x): string => strip_tags($x), $values);
 
             return view('components/select', [
                 'id'       => $id,
@@ -140,13 +172,14 @@ abstract class AbstractElement implements ElementInterface
         }
 
         $attributes = [
-            'class'    => 'form-control',
-            'type'     => 'text',
-            'id'       => $id,
-            'name'     => $name,
-            'value'    => $value,
-            'maxvalue' => static::MAXIMUM_LENGTH,
-            'pattern'  => static::PATTERN,
+            'class'     => 'form-control',
+            'dir'       => 'auto',
+            'type'      => 'text',
+            'id'        => $id,
+            'name'      => $name,
+            'value'     => $value,
+            'maxlength' => static::MAXIMUM_LENGTH,
+            'pattern'   => static::PATTERN,
         ];
 
         return '<input ' . Html::attributes($attributes) . ' />';
@@ -177,7 +210,7 @@ abstract class AbstractElement implements ElementInterface
      */
     public function editTextArea(string $id, string $name, string $value): string
     {
-        return '<textarea class="form-control" id="' . e($id) . '" name="' . e($name) . '" rows="5" dir="auto">' . e($value) . '</textarea>';
+        return '<textarea class="form-control" id="' . e($id) . '" name="' . e($name) . '" rows="3" dir="auto">' . e($value) . '</textarea>';
     }
 
     /**
@@ -213,10 +246,37 @@ abstract class AbstractElement implements ElementInterface
     public function labelValue(string $value, Tree $tree): string
     {
         $label = '<span class="label">' . $this->label() . '</span>';
-        $value = '<span class="value">' . $this->value($value, $tree) . '</span>';
+        $value = '<span class="value align-top">' . $this->value($value, $tree) . '</span>';
         $html  = I18N::translate(/* I18N: e.g. "Occupation: farmer" */ '%1$s: %2$s', $label, $value);
 
         return '<div>' . $html . '</div>';
+    }
+
+    /**
+     * Set, remove or replace a subtag.
+     *
+     * @param string $subtag
+     * @param string $repeat
+     * @param string $before
+     *
+     * @return void
+     */
+    public function subtag(string $subtag, string $repeat, string $before = ''): void
+    {
+        if ($before === '' || ($this->subtags[$before] ?? null) === null) {
+            $this->subtags[$subtag] = $repeat;
+        } else {
+            $tmp = [];
+
+            foreach ($this->subtags as $key => $value) {
+                if ($key === $before) {
+                    $tmp[$subtag] = $repeat;
+                }
+                $tmp[$key] = $value;
+            }
+
+            $this->subtags = $tmp;
+        }
     }
 
     /**
@@ -241,15 +301,15 @@ abstract class AbstractElement implements ElementInterface
 
         if ($values === []) {
             if (str_contains($value, "\n")) {
-                return '<span dir="auto" class="d-inline-block" style="white-space: pre-wrap;">' . e($value) . '</span>';
+                return '<span class="ut d-inline-block">' . nl2br(e($value, false)) . '</span>';
             }
 
-            return '<span dir="auto">' . e($value) . '</span>';
+            return '<span class="ut">' . e($value) . '</span>';
         }
 
         $canonical = $this->canonical($value);
 
-        return $values[$canonical] ?? '<span dir="auto">' . e($value) . '</span>';
+        return $values[$canonical] ?? '<bdi>' . e($value) . '</bdi>';
     }
 
     /**
@@ -263,7 +323,7 @@ abstract class AbstractElement implements ElementInterface
     }
 
     /**
-     * Display the value of this type of element - convert URLs to links
+     * Display the value of this type of element - convert URLs to links.
      *
      * @param string $value
      *
@@ -271,21 +331,61 @@ abstract class AbstractElement implements ElementInterface
      */
     protected function valueAutoLink(string $value): string
     {
-        // Convert URLs into markdown auto-links.
-        $value = preg_replace(self::REGEX_URL, '<$0>', $value);
+        $canonical = $this->canonical($value);
 
-        // Create a minimal commonmark processor - just add support for autolinks.
-        $environment = new Environment();
-        $environment
-            ->addBlockRenderer(Document::class, new DocumentRenderer())
-            ->addBlockRenderer(Paragraph::class, new ParagraphRenderer())
-            ->addInlineRenderer(Text::class, new TextRenderer())
-            ->addInlineRenderer(Link::class, new LinkRenderer())
-            ->addInlineParser(new AutolinkParser());
+        if (str_contains($canonical, 'http://') || str_contains($canonical, 'https://')) {
+            $html = Registry::markdownFactory()->autolink($canonical);
+            $html = strip_tags($html, ['a', 'br']);
+        } else {
+            $html = nl2br(e($canonical), false);
+        }
 
-        $converter = new CommonMarkConverter(['html_input' => Environment::HTML_INPUT_ESCAPE], $environment);
+        if (str_contains($html, '<br>')) {
+            return '<span class="ut d-inline-block">' . $html . '</span>';
+        }
 
-        return $converter->convertToHtml($value);
+        return '<span class="ut">' . $html . '</span>';
+    }
+
+    /**
+     * Display the value of this type of element - multi-line text with/without markdown.
+     *
+     * @param string $value
+     * @param Tree   $tree
+     *
+     * @return string
+     */
+    protected function valueFormatted(string $value, Tree $tree): string
+    {
+        $canonical = $this->canonical($value);
+
+        $format = $tree->getPreference('FORMAT_TEXT');
+
+        switch ($format) {
+            case 'markdown':
+                return Registry::markdownFactory()->markdown($canonical, $tree);
+
+            default:
+                return Registry::markdownFactory()->autolink($canonical, $tree);
+        }
+    }
+
+    /**
+     * Display the value of this type of element - convert to URL.
+     *
+     * @param string $value
+     *
+     * @return string
+     */
+    protected function valueLink(string $value): string
+    {
+        $canonical = $this->canonical($value);
+
+        if (str_starts_with($canonical, 'https://') || str_starts_with($canonical, 'http://')) {
+            return '<a dir="auto" href="' . e($canonical) . '">' . e($value) . '</a>';
+        }
+
+        return e($value);
     }
 
     /**

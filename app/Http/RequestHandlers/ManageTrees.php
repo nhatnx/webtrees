@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -26,11 +26,10 @@ use Fisharebest\Webtrees\Services\AdminService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-
-use function app;
 
 /**
  * Show the manager options for trees.
@@ -39,11 +38,9 @@ class ManageTrees implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var AdminService */
-    private $admin_service;
+    private AdminService $admin_service;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
      * @param AdminService $admin_service
@@ -64,7 +61,7 @@ class ManageTrees implements RequestHandlerInterface
     {
         $this->layout = 'layouts/administration';
 
-        $tree = $request->getAttribute('tree');
+        $tree = Validator::attributes($request)->treeOptional();
 
         $multiple_tree_threshold = $this->admin_service->multipleTreeThreshold();
         $gedcom_file_count       = $this->admin_service->gedcomFiles(Registry::filesystem()->data())->count();
@@ -89,11 +86,8 @@ class ManageTrees implements RequestHandlerInterface
 
         $title = I18N::translate('Manage family trees');
 
-        $base_url = app(ServerRequestInterface::class)->getAttribute('base_url');
-
         return $this->viewResponse('admin/trees', [
             'all_trees' => $all_trees,
-            'base_url'  => $base_url,
             'title'     => $title,
             'tree'      => $tree,
         ]);

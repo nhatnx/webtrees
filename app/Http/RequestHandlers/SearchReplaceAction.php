@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,16 +20,16 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\FlashMessages;
+use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\SearchService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-
-use function assert;
 
 /**
  * Search and replace genealogy data
@@ -38,12 +38,9 @@ class SearchReplaceAction implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var SearchService */
-    private $search_service;
+    private SearchService $search_service;
 
     /**
-     * SearchController constructor.
-     *
      * @param SearchService $search_service
      */
     public function __construct(SearchService $search_service)
@@ -60,13 +57,10 @@ class SearchReplaceAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $params  = (array) $request->getParsedBody();
-        $search  = $params['search'] ?? '';
-        $replace = $params['replace'] ?? '';
-        $context = $params['context'] ?? 'all';
+        $tree    = Validator::attributes($request)->tree();
+        $search  = Validator::parsedBody($request)->string('search');
+        $replace = Validator::parsedBody($request)->string('replace');
+        $context = Validator::parsedBody($request)->string('context');
 
         switch ($context) {
             case 'all':
@@ -92,17 +86,9 @@ class SearchReplaceAction implements RequestHandlerInterface
                 break;
 
             case 'name':
-                $adv_name_tags = preg_split("/[\s,;: ]+/", $tree->getPreference('ADVANCED_NAME_FACTS'));
-                $name_tags     = array_unique(array_merge([
-                    'NAME',
-                    'NPFX',
-                    'GIVN',
-                    'SPFX',
-                    'SURN',
-                    'NSFX',
-                    '_MARNM',
-                    '_AKA',
-                ], $adv_name_tags));
+                $name_tags = Registry::elementFactory()->make('INDI:NAME')->subtags();
+                $name_tags = array_map(static fn (string $tag): string => '2 ' . $tag, $name_tags);
+                $name_tags[] = '1 NAME';
 
                 $records = $this->search_service->searchIndividuals([$tree], [$search]);
                 $count   = $this->replaceIndividualNames($records, $search, $replace, $name_tags);
@@ -131,9 +117,9 @@ class SearchReplaceAction implements RequestHandlerInterface
     }
 
     /**
-     * @param Collection $records
-     * @param string     $search
-     * @param string     $replace
+     * @param Collection<int,GedcomRecord> $records
+     * @param string                       $search
+     * @param string                       $replace
      *
      * @return int
      */
@@ -156,16 +142,16 @@ class SearchReplaceAction implements RequestHandlerInterface
     }
 
     /**
-     * @param Collection $records
-     * @param string     $search
-     * @param string     $replace
-     * @param string[]   $name_tags
+     * @param Collection<int,GedcomRecord> $records
+     * @param string                       $search
+     * @param string                       $replace
+     * @param array<string>                $name_tags
      *
      * @return int
      */
     private function replaceIndividualNames(Collection $records, string $search, string $replace, array $name_tags): int
     {
-        $pattern     = '/(\n\d (?:' . implode('|', $name_tags) . ') (?:.*))' . preg_quote($search, '/') . '/i';
+        $pattern     = '/(\n(?:' . implode('|', $name_tags) . ') .*)' . preg_quote($search, '/') . '/i';
         $replacement = '$1' . $replace;
         $count       = 0;
 
@@ -183,9 +169,9 @@ class SearchReplaceAction implements RequestHandlerInterface
     }
 
     /**
-     * @param Collection $records
-     * @param string     $search
-     * @param string     $replace
+     * @param Collection<int,GedcomRecord> $records
+     * @param string                       $search
+     * @param string                       $replace
      *
      * @return int
      */

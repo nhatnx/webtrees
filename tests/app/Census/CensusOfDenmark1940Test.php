@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,18 +20,14 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Census;
 
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class CensusOfDenmark1930
- */
+#[CoversClass(CensusOfDenmark1940::class)]
+#[CoversClass(AbstractCensusColumn::class)]
 class CensusOfDenmark1940Test extends TestCase
 {
     /**
      * Test the census place and date
-     *
-     * @covers \Fisharebest\Webtrees\Census\CensusOfDenmark1940
-     *
-     * @return void
      */
     public function testPlaceAndDate(): void
     {
@@ -43,11 +39,6 @@ class CensusOfDenmark1940Test extends TestCase
 
     /**
      * Test the census columns
-     *
-     * @covers \Fisharebest\Webtrees\Census\CensusOfDenmark1940
-     * @covers \Fisharebest\Webtrees\Census\AbstractCensusColumn
-     *
-     * @return void
      */
     public function testColumns(): void
     {
@@ -78,7 +69,7 @@ class CensusOfDenmark1940Test extends TestCase
         self::assertSame('Fødselsdag', $columns[4]->abbreviation());
         self::assertSame('Fødselsaar', $columns[5]->abbreviation());
         self::assertSame('Fødested', $columns[6]->abbreviation());
-        self::assertSame('Statsbergerferhold', $columns[7]->abbreviation());
+        self::assertSame('Statsborgerforhold', $columns[7]->abbreviation());
         self::assertSame('Civilstand', $columns[8]->abbreviation());
         self::assertSame('Indgaaelse', $columns[9]->abbreviation());
         self::assertSame('Stilling i familien', $columns[10]->abbreviation());

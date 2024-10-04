@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -37,34 +37,6 @@ class MinimalTheme extends AbstractModule implements ModuleThemeInterface
     {
         /* I18N: Name of a theme. */
         return I18N::translate('minimal');
-    }
-
-    /**
-     * Miscellaneous dimensions, fonts, styles, etc.
-     *
-     * @param string $parameter_name
-     *
-     * @return string|int|float
-     */
-    public function parameter($parameter_name)
-    {
-        $parameters = [
-            'chart-background-f'             => 'dddddd',
-            'chart-background-m'             => 'cccccc',
-            'chart-background-u'             => 'eeeeee',
-            'chart-box-x'                    => 260,
-            'chart-box-y'                    => 85,
-            'chart-font-color'               => '000000',
-            'chart-spacing-x'                => 5,
-            'chart-spacing-y'                => 10,
-            'compact-chart-box-x'            => 240,
-            'compact-chart-box-y'            => 50,
-            'distribution-chart-high-values' => '555555',
-            'distribution-chart-low-values'  => 'cccccc',
-            'distribution-chart-no-values'   => 'ffffff',
-        ];
-
-        return $parameters[$parameter_name];
     }
 
     /**

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,13 +19,13 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Services;
 
+use Fisharebest\Webtrees\DB;
+use Fisharebest\Webtrees\FlashMessages;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\PlaceLocation;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Collection;
-use stdClass;
 
 use function abs;
 use function array_filter;
@@ -74,7 +74,7 @@ class MapDataService
      *
      * @param PlaceLocation $location
      *
-     * @return array<string,array<stdClass>>
+     * @return array<string,array<object>>
      */
     public function activePlaces(PlaceLocation $location): array
     {
@@ -124,9 +124,7 @@ class MapDataService
                 'p8.p_place AS part_8',
             ])
             ->get()
-            ->map(static function (stdClass $row): string {
-                return implode(Gedcom::PLACE_SEPARATOR, array_filter((array) $row));
-            });
+            ->map(static fn (object $row): string => implode(Gedcom::PLACE_SEPARATOR, array_filter((array) $row)));
 
         $all_locations = DB::table('place_location AS p0')
             ->leftJoin('place_location AS p1', 'p1.id', '=', 'p0.parent_id')
@@ -149,9 +147,7 @@ class MapDataService
                 'p8.place AS part_8',
             ])
             ->get()
-            ->map(static function (stdClass $row): string {
-                return implode(Gedcom::PLACE_SEPARATOR, array_filter((array) $row));
-            });
+            ->map(static fn (object $row): string => implode(Gedcom::PLACE_SEPARATOR, array_filter((array) $row)));
 
         $missing = $all_places->diff($all_locations);
 
@@ -161,37 +157,9 @@ class MapDataService
     }
 
     /**
-     * Find all active places that match a location
-     *
-     * @param PlaceLocation $location
-     *
-     * @return array<string>
-     */
-    private function placeIdsForLocation(PlaceLocation $location): array
-    {
-        $hierarchy = [];
-
-        while ($location->id() !== null) {
-            array_unshift($hierarchy, $location->locationName());
-            $location = $location->parent();
-        }
-
-        $place_ids = ['0'];
-
-        foreach ($hierarchy as $place_name) {
-            $place_ids = DB::table('places')
-                ->whereIn('p_parent_id', $place_ids)
-                ->where('p_place', '=', $place_name)
-                ->groupBy(['p_id'])
-                ->pluck('p_id')
-                ->all();
-        }
-
-        return $place_ids;
-    }
-
-    /**
      * @param int $id
+     *
+     * @return void
      */
     public function deleteRecursively(int $id): void
     {
@@ -202,16 +170,51 @@ class MapDataService
     }
 
     /**
+     * @param int|null   $parent_location_id
+     * @param array<int> $parent_place_ids
+     *
+     * @return void
+     */
+    public function deleteUnusedLocations(int|null $parent_location_id, array $parent_place_ids): void
+    {
+        if ($parent_location_id === null) {
+            $location_query = DB::table('place_location')
+                ->whereNull('parent_id');
+        } else {
+            $location_query = DB::table('place_location')
+                ->where('parent_id', '=', $parent_location_id);
+        }
+
+        foreach ($location_query->get() as $location) {
+            $places = DB::table('places')
+                ->whereIn('p_parent_id', $parent_place_ids)
+                ->where('p_place', '=', $location->place)
+                ->get();
+
+            if ($places->isEmpty()) {
+                FlashMessages::addMessage(I18N::translate('“%s” has been deleted.', e($location->place)));
+
+                DB::table('place_location')
+                    ->where('id', '=', $location->id)
+                    ->delete();
+            } else {
+                $place_ids = $places->map(static fn (object $place): int => (int) $place->p_id)->all();
+                $this->deleteUnusedLocations((int) $location->id, $place_ids);
+            }
+        }
+    }
+
+    /**
      * Find a list of child places.
      * How many children does each child place have?  How many have co-ordinates?
      *
      * @param int|null $parent_id
      *
-     * @return Collection<object>
+     * @return Collection<int,object>
      */
-    public function getPlaceListLocation(?int $parent_id): Collection
+    public function getPlaceListLocation(int|null $parent_id): Collection
     {
-        $prefix = DB::connection()->getTablePrefix();
+        $prefix = DB::prefix();
 
         $expression =
             $prefix . 'p1.place IS NOT NULL AND ' . $prefix . 'p1.latitude IS NULL OR ' .
@@ -245,20 +248,20 @@ class MapDataService
 
         return $query
             ->groupBy(['p0.id'])
-            ->orderBy(new Expression($prefix . 'p0.place /*! COLLATE ' . I18N::collation() . ' */'))
             ->select([
                 'p0.*',
                 new Expression('COUNT(' . $prefix . 'p1.id) AS child_count'),
                 new Expression('SUM(' . $expression . ') AS no_coord'),
             ])
             ->get()
-            ->map(static function (stdClass $row): stdClass {
+            ->map(static function (object $row): object {
                 $row->child_count = (int) $row->child_count;
                 $row->no_coord    = (int) $row->no_coord;
                 $row->key         = mb_strtolower($row->place);
 
                 return $row;
-            });
+            })
+            ->sort(static fn (object $x, object $y): int => I18N::comparator()($x->place, $y->place));
     }
 
     /**
@@ -279,6 +282,36 @@ class MapDataService
     public function writeLongitude(float $longitude): string
     {
         return $this->writeDegrees($longitude, Gedcom::LONGITUDE_EAST, Gedcom::LONGITUDE_WEST);
+    }
+
+    /**
+     * Find all active places that match a location
+     *
+     * @param PlaceLocation $location
+     *
+     * @return array<string>
+     */
+    private function placeIdsForLocation(PlaceLocation $location): array
+    {
+        $hierarchy = [];
+
+        while ($location->id() !== null) {
+            array_unshift($hierarchy, $location->locationName());
+            $location = $location->parent();
+        }
+
+        $place_ids = ['0'];
+
+        foreach ($hierarchy as $place_name) {
+            $place_ids = DB::table('places')
+                ->whereIn('p_parent_id', $place_ids)
+                ->where('p_place', '=', $place_name)
+                ->groupBy(['p_id'])
+                ->pluck('p_id')
+                ->all();
+        }
+
+        return $place_ids;
     }
 
     /**

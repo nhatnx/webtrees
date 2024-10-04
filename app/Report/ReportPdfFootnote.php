@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -37,7 +37,7 @@ class ReportPdfFootnote extends ReportBaseFootnote
      *
      * @return void
      */
-    public function render($renderer)
+    public function render($renderer): void
     {
         $renderer->setCurrentStyle('footnotenum');
         $renderer->tcpdf->Write($renderer->getCurrentStyleHeight(), $this->numText, $this->addlink); //source link numbers after name
@@ -58,7 +58,7 @@ class ReportPdfFootnote extends ReportBaseFootnote
         }
         $temptext = str_replace('#PAGENUM#', (string) $renderer->tcpdf->PageNo(), $this->text);
         // Set the link to this y/page position
-        $renderer->tcpdf->SetLink($this->addlink, -1, -1);
+        $renderer->tcpdf->setLink($this->addlink, -1, -1);
         // Print first the source number
         // working
         if ($renderer->tcpdf->getRTL()) {
@@ -84,7 +84,7 @@ class ReportPdfFootnote extends ReportBaseFootnote
      *
      * @return float $h
      */
-    public function getFootnoteHeight($renderer): float
+    public function getFootnoteHeight(PdfRenderer $renderer): float
     {
         return 0;
     }
@@ -95,9 +95,9 @@ class ReportPdfFootnote extends ReportBaseFootnote
      *
      * @param PdfRenderer $renderer
      *
-     * @return float|array
+     * @return array{0:float,1:int,2:float}
      */
-    public function getWidth($renderer)
+    public function getWidth($renderer): array
     {
         // Setup the style name, a font must be selected to calculate the width
         $renderer->setCurrentStyle('footnotenum');
@@ -124,11 +124,11 @@ class ReportPdfFootnote extends ReportBaseFootnote
             if ($lw >= $wrapWidthRemaining || $lfct > 1) {
                 $newtext = '';
                 $lines   = explode("\n", $this->numText);
-                // Go throught the text line by line
+                // Go through the text line by line
                 foreach ($lines as $line) {
                     // Line width in points
                     $lw = ceil($renderer->tcpdf->GetStringWidth($line));
-                    // If the line has to be wraped
+                    // If the line has to be wrapped
                     if ($lw >= $wrapWidthRemaining) {
                         $words    = explode(' ', $line);
                         $addspace = count($words);

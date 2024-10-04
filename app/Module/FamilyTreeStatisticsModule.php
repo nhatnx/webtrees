@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,16 +20,23 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Functions\FunctionsPrintLists;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Statistics;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Str;
 use Psr\Http\Message\ServerRequestInterface;
+
+use function array_slice;
+use function extract;
+use function view;
+
+use const EXTR_OVERWRITE;
 
 /**
  * Class FamilyTreeStatisticsModule
@@ -40,6 +47,16 @@ class FamilyTreeStatisticsModule extends AbstractModule implements ModuleBlockIn
 
     /** Show this number of surnames by default */
     private const DEFAULT_NUMBER_OF_SURNAMES = '10';
+
+    private ModuleService $module_service;
+
+    /**
+     * @param ModuleService $module_service
+     */
+    public function __construct(ModuleService $module_service)
+    {
+        $this->module_service = $module_service;
+    }
 
     /**
      * How should this module be identified in the control panel, etc.?
@@ -66,16 +83,16 @@ class FamilyTreeStatisticsModule extends AbstractModule implements ModuleBlockIn
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
     public function getBlock(Tree $tree, int $block_id, string $context, array $config = []): string
     {
-        $statistics = app(Statistics::class);
+        $statistics = Registry::container()->get(Statistics::class);
 
         $show_last_update     = $this->getBlockSetting($block_id, 'show_last_update', '1');
         $show_common_surnames = $this->getBlockSetting($block_id, 'show_common_surnames', '1');
@@ -99,39 +116,48 @@ class FamilyTreeStatisticsModule extends AbstractModule implements ModuleBlockIn
 
         extract($config, EXTR_OVERWRITE);
 
-        if ($show_common_surnames) {
-            // Use the count of base surnames.
-            $top_surnames = DB::table('name')
+        if ($show_common_surnames === '1') {
+            $query = DB::table('name')
                 ->where('n_file', '=', $tree->id())
                 ->where('n_type', '<>', '_MARNM')
-                ->whereNotIn('n_surn', [Individual::NOMEN_NESCIO, ''])
-                ->groupBy(['n_surn'])
-                ->orderByDesc(new Expression('COUNT(n_surn)'))
-                ->take($number_of_surnames)
-                ->pluck('n_surn');
+                ->where('n_surn', '<>', '')
+                ->where('n_surn', '<>', Individual::NOMEN_NESCIO)
+                ->select([
+                    DB::binaryColumn('n_surn', 'n_surn'),
+                    DB::binaryColumn('n_surname', 'n_surname'),
+                    new Expression('COUNT(*) AS total'),
+                ])
+                ->groupBy([
+                    DB::binaryColumn('n_surn'),
+                    DB::binaryColumn('n_surname'),
+                ]);
 
-            $all_surnames = [];
+            /** @var array<array<int>> $top_surnames */
+            $top_surnames = [];
 
-            foreach ($top_surnames as $top_surname) {
-                $variants = DB::table('name')
-                    ->where('n_file', '=', $tree->id())
-                    ->where(new Expression('n_surn /*! COLLATE utf8_bin */'), '=', $top_surname)
-                    ->groupBy(['surname'])
-                    ->select([new Expression('n_surname /*! COLLATE utf8_bin */ AS surname'), new Expression('count(*) AS total')])
-                    ->pluck('total', 'surname')
-                    ->all();
+            foreach ($query->get() as $row) {
+                $row->n_surn = $row->n_surn === '' ? $row->n_surname : $row->n_surn;
+                $row->n_surn = I18N::strtoupper(I18N::language()->normalize($row->n_surn));
 
-                $all_surnames[$top_surname] = $variants;
+                $top_surnames[$row->n_surn][$row->n_surname] ??= 0;
+                $top_surnames[$row->n_surn][$row->n_surname] += (int) $row->total;
             }
 
-            uksort($all_surnames, [I18N::class, 'strcasecmp']);
+            uasort($top_surnames, static fn (array $x, array $y): int => array_sum($y) <=> array_sum($x));
 
-            //find a module providing individual lists
-            $module = app(ModuleService::class)->findByComponent(ModuleListInterface::class, $tree, Auth::user())->first(static function (ModuleInterface $module) {
-                return $module instanceof IndividualListModule;
-            });
+            $top_surnames = array_slice($top_surnames, 0, $number_of_surnames, true);
 
-            $surnames = FunctionsPrintLists::surnameList($all_surnames, 2, false, $module, $tree);
+            // Find a module providing individual lists
+            $module = $this->module_service
+                ->findByComponent(ModuleListInterface::class, $tree, Auth::user())
+                ->first(static fn (ModuleInterface $module): bool => $module instanceof IndividualListModule);
+
+            $surnames = view('lists/surnames-compact-list', [
+                'module'   => $module,
+                'totals'   => false,
+                'surnames' => $top_surnames,
+                'tree'     => $tree,
+            ]);
         } else {
             $surnames = '';
         }
@@ -156,9 +182,10 @@ class FamilyTreeStatisticsModule extends AbstractModule implements ModuleBlockIn
             'stat_avg_life'        => $stat_avg_life,
             'stat_most_chil'       => $stat_most_chil,
             'stat_avg_chil'        => $stat_avg_chil,
-            'stats'                => $statistics,
             'surnames'             => $surnames,
         ]);
+
+        $content = $statistics->embedTags($content);
 
         if ($context !== self::CONTEXT_EMBED) {
             return view('modules/block-template', [
@@ -215,28 +242,47 @@ class FamilyTreeStatisticsModule extends AbstractModule implements ModuleBlockIn
      */
     public function saveBlockConfiguration(ServerRequestInterface $request, int $block_id): void
     {
-        $params = (array) $request->getParsedBody();
+        $show_last_update     = Validator::parsedBody($request)->boolean('show_last_update', false);
+        $show_common_surnames = Validator::parsedBody($request)->boolean('show_common_surnames', false);
+        $number_of_surnames   = Validator::parsedBody($request)->integer('number_of_surnames');
+        $stat_indi            = Validator::parsedBody($request)->boolean('stat_indi', false);
+        $stat_fam             = Validator::parsedBody($request)->boolean('stat_fam', false);
+        $stat_sour            = Validator::parsedBody($request)->boolean('stat_sour', false);
+        $stat_other           = Validator::parsedBody($request)->boolean('stat_other', false);
+        $stat_media           = Validator::parsedBody($request)->boolean('stat_media', false);
+        $stat_repo            = Validator::parsedBody($request)->boolean('stat_repo', false);
+        $stat_surname         = Validator::parsedBody($request)->boolean('stat_surname', false);
+        $stat_events          = Validator::parsedBody($request)->boolean('stat_events', false);
+        $stat_users           = Validator::parsedBody($request)->boolean('stat_users', false);
+        $stat_first_birth     = Validator::parsedBody($request)->boolean('stat_first_birth', false);
+        $stat_last_birth      = Validator::parsedBody($request)->boolean('stat_last_birth', false);
+        $stat_first_death     = Validator::parsedBody($request)->boolean('stat_first_death', false);
+        $stat_last_death      = Validator::parsedBody($request)->boolean('stat_last_death', false);
+        $stat_long_life       = Validator::parsedBody($request)->boolean('stat_long_life', false);
+        $stat_avg_life        = Validator::parsedBody($request)->boolean('stat_avg_life', false);
+        $stat_most_chil       = Validator::parsedBody($request)->boolean('stat_most_chil', false);
+        $stat_avg_chil        = Validator::parsedBody($request)->boolean('stat_avg_chil', false);
 
-        $this->setBlockSetting($block_id, 'show_last_update', $params['show_last_update'] ?? '');
-        $this->setBlockSetting($block_id, 'show_common_surnames', $params['show_common_surnames'] ?? '');
-        $this->setBlockSetting($block_id, 'number_of_surnames', $params['number_of_surnames']);
-        $this->setBlockSetting($block_id, 'stat_indi', $params['stat_indi'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_fam', $params['stat_fam'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_sour', $params['stat_sour'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_other', $params['stat_other'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_media', $params['stat_media'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_repo', $params['stat_repo'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_surname', $params['stat_surname'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_events', $params['stat_events'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_users', $params['stat_users'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_first_birth', $params['stat_first_birth'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_last_birth', $params['stat_last_birth'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_first_death', $params['stat_first_death'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_last_death', $params['stat_last_death'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_long_life', $params['stat_long_life'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_avg_life', $params['stat_avg_life'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_most_chil', $params['stat_most_chil'] ?? '');
-        $this->setBlockSetting($block_id, 'stat_avg_chil', $params['stat_avg_chil'] ?? '');
+        $this->setBlockSetting($block_id, 'show_last_update', (string) $show_last_update);
+        $this->setBlockSetting($block_id, 'show_common_surnames', (string) $show_common_surnames);
+        $this->setBlockSetting($block_id, 'number_of_surnames', (string) $number_of_surnames);
+        $this->setBlockSetting($block_id, 'stat_indi', (string) $stat_indi);
+        $this->setBlockSetting($block_id, 'stat_fam', (string) $stat_fam);
+        $this->setBlockSetting($block_id, 'stat_sour', (string) $stat_sour);
+        $this->setBlockSetting($block_id, 'stat_other', (string) $stat_other);
+        $this->setBlockSetting($block_id, 'stat_media', (string) $stat_media);
+        $this->setBlockSetting($block_id, 'stat_repo', (string) $stat_repo);
+        $this->setBlockSetting($block_id, 'stat_surname', (string) $stat_surname);
+        $this->setBlockSetting($block_id, 'stat_events', (string) $stat_events);
+        $this->setBlockSetting($block_id, 'stat_users', (string) $stat_users);
+        $this->setBlockSetting($block_id, 'stat_first_birth', (string) $stat_first_birth);
+        $this->setBlockSetting($block_id, 'stat_last_birth', (string) $stat_last_birth);
+        $this->setBlockSetting($block_id, 'stat_first_death', (string) $stat_first_death);
+        $this->setBlockSetting($block_id, 'stat_last_death', (string) $stat_last_death);
+        $this->setBlockSetting($block_id, 'stat_long_life', (string) $stat_long_life);
+        $this->setBlockSetting($block_id, 'stat_avg_life', (string) $stat_avg_life);
+        $this->setBlockSetting($block_id, 'stat_most_chil', (string) $stat_most_chil);
+        $this->setBlockSetting($block_id, 'stat_avg_chil', (string) $stat_avg_chil);
     }
 
     /**

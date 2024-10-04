@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -35,12 +35,9 @@ class FixDuplicateLinks extends AbstractModule implements ModuleDataFixInterface
 {
     use ModuleDataFixTrait;
 
-    /** @var DataFixService */
-    private $data_fix_service;
+    private DataFixService $data_fix_service;
 
     /**
-     * FixMissingDeaths constructor.
-     *
      * @param DataFixService $data_fix_service
      */
     public function __construct(DataFixService $data_fix_service)
@@ -77,7 +74,7 @@ class FixDuplicateLinks extends AbstractModule implements ModuleDataFixInterface
      * @param Tree          $tree
      * @param array<string> $params
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     protected function familiesToFix(Tree $tree, array $params): Collection
     {
@@ -93,9 +90,9 @@ class FixDuplicateLinks extends AbstractModule implements ModuleDataFixInterface
      * @param Tree                 $tree
      * @param array<string,string> $params
      *
-     * @return Collection<string>|null
+     * @return Collection<int,string>|null
      */
-    protected function individualsToFix(Tree $tree, array $params): ?Collection
+    protected function individualsToFix(Tree $tree, array $params): Collection|null
     {
         // No DB querying possible?  Select all.
         return $this->individualsToFixQuery($tree, $params)
@@ -109,7 +106,7 @@ class FixDuplicateLinks extends AbstractModule implements ModuleDataFixInterface
      * @param Tree                 $tree
      * @param array<string,string> $params
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     protected function mediaToFix(Tree $tree, array $params): Collection
     {
@@ -125,7 +122,7 @@ class FixDuplicateLinks extends AbstractModule implements ModuleDataFixInterface
      * @param Tree                 $tree
      * @param array<string,string> $params
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     protected function notesToFix(Tree $tree, array $params): Collection
     {
@@ -141,7 +138,7 @@ class FixDuplicateLinks extends AbstractModule implements ModuleDataFixInterface
      * @param Tree                 $tree
      * @param array<string,string> $params
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     protected function repositoriesToFix(Tree $tree, array $params): Collection
     {
@@ -157,7 +154,7 @@ class FixDuplicateLinks extends AbstractModule implements ModuleDataFixInterface
      * @param Tree                 $tree
      * @param array<string,string> $params
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     protected function sourcesToFix(Tree $tree, array $params): Collection
     {
@@ -173,7 +170,7 @@ class FixDuplicateLinks extends AbstractModule implements ModuleDataFixInterface
      * @param Tree                 $tree
      * @param array<string,string> $params
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     protected function submittersToFix(Tree $tree, array $params): Collection
     {
@@ -195,9 +192,9 @@ class FixDuplicateLinks extends AbstractModule implements ModuleDataFixInterface
         $gedcom = $record->gedcom();
 
         return
-            preg_match('/(\n1.*@.+@.*(?:(?:\n[2-9].*)*))(?:\n1.*(?:\n[2-9].*)*)*\1/', $gedcom) ||
-            preg_match('/(\n2.*@.+@.*(?:(?:\n[3-9].*)*))(?:\n2.*(?:\n[3-9].*)*)*\1/', $gedcom) ||
-            preg_match('/(\n3.*@.+@.*(?:(?:\n[4-9].*)*))(?:\n3.*(?:\n[4-9].*)*)*\1/', $gedcom);
+            preg_match('/(\n1.*@.+@.*(?:\n[2-9].*)*)(?:\n1.*(?:\n[2-9].*)*)*\1/', $gedcom) ||
+            preg_match('/(\n2.*@.+@.*(?:\n[3-9].*)*)(?:\n2.*(?:\n[3-9].*)*)*\1/', $gedcom) ||
+            preg_match('/(\n3.*@.+@.*(?:\n[4-9].*)*)(?:\n3.*(?:\n[4-9].*)*)*\1/', $gedcom);
     }
 
     /**
@@ -236,10 +233,10 @@ class FixDuplicateLinks extends AbstractModule implements ModuleDataFixInterface
      */
     private function updateGedcom(GedcomRecord $record): string
     {
-        return preg_replace([
-            '/(\n1.*@.+@.*(?:(?:\n[2-9].*)*))((?:\n1.*(?:\n[2-9].*)*)*\1)/',
-            '/(\n2.*@.+@.*(?:(?:\n[3-9].*)*))((?:\n2.*(?:\n[3-9].*)*)*\1)/',
-            '/(\n3.*@.+@.*(?:(?:\n[4-9].*)*))((?:\n3.*(?:\n[4-9].*)*)*\1)/',
-        ], '$2', $record->gedcom());
+        $gedcom = $record->gedcom();
+        $gedcom = preg_replace('/(\n1.*@.+@.*(?:\n[2-9].*)*)((?:\n1.*(?:\n[2-9].*)*)*\1)/', '$2', $gedcom);
+        $gedcom = preg_replace('/(\n2.*@.+@.*(?:\n[3-9].*)*)((?:\n2.*(?:\n[3-9].*)*)*\1)/', '$2', $gedcom);
+
+        return preg_replace('/(\n3.*@.+@.*(?:\n[4-9].*)*)((?:\n3.*(?:\n[4-9].*)*)*\1)/', '$2', $gedcom);
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,20 +20,20 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Http\RequestHandlers\ControlPanel;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Menu;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\HtmlService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use stdClass;
 
-use function assert;
+use function in_array;
 use function redirect;
 use function route;
 
@@ -46,15 +46,11 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
     use ModuleConfigTrait;
     use ModuleMenuTrait;
 
-    /** @var HtmlService */
-    private $html_service;
+    private HtmlService $html_service;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
-     * StoriesModule constructor.
-     *
      * @param HtmlService $html_service
      * @param TreeService $tree_service
      */
@@ -65,7 +61,7 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
     }
 
     /** @var int The default access level for this module.  It can be changed in the control panel. */
-    protected $access_level = Auth::PRIV_HIDE;
+    protected int $access_level = Auth::PRIV_HIDE;
 
     /**
      * A sentence describing what this module does.
@@ -118,7 +114,7 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
     /**
      * @param Individual $individual
      *
-     * @return stdClass[]
+     * @return array<object>
      */
     private function getStoriesForIndividual(Individual $individual): array
     {
@@ -188,7 +184,7 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
      *
      * @return Menu|null
      */
-    public function getMenu(Tree $tree): ?Menu
+    public function getMenu(Tree $tree): Menu|null
     {
         return new Menu($this->title(), route('module', [
             'module' => $this->name(),
@@ -218,7 +214,7 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
         $this->layout = 'layouts/administration';
 
         // This module can't run without a tree
-        $tree = $request->getAttribute('tree');
+        $tree = Validator::attributes($request)->treeOptional();
 
         if (!$tree instanceof Tree) {
             $tree = $this->tree_service->all()->first();
@@ -244,9 +240,8 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
             $story->languages  = $this->getBlockSetting($block_id, 'languages');
         }
 
-        $tree_names = $this->tree_service->all()->map(static function (Tree $tree): string {
-            return $tree->title();
-        });
+        $tree_names = $this->tree_service->all()
+            ->map(static fn (Tree $tree): string => $tree->title());
 
         return $this->viewResponse('modules/stories/config', [
             'module'     => $this->name(),
@@ -264,12 +259,10 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
      */
     public function postAdminAction(ServerRequestInterface $request): ResponseInterface
     {
-        $params = (array) $request->getParsedBody();
-
         return redirect(route('module', [
             'module' => $this->name(),
             'action' => 'Admin',
-            'tree'   => $params['tree'] ?? '',
+            'tree'   => Validator::parsedBody($request)->string('tree'),
         ]));
     }
 
@@ -282,21 +275,17 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
     {
         $this->layout = 'layouts/administration';
 
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $block_id = (int) ($request->getQueryParams()['block_id'] ?? 0);
-
-        $url = $request->getQueryParams()['url'] ?? '';
+        $tree     = Validator::attributes($request)->tree();
+        $block_id = Validator::queryParams($request)->integer('block_id', 0);
+        $url      = Validator::queryParams($request)->string('url', '');
 
         if ($block_id === 0) {
             // Creating a new story
             $story_title = '';
             $story_body  = '';
             $languages   = [];
-            $xref = $request->getQueryParams()['xref'] ?? '';
-
-            $title = I18N::translate('Add a story') . ' — ' . e($tree->title());
+            $xref        = Validator::queryParams($request)->isXref()->string('xref', '');
+            $title       = I18N::translate('Add a story') . ' — ' . e($tree->title());
         } else {
             // Editing an existing story
             $xref = (string) DB::table('block')
@@ -306,8 +295,7 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
             $story_title = $this->getBlockSetting($block_id, 'title');
             $story_body  = $this->getBlockSetting($block_id, 'story_body');
             $languages   = explode(',', $this->getBlockSetting($block_id, 'languages'));
-
-            $title = I18N::translate('Edit the story') . ' — ' . e($tree->title());
+            $title       = I18N::translate('Edit the story') . ' — ' . e($tree->title());
         }
 
         $individual = Registry::individualFactory()->make($xref, $tree);
@@ -331,19 +319,14 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
      */
     public function postAdminEditAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $block_id = (int) ($request->getQueryParams()['block_id'] ?? 0);
-
-        $params = (array) $request->getParsedBody();
-
-        $xref        = $params['xref'];
-        $story_body  = $params['story_body'];
-        $story_title = $params['story_title'];
-        $languages   = $params['languages'] ?? [];
-        $url         = $params['url'] ?? '';
-
+        $tree        = Validator::attributes($request)->tree();
+        $block_id    = Validator::queryParams($request)->integer('block_id', 0);
+        $xref        = Validator::parsedBody($request)->string('xref');
+        $story_body  = Validator::parsedBody($request)->string('story_body');
+        $story_title = Validator::parsedBody($request)->string('story_title');
+        $languages   = Validator::parsedBody($request)->array('languages');
+        $default_url = route('module', ['module' => $this->name(), 'action' => 'Admin', 'tree' => $tree->name()]);
+        $url         = Validator::parsedBody($request)->isLocalUrl()->string('url', $default_url);
         $story_body  = $this->html_service->sanitize($story_body);
 
         if ($block_id !== 0) {
@@ -361,18 +344,12 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
                 'block_order' => 0,
             ]);
 
-            $block_id = (int) DB::connection()->getPdo()->lastInsertId();
+            $block_id = DB::lastInsertId();
         }
 
         $this->setBlockSetting($block_id, 'story_body', $story_body);
         $this->setBlockSetting($block_id, 'title', $story_title);
         $this->setBlockSetting($block_id, 'languages', implode(',', $languages));
-
-        $url = $url ?: route('module', [
-            'module' => $this->name(),
-            'action' => 'Admin',
-            'tree'    => $tree->name(),
-        ]);
 
         return redirect($url);
     }
@@ -384,10 +361,8 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
      */
     public function postAdminDeleteAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $block_id = $request->getQueryParams()['block_id'];
+        $tree     = Validator::attributes($request)->tree();
+        $block_id = Validator::queryParams($request)->integer('block_id');
 
         DB::table('block_setting')
             ->where('block_id', '=', $block_id)
@@ -413,14 +388,13 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
      */
     public function getShowListAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree = Validator::attributes($request)->tree();
 
         $stories = DB::table('block')
             ->where('module_name', '=', $this->name())
             ->where('gedcom_id', '=', $tree->id())
             ->get()
-            ->map(function (stdClass $story) use ($tree): stdClass {
+            ->map(function (object $story) use ($tree): object {
                 $block_id = (int) $story->block_id;
                 $xref     = (string) $story->xref;
 
@@ -429,13 +403,11 @@ class StoriesModule extends AbstractModule implements ModuleConfigInterface, Mod
                 $story->languages  = $this->getBlockSetting($block_id, 'languages');
 
                 return $story;
-            })->filter(static function (stdClass $story): bool {
+            })
                 // Filter non-existent and private individuals.
-                return $story->individual instanceof Individual && $story->individual->canShow();
-            })->filter(static function (stdClass $story): bool {
+            ->filter(static fn (object $story): bool => $story->individual instanceof Individual && $story->individual->canShow())
                 // Filter foreign languages.
-                return $story->languages === '' || in_array(I18N::languageTag(), explode(',', $story->languages), true);
-            });
+            ->filter(static fn (object $story): bool => $story->languages === '' || in_array(I18N::languageTag(), explode(',', $story->languages), true));
 
         return $this->viewResponse('modules/stories/list', [
             'stories' => $stories,

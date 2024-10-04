@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,29 +21,22 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\RequestMethodInterface;
 use Fig\Http\Message\StatusCodeInterface;
-use Fisharebest\Webtrees\Services\MapDataService;
 use Fisharebest\Webtrees\TestCase;
+use Nyholm\Psr7\Factory\Psr17Factory;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 use function dirname;
 
-/**
- * Test the location import.
- *
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\MapDataImportAction
- */
+#[CoversClass(MapDataImportAction::class)]
 class MapDataImportActionTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @return void
-     */
     public function testImportAction(): void
     {
-        $map_data_service = new MapDataService();
         $csv              = $this->createUploadedFile(dirname(__DIR__, 3) . '/data/places.csv', 'text/csv');
-        $handler          = new MapDataImportAction($map_data_service);
-        $request          = self::createRequest(RequestMethodInterface::METHOD_POST, [], [], ['serverfile' => $csv]);
+        $handler          = new MapDataImportAction(new Psr17Factory());
+        $request          = self::createRequest(RequestMethodInterface::METHOD_POST, [], ['options' => 'add', 'source' => 'client'], ['localfile' => $csv]);
         $response         = $handler->handle($request);
 
         self::assertSame(StatusCodeInterface::STATUS_FOUND, $response->getStatusCode());

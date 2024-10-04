@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -27,7 +27,7 @@ class Census
     /**
      * @param string $locale
      *
-     * @return CensusPlaceInterface[]
+     * @return array<CensusPlaceInterface>
      */
     public static function censusPlaces(string $locale): array
     {
@@ -42,48 +42,9 @@ class Census
                     new CensusOfFrance(),
                     new CensusOfScotland(),
                     new CensusOfUnitedStates(),
+                    new CensusOfRhodeIsland(),
                     new CensusOfWales(),
-                ];
-
-            case 'en-AU':
-            case 'en-GB':
-                return [
-                    new CensusOfEngland(),
-                    new CensusOfScotland(),
-                    new CensusOfWales(),
-                    new CensusOfUnitedStates(),
-                    new CensusOfCzechRepublic(),
-                    new CensusOfDenmark(),
-                    new CensusOfDeutschland(),
-                    new CensusOfFrance(),
-                    new CensusOfSlovakia(),
-                ];
-
-            case 'en-US':
-                return [
-                    new CensusOfUnitedStates(),
-                    new CensusOfCzechRepublic(),
-                    new CensusOfDenmark(),
-                    new CensusOfDeutschland(),
-                    new CensusOfEngland(),
-                    new CensusOfFrance(),
-                    new CensusOfScotland(),
-                    new CensusOfSlovakia(),
-                    new CensusOfWales(),
-                ];
-
-            case 'fr':
-            case 'fr-CA':
-                return [
-                    new CensusOfFrance(),
-                    new CensusOfCzechRepublic(),
-                    new CensusOfDenmark(),
-                    new CensusOfDeutschland(),
-                    new CensusOfEngland(),
-                    new CensusOfScotland(),
-                    new CensusOfSlovakia(),
-                    new CensusOfUnitedStates(),
-                    new CensusOfWales(),
+                    new CensusOfCanada(),
                 ];
 
             case 'da':
@@ -96,7 +57,9 @@ class Census
                     new CensusOfScotland(),
                     new CensusOfSlovakia(),
                     new CensusOfUnitedStates(),
+                    new CensusOfRhodeIsland(),
                     new CensusOfWales(),
+                    new CensusOfCanada(),
                 ];
 
             case 'de':
@@ -109,6 +72,69 @@ class Census
                     new CensusOfScotland(),
                     new CensusOfSlovakia(),
                     new CensusOfUnitedStates(),
+                    new CensusOfRhodeIsland(),
+                    new CensusOfWales(),
+                    new CensusOfCanada(),
+                ];
+
+            case 'en-AU':
+            case 'en-GB':
+                return [
+                    new CensusOfEngland(),
+                    new CensusOfScotland(),
+                    new CensusOfWales(),
+                    new CensusOfCanada(),
+                    new CensusOfUnitedStates(),
+                    new CensusOfRhodeIsland(),
+                    new CensusOfCzechRepublic(),
+                    new CensusOfDenmark(),
+                    new CensusOfDeutschland(),
+                    new CensusOfFrance(),
+                    new CensusOfSlovakia(),
+                ];
+
+            case 'en-US':
+                return [
+                    new CensusOfUnitedStates(),
+                    new CensusOfRhodeIsland(),
+                    new CensusOfCanada(),
+                    new CensusOfCzechRepublic(),
+                    new CensusOfDenmark(),
+                    new CensusOfDeutschland(),
+                    new CensusOfEngland(),
+                    new CensusOfFrance(),
+                    new CensusOfScotland(),
+                    new CensusOfSlovakia(),
+                    new CensusOfWales(),
+                ];
+
+            case 'fr':
+                return [
+                    new CensusOfFrance(),
+                    new CensusOfCanada(),
+                    new CensusOfCzechRepublic(),
+                    new CensusOfDenmark(),
+                    new CensusOfDeutschland(),
+                    new CensusOfEngland(),
+                    new CensusOfScotland(),
+                    new CensusOfSlovakia(),
+                    new CensusOfUnitedStates(),
+                    new CensusOfRhodeIsland(),
+                    new CensusOfWales(),
+                ];
+
+            case 'fr-CA':
+                return [
+                    new CensusOfCanada(),
+                    new CensusOfFrance(),
+                    new CensusOfCzechRepublic(),
+                    new CensusOfDenmark(),
+                    new CensusOfDeutschland(),
+                    new CensusOfEngland(),
+                    new CensusOfScotland(),
+                    new CensusOfSlovakia(),
+                    new CensusOfUnitedStates(),
+                    new CensusOfRhodeIsland(),
                     new CensusOfWales(),
                 ];
 
@@ -122,12 +148,15 @@ class Census
                     new CensusOfFrance(),
                     new CensusOfScotland(),
                     new CensusOfUnitedStates(),
+                    new CensusOfRhodeIsland(),
                     new CensusOfWales(),
+                    new CensusOfCanada(),
                 ];
 
             default:
                 return [
                     new CensusOfUnitedStates(),
+                    new CensusOfRhodeIsland(),
                     new CensusOfEngland(),
                     new CensusOfScotland(),
                     new CensusOfWales(),
@@ -136,6 +165,7 @@ class Census
                     new CensusOfCzechRepublic(),
                     new CensusOfSlovakia(),
                     new CensusOfDenmark(),
+                    new CensusOfCanada(),
                 ];
         }
     }

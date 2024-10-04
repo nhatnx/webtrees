@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,17 +21,11 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test UpgradeController class.
- *
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\UpgradeWizardConfirm
- */
+#[CoversClass(UpgradeWizardConfirm::class)]
 class UpgradeWizardConfirmTest extends TestCase
 {
-    /**
-     * @return void
-     */
     public function testWizardContinue(): void
     {
         $handler  = new UpgradeWizardConfirm();

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,13 +19,16 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Module;
 
-use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Support\Str;
 use Psr\Http\Message\ServerRequestInterface;
+
+use function count;
 
 /**
  * Class TopPageViewsModule
@@ -35,6 +38,8 @@ class TopPageViewsModule extends AbstractModule implements ModuleBlockInterface
     use ModuleBlockTrait;
 
     private const DEFAULT_NUMBER_TO_SHOW = '10';
+
+    private const PAGES = ['individual.php', 'family.php', 'source.php', 'repo.php', 'note.php', 'mediaviewer.php'];
 
     /**
      * How should this module be identified in the control panel, etc.?
@@ -61,10 +66,10 @@ class TopPageViewsModule extends AbstractModule implements ModuleBlockInterface
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
@@ -76,7 +81,8 @@ class TopPageViewsModule extends AbstractModule implements ModuleBlockInterface
 
         $query = DB::table('hit_counter')
             ->where('gedcom_id', '=', $tree->id())
-            ->whereIn('page_name', ['individual.php','family.php','source.php','repo.php','note.php','mediaviewer.php'])
+            ->whereIn('page_name', self::PAGES)
+            ->select(['page_parameter', 'page_count'])
             ->orderByDesc('page_count');
 
         $results = [];
@@ -86,7 +92,7 @@ class TopPageViewsModule extends AbstractModule implements ModuleBlockInterface
             if ($record instanceof GedcomRecord && $record->canShow()) {
                 $results[] = [
                     'record' => $record,
-                    'count'  => $row->page_count,
+                    'count'  => (int) $row->page_count,
                 ];
             }
 
@@ -152,9 +158,9 @@ class TopPageViewsModule extends AbstractModule implements ModuleBlockInterface
      */
     public function saveBlockConfiguration(ServerRequestInterface $request, int $block_id): void
     {
-        $params = (array) $request->getParsedBody();
+        $num = Validator::parsedBody($request)->integer('num');
 
-        $this->setBlockSetting($block_id, 'num', $params['num']);
+        $this->setBlockSetting($block_id, 'num', (string) $num);
     }
 
     /**

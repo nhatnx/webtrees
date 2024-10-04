@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -83,6 +83,22 @@ class HtmlService
         ]);
 
         $area->excludes = ['area' => true];
+
+        // Allow audio and video
+        $audio = $def->addElement('audio', 'Block', 'Flow', 'Common', [
+            'controls' => 'Bool#controls',
+            'src'      => 'URI',
+        ]);
+        $audio->excludes = ['audio' => true];
+
+        $video = $def->addElement('video', 'Block', 'Flow', 'Common', [
+            'controls' => 'Bool#controls',
+            'height'   => 'Number',
+            'poster'   => 'URI',
+            'src'      => 'URI',
+            'width'    => 'Number',
+        ]);
+        $video->excludes = ['video' => true];
 
         $purifier = new HTMLPurifier($config);
 

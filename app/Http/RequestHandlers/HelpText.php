@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -22,7 +22,6 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Date;
 use Fisharebest\Webtrees\I18N;
-use Fisharebest\Webtrees\Services\LocalizationService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -64,6 +63,20 @@ class HelpText implements RequestHandlerInterface
         'FROM @#DHIJRI@ SHAWW 1497',
         'TO @#DHIJRI@ DHUAQ 1497',
         '@#DHIJRI@ 03 DHUAH 1497',
+    ];
+
+    private const JALALI_DATES = [
+        '@#DJALALI@ 1497',
+        '@#DJALALI@ FARVA 1497',
+        'ABT @#DJALALI@ ORDIB 1497',
+        'BET @#DJALALI@ KHORD 1497 AND @#DHIJRI@ TIR 1497',
+        'FROM @#DJALALI@ MORDA 1497 TO @#DHIJRI@ SHAHR 1497',
+        'AFT @#DJALALI@ MEHR 1497',
+        'BEF @#DJALALI@ ABAN 1497',
+        'ABT @#DJALALI@ AZAR 1497',
+        'FROM @#DJALALI@ DEY 1497',
+        'TO @#DJALALI@ BAHMA 1497',
+        '@#DJALALI@ 03 XXXXX 1497',
     ];
 
     private const JEWISH_DATES = [
@@ -164,19 +177,6 @@ class HelpText implements RequestHandlerInterface
         ],
     ];
 
-    /** @var LocalizationService */
-    private $localisation_service;
-
-    /**
-     * HelpText constructor.
-     *
-     * @param LocalizationService $localization_service
-     */
-    public function __construct(LocalizationService $localization_service)
-    {
-        $this->localisation_service = $localization_service;
-    }
-
     /**
      * @param ServerRequestInterface $request
      *
@@ -186,7 +186,7 @@ class HelpText implements RequestHandlerInterface
     {
         $topic = $request->getAttribute('topic');
 
-        $dmy = $this->localisation_service->dateFormatToOrder(I18N::dateFormat());
+        $dmy = I18N::language()->dateOrder();
 
         switch ($topic) {
             case 'DATE':
@@ -213,6 +213,7 @@ class HelpText implements RequestHandlerInterface
                     'date_range_shortcuts'  => self::DATE_RANGE_SHORTCUTS,
                     'french_dates'          => $this->formatDates(self::FRENCH_DATES),
                     'hijri_dates'           => $this->formatDates(self::HIJRI_DATES),
+                    'jalali_dates'          => $this->formatDates(self::JALALI_DATES),
                     'jewish_dates'          => $this->formatDates(self::JEWISH_DATES),
                     'julian_dates'          => $this->formatDates(self::JULIAN_DATES),
                 ]);
@@ -275,16 +276,6 @@ class HelpText implements RequestHandlerInterface
                 $text  = view('help/relationship-privacy');
                 break;
 
-            case 'iso-8859-1':
-                $title = I18N::translate('Convert from UTF-8 to ISO-8859-1');
-                $text  = view('help/iso-8859-1');
-                break;
-
-            case 'zip-gedcom':
-                $title = I18N::translate('Compress the GEDCOM file');
-                $text  = view('help/zip-gedcom');
-                break;
-
             default:
                 $title = I18N::translate('Help');
                 $text  = I18N::translate('The help text has not been written for this item.');
@@ -302,7 +293,7 @@ class HelpText implements RequestHandlerInterface
     /**
      * Format GEDCOM dates in the local language.
      *
-     * @param string[]|int[] $gedcom_dates
+     * @param array<string>|array<int> $gedcom_dates
      *
      * @return array<string>
      */
@@ -315,7 +306,7 @@ class HelpText implements RequestHandlerInterface
             $gedcom_date = (string) $gedcom_date;
 
             $date                = new Date($gedcom_date);
-            $dates[$gedcom_date] = strip_tags($date->display(false, null, false));
+            $dates[$gedcom_date] = strip_tags($date->display());
         }
 
         return $dates;

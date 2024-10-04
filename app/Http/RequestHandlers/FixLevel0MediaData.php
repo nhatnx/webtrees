@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,19 +19,19 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Fact;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\DatatablesService;
 use Fisharebest\Webtrees\Services\TreeService;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use stdClass;
 
 use function addcslashes;
 use function e;
@@ -44,11 +44,9 @@ use function view;
  */
 class FixLevel0MediaData implements RequestHandlerInterface
 {
-    /** @var DatatablesService */
-    private $datatables_service;
+    private DatatablesService $datatables_service;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
      * FixLevel0MediaController constructor.
@@ -73,15 +71,18 @@ class FixLevel0MediaData implements RequestHandlerInterface
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $ignore_facts = [
-            'NAME',
-            'SEX',
-            'CHAN',
-            'NOTE',
-            'SOUR',
-            'RESN',
+            'INDI:NAME',
+            'INDI:SEX',
+            'INDI:CHAN',
+            'INDI:NOTE',
+            'INDI:SOUR',
+            'INDI:SUBM',
+            'INDI:RESN',
         ];
 
-        $prefix = DB::connection()->getTablePrefix();
+        $prefix = DB::prefix();
+
+        $search = Validator::queryParams($request)->array('search')['value'] ?? '';
 
         $query = DB::table('media')
             ->join('media_file', static function (JoinClause $join): void {
@@ -104,21 +105,19 @@ class FixLevel0MediaData implements RequestHandlerInterface
             ->orderBy('individuals.i_file')
             ->orderBy('individuals.i_id')
             ->orderBy('media.m_id')
-            ->where('descriptive_title', 'LIKE', '%' . addcslashes($request->getQueryParams()['search']['value'] ?? '', '\\%_') . '%')
+            ->where('descriptive_title', 'LIKE', '%' . addcslashes($search, '\\%_') . '%')
             ->select(['media.m_file', 'media.m_id', 'media.m_gedcom', 'individuals.i_id', 'individuals.i_gedcom']);
 
-        return $this->datatables_service->handleQuery($request, $query, [], [], function (stdClass $datum) use ($ignore_facts): array {
+        return $this->datatables_service->handleQuery($request, $query, [], [], function (object $datum) use ($ignore_facts): array {
             $tree       = $this->tree_service->find((int) $datum->m_file);
             $media      = Registry::mediaFactory()->make($datum->m_id, $tree, $datum->m_gedcom);
             $individual = Registry::individualFactory()->make($datum->i_id, $tree, $datum->i_gedcom);
 
-            $facts = $individual->facts([], true)
-                ->filter(static function (Fact $fact) use ($ignore_facts): bool {
-                    return
-                        !$fact->isPendingDeletion() &&
-                        !preg_match('/^@' . Gedcom::REGEX_XREF . '@$/', $fact->value()) &&
-                        !in_array($fact->getTag(), $ignore_facts, true);
-                });
+            $facts = $individual
+                ->facts([], true)
+                ->filter(static fn (Fact $fact): bool => !$fact->isPendingDeletion() &&
+                    !preg_match('/^@' . Gedcom::REGEX_XREF . '@$/', $fact->value()) &&
+                    !in_array($fact->tag(), $ignore_facts, true));
 
             // The link to the media object may have been deleted in a pending change.
             $deleted = true;
@@ -131,13 +130,11 @@ class FixLevel0MediaData implements RequestHandlerInterface
                 $facts = new Collection();
             }
 
-            $facts = $facts->map(static function (Fact $fact) use ($individual, $media): string {
-                return view('admin/fix-level-0-media-action', [
-                    'fact'       => $fact,
-                    'individual' => $individual,
-                    'media'      => $media,
-                ]);
-            });
+            $facts = $facts->map(static fn (Fact $fact): string => view('admin/fix-level-0-media-action', [
+                'fact'       => $fact,
+                'individual' => $individual,
+                'media'      => $media,
+            ]));
 
             return [
                 $tree->name(),

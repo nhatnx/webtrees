@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,24 +20,38 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fig\Http\Message\StatusCodeInterface;
-use Fisharebest\Webtrees\Exceptions\HttpAccessDeniedException;
-use Fisharebest\Webtrees\Exceptions\HttpNotFoundException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpAccessDeniedException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\Mime;
 use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Validator;
 use GuzzleHttp\Client;
-use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 use function str_contains;
-use function strlen;
-use function strtolower;
+use function strtoupper;
 
 /**
  * Trait ModuleCustomTrait - default implementation of ModuleCustomInterface
  */
 trait ModuleCustomTrait
 {
+    /**
+     * A unique internal name for this module (based on the installation folder).
+     *
+     * @return string
+     */
+    abstract public function name(): string;
+
+    /**
+     * Where does this module store its resources
+     *
+     * @return string
+     */
+    abstract public function resourcesFolder(): string;
+
     /**
      * The person or organisation who created this module.
      *
@@ -80,7 +94,7 @@ trait ModuleCustomTrait
             return $this->customModuleVersion();
         }
 
-        return Registry::cache()->file()->remember($this->name() . '-latest-version', function () {
+        return Registry::cache()->file()->remember($this->name() . '-latest-version', function (): string {
             try {
                 $client = new Client([
                     'timeout' => 3,
@@ -96,7 +110,7 @@ trait ModuleCustomTrait
                         return $version;
                     }
                 }
-            } catch (RequestException $ex) {
+            } catch (GuzzleException) {
                 // Can't connect to the server?
             }
 
@@ -158,7 +172,7 @@ trait ModuleCustomTrait
     public function getAssetAction(ServerRequestInterface $request): ResponseInterface
     {
         // The file being requested.  e.g. "css/theme.css"
-        $asset = $request->getQueryParams()['asset'];
+        $asset = Validator::queryParams($request)->string('asset');
 
         // Do not allow requests that try to access parent folders.
         if (str_contains($asset, '..')) {
@@ -175,13 +189,12 @@ trait ModuleCustomTrait
         }
 
         $content   = file_get_contents($file);
-        $extension = strtolower(pathinfo($asset, PATHINFO_EXTENSION));
+        $extension = strtoupper(pathinfo($asset, PATHINFO_EXTENSION));
         $mime_type = Mime::TYPES[$extension] ?? Mime::DEFAULT_TYPE;
 
         return response($content, StatusCodeInterface::STATUS_OK, [
-            'Cache-Control'  => 'public,max-age=31536000',
-            'Content-Length' => (string) strlen($content),
-            'Content-Type'   => $mime_type,
+            'cache-control'  => 'public,max-age=31536000',
+            'content-type'   => $mime_type,
         ]);
     }
 }

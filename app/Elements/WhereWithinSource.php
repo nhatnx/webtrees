@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -50,6 +50,19 @@ class WhereWithinSource extends AbstractElement
      */
     public function edit(string $id, string $name, string $value, Tree $tree): string
     {
-        return '<input data-autocomplete-url="' . e(route(AutoCompleteCitation::class, ['tree' => $tree->name()])) . '" data-autocomplete-extra="SOUR" autocomplete="off" class="form-control" type="text" id="' . e($id) . '" name="' . e($name) . '" value="' . e($value) . '" />';
+        return '<input data-wt-autocomplete-url="' . e(route(AutoCompleteCitation::class, ['tree' => $tree->name()])) . '" data-wt-autocomplete-extra="SOUR" autocomplete="off" class="form-control" type="text" id="' . e($id) . '" name="' . e($name) . '" value="' . e($value) . '" />';
+    }
+
+    /**
+     * Display the value of this type of element.
+     *
+     * @param string $value
+     * @param Tree   $tree
+     *
+     * @return string
+     */
+    public function value(string $value, Tree $tree): string
+    {
+        return $this->valueAutoLink($value);
     }
 }

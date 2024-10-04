@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,17 +20,25 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Statistics\Repository;
 
 use Fisharebest\Webtrees\Date;
+use Fisharebest\Webtrees\DB;
+use Fisharebest\Webtrees\Elements\UnknownElement;
 use Fisharebest\Webtrees\Fact;
-use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Functions\FunctionsPrint;
+use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Gedcom;
-use Fisharebest\Webtrees\GedcomTag;
+use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\Header;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Statistics\Repository\Interfaces\EventRepositoryInterface;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
-use stdClass;
+
+use function abs;
+use function array_map;
+use function array_merge;
+use function e;
+use function strncmp;
+use function substr;
 
 /**
  * A repository providing methods for event related statistics.
@@ -50,18 +58,10 @@ class EventRepository implements EventRepositoryInterface
     private const EVENT_DEATH    = 'DEAT';
     private const EVENT_MARRIAGE = 'MARR';
     private const EVENT_DIVORCE  = 'DIV';
-    private const EVENT_ADOPTION = 'ADOP';
-    private const EVENT_BURIAL   = 'BURI';
-    private const EVENT_CENSUS   = 'CENS';
+
+    private Tree $tree;
 
     /**
-     * @var Tree
-     */
-    private $tree;
-
-    /**
-     * Constructor.
-     *
      * @param Tree $tree
      */
     public function __construct(Tree $tree)
@@ -107,7 +107,7 @@ class EventRepository implements EventRepositoryInterface
     }
 
     /**
-     * @param string[] $events
+     * @param array<string> $events
      *
      * @return string
      */
@@ -183,7 +183,7 @@ class EventRepository implements EventRepositoryInterface
     }
 
     /**
-     * Retursn the list of common facts used query the data.
+     * Returns the list of common facts used query the data.
      *
      * @return array<string>
      */
@@ -204,9 +204,7 @@ class EventRepository implements EventRepositoryInterface
     public function totalEventsOther(): string
     {
         $no_facts = array_map(
-            static function (string $fact): string {
-                return '!' . $fact;
-            },
+            static fn (string $fact): string => '!' . $fact,
             $this->getCommonFacts()
         );
 
@@ -218,9 +216,9 @@ class EventRepository implements EventRepositoryInterface
      *
      * @param string $direction The sorting direction of the query (To return first or last record)
      *
-     * @return stdClass|null
+     * @return object{id:string,year:int,fact:string,type:string}|null
      */
-    private function eventQuery(string $direction): ?stdClass
+    private function eventQuery(string $direction): object|null
     {
         return DB::table('dates')
             ->select(['d_gid as id', 'd_year as year', 'd_fact AS fact', 'd_type AS type'])
@@ -230,11 +228,19 @@ class EventRepository implements EventRepositoryInterface
             ->where('d_julianday1', '<>', 0)
             ->orderBy('d_julianday1', $direction)
             ->orderBy('d_type')
+            ->limit(1)
+            ->get()
+            ->map(static fn (object $row): object => (object) [
+                'id'   => $row->id,
+                'year' => (int) $row->year,
+                'fact' => $row->fact,
+                'type' => $row->type,
+            ])
             ->first();
     }
 
     /**
-     * Returns the formatted first/last occuring event.
+     * Returns the formatted first/last occurring event.
      *
      * @param string $direction The sorting direction
      *
@@ -245,10 +251,10 @@ class EventRepository implements EventRepositoryInterface
         $row    = $this->eventQuery($direction);
         $result = I18N::translate('This information is not available.');
 
-        if ($row) {
+        if ($row !== null) {
             $record = Registry::gedcomRecordFactory()->make($row->id, $this->tree);
 
-            if ($record && $record->canShow()) {
+            if ($record instanceof GedcomRecord && $record->canShow()) {
                 $result = $record->formatList();
             } else {
                 $result = I18N::translate('This information is private and cannot be shown.');
@@ -275,7 +281,7 @@ class EventRepository implements EventRepositoryInterface
     }
 
     /**
-     * Returns the formatted year of the first/last occuring event.
+     * Returns the formatted year of the first/last occurring event.
      *
      * @param string $direction The sorting direction
      *
@@ -285,8 +291,12 @@ class EventRepository implements EventRepositoryInterface
     {
         $row = $this->eventQuery($direction);
 
-        if (!$row) {
+        if ($row === null) {
             return '';
+        }
+
+        if ($row->year < 0) {
+            $row->year = abs($row->year) . ' B.C.';
         }
 
         return (new Date($row->type . ' ' . $row->year))
@@ -320,20 +330,19 @@ class EventRepository implements EventRepositoryInterface
     {
         $row = $this->eventQuery($direction);
 
-        if ($row) {
-            $event_types = [
-                self::EVENT_BIRTH    => I18N::translate('birth'),
-                self::EVENT_DEATH    => I18N::translate('death'),
-                self::EVENT_MARRIAGE => I18N::translate('marriage'),
-                self::EVENT_ADOPTION => I18N::translate('adoption'),
-                self::EVENT_BURIAL   => I18N::translate('burial'),
-                self::EVENT_CENSUS   => I18N::translate('census added'),
-            ];
-
-            return $event_types[$row->fact] ?? GedcomTag::getLabel($row->fact);
+        if ($row === null) {
+            return '';
         }
 
-        return '';
+        foreach ([Individual::RECORD_TYPE, Family::RECORD_TYPE] as $record_type) {
+            $element = Registry::elementFactory()->make($record_type . ':' . $row->fact);
+
+            if (!$element instanceof UnknownElement) {
+                return $element->label();
+            }
+        }
+
+        return $row->fact;
     }
 
     /**
@@ -353,7 +362,7 @@ class EventRepository implements EventRepositoryInterface
     }
 
     /**
-     * Returns the formatted name of the first/last occuring event.
+     * Returns the formatted name of the first/last occurring event.
      *
      * @param string $direction The sorting direction
      *
@@ -363,10 +372,10 @@ class EventRepository implements EventRepositoryInterface
     {
         $row = $this->eventQuery($direction);
 
-        if ($row) {
+        if ($row !== null) {
             $record = Registry::gedcomRecordFactory()->make($row->id, $this->tree);
 
-            if ($record) {
+            if ($record instanceof GedcomRecord) {
                 return '<a href="' . e($record->url()) . '">' . $record->fullName() . '</a>';
             }
         }
@@ -391,7 +400,7 @@ class EventRepository implements EventRepositoryInterface
     }
 
     /**
-     * Returns the formatted place of the first/last occuring event.
+     * Returns the formatted place of the first/last occurring event.
      *
      * @param string $direction The sorting direction
      *
@@ -401,16 +410,16 @@ class EventRepository implements EventRepositoryInterface
     {
         $row = $this->eventQuery($direction);
 
-        if ($row) {
+        if ($row !== null) {
             $record = Registry::gedcomRecordFactory()->make($row->id, $this->tree);
             $fact   = null;
 
-            if ($record) {
+            if ($record instanceof GedcomRecord) {
                 $fact = $record->facts([$row->fact])->first();
             }
 
             if ($fact instanceof Fact) {
-                return FunctionsPrint::formatFactPlace($fact, true, true, true);
+                return $fact->place()->shortName();
             }
         }
 

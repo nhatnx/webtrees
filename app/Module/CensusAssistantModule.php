@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,15 +20,14 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Census\CensusInterface;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 use function array_keys;
-use function assert;
 use function count;
 use function e;
 use function response;
@@ -70,11 +69,9 @@ class CensusAssistantModule extends AbstractModule
      */
     public function postCensusHeaderAction(ServerRequestInterface $request): ResponseInterface
     {
-        $params = (array) $request->getParsedBody();
+        $census_class = Validator::parsedBody($request)->string('census');
 
-        $census = $params['census'];
-
-        $html = $this->censusTableHeader(new $census());
+        $html = $this->censusTableHeader(new $census_class());
 
         return response($html);
     }
@@ -86,17 +83,16 @@ class CensusAssistantModule extends AbstractModule
      */
     public function postCensusIndividualAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $params       = (array) $request->getParsedBody();
-        $individual   = Registry::individualFactory()->make($params['xref'], $tree);
-        $head         = Registry::individualFactory()->make($params['head'], $tree);
-        $census_class = $params['census'];
+        $tree         = Validator::attributes($request)->tree();
+        $indi_xref    = Validator::parsedBody($request)->isXref()->string('xref', '');
+        $head_xref    = Validator::parsedBody($request)->isXref()->string('head', '');
+        $individual   = Registry::individualFactory()->make($indi_xref, $tree);
+        $head         = Registry::individualFactory()->make($head_xref, $tree);
+        $census_class = Validator::parsedBody($request)->string('census');
         $census       = new $census_class();
 
         // No head of household?  Create a fake one.
-        $head = $head ?? Registry::individualFactory()->new('X', '0 @X@ INDI', null, $tree);
+        $head ??= Registry::individualFactory()->new('X', '0 @X@ INDI', null, $tree);
 
         // Generate columns (e.g. relationship name) using the correct language.
         I18N::init($census->censusLanguage());
@@ -133,14 +129,12 @@ class CensusAssistantModule extends AbstractModule
      */
     public function updateCensusAssistant(ServerRequestInterface $request, Individual $individual, string $fact_id, string $newged, bool $keep_chan): string
     {
-        $params = (array) $request->getParsedBody();
-
-        $ca_title       = $params['ca_title'] ?? '';
-        $ca_place       = $params['ca_place'] ?? '';
-        $ca_citation    = $params['ca_citation'] ?? '';
-        $ca_individuals = $params['ca_individuals'] ?? [];
-        $ca_notes       = $params['ca_notes'] ?? '';
-        $ca_census      = $params['ca_census'] ?? '';
+        $ca_title       = Validator::parsedBody($request)->string('ca_title');
+        $ca_place       = Validator::parsedBody($request)->string('ca_place');
+        $ca_citation    = Validator::parsedBody($request)->string('ca_citation');
+        $ca_individuals = Validator::parsedBody($request)->array('ca_individuals');
+        $ca_notes       = Validator::parsedBody($request)->string('ca_notes');
+        $ca_census      = Validator::parsedBody($request)->string('ca_census');
 
         if ($ca_census !== '' && $ca_individuals !== []) {
             $census = new $ca_census();
@@ -164,18 +158,28 @@ class CensusAssistantModule extends AbstractModule
     }
 
     /**
-     * @param CensusInterface $census
-     * @param string          $ca_title
-     * @param string          $ca_place
-     * @param string          $ca_citation
-     * @param string[][]      $ca_individuals
-     * @param string          $ca_notes
+     * @param CensusInterface      $census
+     * @param string               $ca_title
+     * @param string               $ca_place
+     * @param string               $ca_citation
+     * @param array<array<string>> $ca_individuals
+     * @param string               $ca_notes
      *
      * @return string
      */
     private function createNoteText(CensusInterface $census, string $ca_title, string $ca_place, string $ca_citation, array $ca_individuals, string $ca_notes): string
     {
-        $text = $ca_title . "\n" . $ca_citation . "\n" . $ca_place . "\n\n|";
+        $text = $ca_title;
+
+        if ($ca_citation !== '') {
+            $text .= "\n" . $ca_citation;
+        }
+
+        if ($ca_place !== '') {
+            $text .= "\n" . $ca_place;
+        }
+
+        $text .= "\n\n|";
 
         foreach ($census->columns() as $column) {
             $text .= ' ' . $column->abbreviation() . ' |';
@@ -191,7 +195,11 @@ class CensusAssistantModule extends AbstractModule
             }
         }
 
-        return $text . "\n\n" . strtr($ca_notes, ["\r" => '']);
+        if ($ca_notes !== '') {
+            $text .= "\n\n" . strtr($ca_notes, ["\r" => '']);
+        }
+
+        return $text;
     }
 
     /**

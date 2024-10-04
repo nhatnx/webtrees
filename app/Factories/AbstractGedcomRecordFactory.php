@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,12 +19,14 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Factories;
 
+use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Collection;
-use stdClass;
+
+use function str_starts_with;
 
 /**
  * Make a GedcomRecord object.
@@ -34,18 +36,23 @@ abstract class AbstractGedcomRecordFactory
     /**
      * @param Tree $tree
      *
-     * @return Collection<stdClass>
+     * @return Collection<array-key,string>
      */
     protected function pendingChanges(Tree $tree): Collection
     {
+        // Only editors can see pending changes
+        if (!Auth::isEditor($tree)) {
+            return new Collection();
+        }
+
         // Caution - this cache can be overwritten by GedcomExportService
-        return Registry::cache()->array()->remember(__CLASS__ . $tree->id(), static function () use ($tree): Collection {
-            return DB::table('change')
+        return Registry::cache()
+            ->array()
+            ->remember(self::class . $tree->id(), static fn (): Collection => DB::table('change')
                 ->where('gedcom_id', '=', $tree->id())
                 ->where('status', '=', 'pending')
                 ->orderBy('change_id')
-                ->pluck('new_gedcom', 'xref');
-        });
+                ->pluck('new_gedcom', 'xref'));
     }
 
     /**
@@ -60,6 +67,10 @@ abstract class AbstractGedcomRecordFactory
     {
         if (preg_match('/^0 @(' . Gedcom::REGEX_XREF . ')@/', $gedcom, $match)) {
             return $match[1];
+        }
+
+        if (str_starts_with($gedcom, '0 HEAD')) {
+            return 'HEAD';
         }
 
         return $xref;

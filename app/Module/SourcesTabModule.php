@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -32,15 +32,12 @@ class SourcesTabModule extends AbstractModule implements ModuleTabInterface
 {
     use ModuleTabTrait;
 
-    /** @var Collection All facts belonging to this source. */
-    private $facts;
+    /** @var Collection<array-key,Fact>|null  */
+    private Collection|null $facts = null;
 
-    /** @var ClipboardService */
-    private $clipboard_service;
+    private ClipboardService $clipboard_service;
 
     /**
-     * SourcesTabModule constructor.
-     *
      * @param ClipboardService $clipboard_service
      */
     public function __construct(ClipboardService $clipboard_service)
@@ -127,7 +124,7 @@ class SourcesTabModule extends AbstractModule implements ModuleTabInterface
      *
      * @param Individual $individual
      *
-     * @return Collection<Fact>
+     * @return Collection<int,Fact>
      */
     private function getFactsWithSources(Individual $individual): Collection
     {
@@ -169,10 +166,10 @@ class SourcesTabModule extends AbstractModule implements ModuleTabInterface
     /**
      * This module handles the following facts - so don't show them on the "Facts and events" tab.
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public function supportedFacts(): Collection
     {
-        return new Collection(['SOUR']);
+        return new Collection(['INDI:SOUR', 'FAM:SOUR']);
     }
 }

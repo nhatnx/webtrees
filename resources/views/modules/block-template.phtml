@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\I18N;
 
 /**
@@ -13,11 +15,11 @@ use Fisharebest\Webtrees\I18N;
 ?>
 
 <div class="card mb-4 wt-block wt-block-<?= e($block) ?>" id="block-<?= e($id) ?>">
-    <div class="card-header wt-block-header wt-block-header-<?= e($block) ?>" dir="auto">
+    <div class="card-header wt-block-header wt-block-header-<?= e($block) ?>">
         <?php if ($config_url !== '') : ?>
             <a class="btn btn-link" href="<?= e($config_url) ?>" title="<?= I18N::translate('Preferences') ?>">
                 <?= view('icons/preferences') ?>
-                <span class="sr-only"><?= I18N::translate('Preferences') ?></span>
+                <span class="visually-hidden"><?= I18N::translate('Preferences') ?></span>
             </a>
         <?php endif ?>
         <?= $title ?>

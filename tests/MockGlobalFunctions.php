@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,26 +19,7 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees;
 
-/**
- * Class MockGlobalFunctions
- */
 abstract class MockGlobalFunctions
 {
-    /**
-     * Mock version of microtime()
-     *
-     * @param bool $get_as_float
-     *
-     * @return float|int[]
-     */
-    abstract public function microtime(bool $get_as_float);
-
-    /**
-     * Mock version of ini_get()
-     *
-     * @param string $varname
-     *
-     * @return string
-     */
     abstract public function iniGet(string $varname): string;
 }

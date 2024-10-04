@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,35 +21,29 @@ namespace Fisharebest\Webtrees\Http\Middleware;
 
 use Fig\Http\Message\RequestMethodInterface;
 use Fig\Http\Message\StatusCodeInterface;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 use Psr\Http\Message\UriFactoryInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function app;
 use function response;
 
-/**
- * Test the CheckCsrf middleware.
- *
- * @covers \Fisharebest\Webtrees\Http\Middleware\CheckCsrf
- */
+#[CoversClass(CheckCsrf::class)]
 class CheckCsrfTest extends TestCase
 {
-    /**
-     * @return void
-     */
     public function testMiddleware(): void
     {
-        $handler = self::createMock(RequestHandlerInterface::class);
+        $handler = $this->createMock(RequestHandlerInterface::class);
         $handler->method('handle')->willReturn(response());
 
         $request = self::createRequest(RequestMethodInterface::METHOD_POST)
-            ->withUri(app(UriFactoryInterface::class)->createUri('http://example.com'));
+            ->withUri(Registry::container()->get(UriFactoryInterface::class)->createUri('https://example.com'));
 
         $middleware = new CheckCsrf();
         $response   = $middleware->process($request, $handler);
 
         self::assertSame(StatusCodeInterface::STATUS_FOUND, $response->getStatusCode());
-        self::assertSame('http://example.com', $response->getHeaderLine('Location'));
+        self::assertSame('https://example.com', $response->getHeaderLine('Location'));
     }
 }

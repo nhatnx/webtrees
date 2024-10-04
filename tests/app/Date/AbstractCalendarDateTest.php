@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,16 +20,11 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Date;
 
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test harness for the class AbstractCalendarDate
- */
+#[CoversClass(AbstractCalendarDate::class)]
 class AbstractCalendarDateTest extends TestCase
 {
-    /**
-     * @covers \Fisharebest\Webtrees\Date\AbstractCalendarDate::ageDifference
-     * @return void
-     */
     public function testAgeDifference(): void
     {
         $date1 = new GregorianDate(['1900', 'FEB', '4']);
@@ -65,10 +60,6 @@ class AbstractCalendarDateTest extends TestCase
         self::assertSame([-31, 11, 27], $date1->ageDifference($date2));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Date\AbstractCalendarDate::ageDifference
-     * @return void
-     */
     public function testAgeDifferenceIncomplete(): void
     {
         $date1 = new GregorianDate(['', 'FEB', '4']);
@@ -108,10 +99,6 @@ class AbstractCalendarDateTest extends TestCase
         self::assertSame([0, 0, 28], $date1->ageDifference($date2));
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\Date\AbstractCalendarDate::ageDifference
-     * @return void
-     */
     public function testAgeDifferenceOverlap(): void
     {
         $date1 = new GregorianDate(['1900', 'FEB', '4']);

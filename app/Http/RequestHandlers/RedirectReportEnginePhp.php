@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,56 +20,51 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
-use Fisharebest\Webtrees\Exceptions\HttpNotFoundException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpGoneException;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 use function basename;
 use function dirname;
-use function redirect;
 
 /**
  * Redirect URLs created by webtrees 1.x (and PhpGedView).
  */
 class RedirectReportEnginePhp implements RequestHandlerInterface
 {
-    /** @var TreeService */
-    private $tree_service;
-
-    /**
-     * @param TreeService $tree_service
-     */
-    public function __construct(TreeService $tree_service)
-    {
-        $this->tree_service = $tree_service;
+    public function __construct(
+        private readonly TreeService $tree_service,
+    ) {
     }
 
-    /**
-     * @param ServerRequestInterface $request
-     *
-     * @return ResponseInterface
-     */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $query  = $request->getQueryParams();
-        $ged    = $query['ged'] ?? Site::getPreference('DEFAULT_GEDCOM');
-        $action = $query['action'] ?? '';
-
-        $tree = $this->tree_service->all()->get($ged);
+        $ged    = Validator::queryParams($request)->string('ged', Site::getPreference('DEFAULT_GEDCOM'));
+        $action = Validator::queryParams($request)->string('action', '');
+        $report = Validator::queryParams($request)->string('report');
+        $tree   = $this->tree_service->all()->get($ged);
 
         if ($tree instanceof Tree && $action === 'run') {
-            $query['report'] = basename(dirname($query['report'] ?? ''));
-            $query['tree']   = $tree->name();
+            $params = [
+                'report'   => basename(dirname($report)),
+                'tree'     => $tree->name(),
+                'varnames' => Validator::queryParams($request)->array('varnames'),
+                'vars'     => Validator::queryParams($request)->array('vars'),
+            ];
 
-            $url = route(ReportGenerate::class, $query);
+            $url = route(ReportGenerate::class, $params);
 
-            return redirect($url, StatusCodeInterface::STATUS_MOVED_PERMANENTLY);
+            return Registry::responseFactory()
+                ->redirectUrl($url, StatusCodeInterface::STATUS_MOVED_PERMANENTLY)
+                ->withHeader('Link', '<' . $url . '>; rel="canonical"');
         }
 
-        throw new HttpNotFoundException();
+        throw new HttpGoneException();
     }
 }

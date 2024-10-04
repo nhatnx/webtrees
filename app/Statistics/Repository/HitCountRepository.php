@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,28 +20,24 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Statistics\Repository;
 
 use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Statistics\Repository\Interfaces\HitCountRepositoryInterface;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+
+use function view;
 
 /**
  * A repository providing methods for hit count related statistics.
  */
 class HitCountRepository implements HitCountRepositoryInterface
 {
-    /**
-     * @var Tree
-     */
-    private $tree;
-    /**
-     * @var UserService
-     */
-    private $user_service;
+    private Tree $tree;
+
+    private UserService $user_service;
 
     /**
-     * Constructor.
-     *
      * @param Tree        $tree
      * @param UserService $user_service
      */
@@ -68,7 +64,7 @@ class HitCountRepository implements HitCountRepositoryInterface
         } elseif ($page_name === 'index.php') {
             // index.php?context=user
             $user           = $this->user_service->findByIdentifier($page_parameter);
-            $page_parameter = 'user:' . ($user ? $user->id() : Auth::id());
+            $page_parameter = 'user:' . ($user instanceof UserInterface ? $user->id() : Auth::id());
         }
 
         $count = (int) DB::table('hit_counter')

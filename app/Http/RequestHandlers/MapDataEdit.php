@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,7 +21,9 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Services\LeafletJsService;
 use Fisharebest\Webtrees\Services\MapDataService;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -37,17 +39,20 @@ class MapDataEdit implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var MapDataService */
-    private $map_data_service;
+    private LeafletJsService $leaflet_js_service;
+
+    private MapDataService $map_data_service;
 
     /**
      * Dependency injection.
      *
-     * @param MapDataService $map_data_service
+     * @param LeafletJsService $leaflet_js_service
+     * @param MapDataService   $map_data_service
      */
-    public function __construct(MapDataService $map_data_service)
+    public function __construct(LeafletJsService $leaflet_js_service, MapDataService $map_data_service)
     {
-        $this->map_data_service = $map_data_service;
+        $this->leaflet_js_service = $leaflet_js_service;
+        $this->map_data_service   = $map_data_service;
     }
 
     /**
@@ -59,8 +64,10 @@ class MapDataEdit implements RequestHandlerInterface
     {
         $this->layout = 'layouts/administration';
 
-        $place_id = (int) $request->getAttribute('place_id');
-        $location = $this->map_data_service->findById($place_id);
+        $location_id = Validator::attributes($request)->integer('location_id');
+        $location    = $this->map_data_service->findById($location_id);
+        $default_url = route(MapDataList::class, ['parent_id' => $location->parent()->id()]);
+        $url         = Validator::queryParams($request)->isLocalUrl()->string('url', $default_url);
 
         if ($location->id() === null) {
             return redirect(route(MapDataList::class));
@@ -81,9 +88,9 @@ class MapDataEdit implements RequestHandlerInterface
         $breadcrumbs[route(MapDataList::class)]  = I18N::translate('Geographic data');
         $breadcrumbs[route(ControlPanel::class)] = I18N::translate('Control panel');
 
-        $latitude      = $location->latitude();
-        $longitude     = $location->longitude();
-        $map_bounds    = $location->boundingRectangle();
+        $latitude   = $location->latitude();
+        $longitude  = $location->longitude();
+        $map_bounds = $location->boundingRectangle();
 
         // If the current co-ordinates are unknown, leave the input fields empty,
         // and show a marker in the middle of the map.
@@ -108,13 +115,8 @@ class MapDataEdit implements RequestHandlerInterface
             'map_bounds'      => $map_bounds,
             'marker_position' => $marker_position,
             'parent'          => $location->parent(),
-            'provider'        => [
-                'url'     => 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                'options' => [
-                    'attribution' => '<a href="https://www.openstreetmap.org/copyright">&copy; OpenStreetMap</a> contributors',
-                    'max_zoom'    => 19
-                ]
-            ],
+            'leaflet_config'  => $this->leaflet_js_service->config(),
+            'url'             => $url,
         ]);
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\Fact;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\Http\RequestHandlers\ReorderFamiliesAction;
@@ -11,11 +13,11 @@ use Fisharebest\Webtrees\View;
 use Illuminate\Support\Collection;
 
 /**
- * @var Collection<Fact> $famc_facts
- * @var Collection<Fact> $fams_facts
- * @var Individual       $individual
- * @var string           $title
- * @var Tree             $tree
+ * @var Collection<int,Fact> $famc_facts
+ * @var Collection<int,Fact> $fams_facts
+ * @var Individual           $individual
+ * @var string               $title
+ * @var Tree                 $tree
  */
 
 ?>
@@ -23,8 +25,6 @@ use Illuminate\Support\Collection;
 <h2 class="wt-page-title"><?= $title ?></h2>
 
 <form method="post" action="<?= e(route(ReorderFamiliesAction::class, ['tree' => $tree->name(), 'xref' => $individual->xref()])) ?>" class="wt-page-content">
-    <?= csrf_field() ?>
-
     <?php if ($fams_facts->count() < 2) : ?>
         <?php foreach ($fams_facts as $fact) : ?>
             <input type="hidden" name="order[]" value="<?= e($fact->id()) ?>">
@@ -45,7 +45,7 @@ use Illuminate\Support\Collection;
 
         <div class="wt-sortable-list wt-sortable-list-fams">
             <?php foreach ($fams_facts as $fact) : ?>
-                <div class="card mb-2 wt-sortable-item" data-sortbydate="<?= $fact->target()->getMarriageDate()->julianDay() ?>">
+                <div class="card mb-2 wt-sortable-item" data-wt-sort-by-date="<?= $fact->target()->getMarriageDate()->julianDay() ?>">
                     <input type="hidden" name="order[]" value="<?= $fact->id() ?>">
                     <div class="card-header">
                         <?= view('edit/reorder-card-header', ['title' => $fact->target()->fullName()]) ?>
@@ -72,7 +72,7 @@ use Illuminate\Support\Collection;
         <h3><?= I18N::translate('Parents') ?></h3>
 
         <p>
-            <?= I18N::translate('An individual can have more than one set of parents.  For example, birth and adopted.') ?>
+            <?= I18N::translate('An individual can have more than one set of parents. For example, birth and adopted.') ?>
             <br>
             <?= I18N::translate('The first family in the list will be used in charts, lists, reports, etc.') ?>
         </p>
@@ -104,6 +104,8 @@ use Illuminate\Support\Collection;
             <?= /* I18N: A button label. */ I18N::translate('cancel') ?>
         </a>
     </p>
+
+    <?= csrf_field() ?>
 </form>
 
 <?php View::push('javascript') ?>
@@ -124,7 +126,7 @@ use Illuminate\Support\Collection;
 
         $("#btn-default-order").on("click", function () {
             $(".wt-sortable-list-fams .wt-sortable-item").sort(function (x, y) {
-                return Math.sign(x.dataset.sortbydate - y.dataset.sortbydate);
+                return Math.sign(x.dataset.wtSortByDate - y.dataset.wtSortByDate);
             }).appendTo(".wt-sortable-list-fams");
         });
     }

@@ -1,6 +1,6 @@
 /**
  * webtrees: online genealogy
- * Copyright (C) 2020 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -10,22 +10,27 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /* The minimal theme */
 @import "_base.css";
 
-/* Colors for chart boxes, etc. */
 :root {
-  --sex-f-fg: #888888;
-  --sex-m-fg: #888888;
-  --sex-u-fg: #888888;
-  --sex-f-bg: #ffffff;
-  --sex-m-bg: #ffffff;
-  --sex-u-bg: #ffffff;
-    --chart-line: solid gray thin;
     --chart-line-radius: 1rem;
+    --chart-line: solid gray thin;
+    --link-color-hover: #0a58ca;
+    --link-color: #0d6efd;
+    --link-decoration-hover: underline;
+    --link-decoration: underline;
+    --sex-f-bg: #ffffff;
+    --sex-f-fg: #888888;
+    --sex-m-bg: #ffffff;
+    --sex-m-fg: #888888;
+    --sex-u-bg: #ffffff;
+    --sex-u-fg: #888888;
+    --sex-x-bg: #ffffff;
+    --sex-x-fg: #888888;
 }
 
 /* Override Bootstrap formatting */
@@ -76,7 +81,7 @@ table {
  *     +---wt-footer wt-footer-xxxxx
  */
 
-.wt-global {
+::backdrop, .wt-global {
     /* Avoid extremes of black and white.  It is better for users with dyslexia. */
     color: #0a0a0a;
     background-color: #f9f9f9;
@@ -247,17 +252,17 @@ table {
  * wt-route-individual
  * +---wt-header-wrapper
  */
-
-.wt-individual-silhouette {
-    content: url(images/individual-silhouette-unknown.png);
-}
-
 .wt-individual-silhouette-f {
     content: url(images/individual-silhouette-female.png);
 }
 
 .wt-individual-silhouette-m {
     content: url(images/individual-silhouette-male.png);
+}
+
+.wt-individual-silhouette-u,
+.wt-individual-silhouette-x {
+    content: url(images/individual-silhouette-unknown.png);
 }
 
 /*
@@ -278,16 +283,11 @@ table {
  * +--- wt-chart-box-facts
  *     +--- wt-chart-box-fact
  */
-.wt-chart-box,
-.wt-chart-box-menu {
-    background: var(--sex-u-bg);
-    border: dashed var(--sex-u-fg) thin;
-}
-
 .wt-chart-box {
     height: 5rem;
     padding: 2px;
     line-height: 1.1;
+    border: solid gray thin;
 }
 
 .wt-chart-box-f,
@@ -300,6 +300,18 @@ table {
 .wt-chart-box-m .wt-chart-box-dropdown {
     background: var(--sex-m-bg);
     border: solid var(--sex-m-fg) thin;
+}
+
+.wt-chart-box-u,
+.wt-chart-box-u .wt-chart-box-dropdown {
+    background: var(--sex-u-bg);
+    border: solid var(--sex-u-fg) thin;
+}
+
+.wt-chart-box-x,
+.wt-chart-box-x .wt-chart-box-dropdown {
+    background: var(--sex-x-bg);
+    border: solid var(--sex-x-fg) thin;
 }
 
 /* ---Pending edits--- */
@@ -341,23 +353,6 @@ table {
 }
 
 /* ======== Block styles ===== */
-#index_main_blocks {
-    clear: none;
-    width: 60%;
-    float: left;
-}
-
-#index_small_blocks {
-    clear: none;
-    width: 40%;
-    float: right;
-}
-
-#index_full_blocks {
-    clear: none;
-    width: 100%;
-}
-
 .block {
     background-color: #fff;
     color: #555;
@@ -417,25 +412,14 @@ table {
 .wt-facts-table th {
     border: 1px solid #000;
     font-weight: normal;
+}
+
+.wt-facts-table > tbody > tr > th {
     min-width: 20%;
 }
 
 .wt-facts-table td {
     border: solid #000 1px;
-}
-
-a {
-    color: #333;
-    text-decoration: none;
-}
-
-a:hover {
-    color: #333;
-    text-decoration: underline;
-}
-
-a:hover {
-    text-decoration: underline!important;
 }
 
 .parentdeath {
@@ -468,13 +452,6 @@ div.faq_body {
 
 .faq_top {
     float: right;
-}
-
-/* === Positioning edit, copy, delete links === */
-/* General use */
-.editfacts {
-    clear: left;
-    padding-top: 15px;
 }
 
 #indi_note {
@@ -575,40 +552,6 @@ div.faq_body {
     white-space: nowrap;
 }
 
-/* Stories module */
-.story_title {
-    padding-top: 12px;
-    font-size: 13px;
-    height: 32px;
-    font-weight: bold;
-}
-
-.story_body {
-    padding: 20px;
-    white-space: normal;
-}
-
-.story_edit {
-    padding: 12px;
-}
-
-/* Stories module */
-.story_title {
-    padding-top: 12px;
-    font-size: 13px;
-    height: 32px;
-    font-weight: bold;
-}
-
-.story_body {
-    padding: 20px;
-    white-space: normal;
-}
-
-.story_edit {
-    padding: 12px;
-}
-
 /* ====== Charts Styles ======== */
 
 #people label {
@@ -689,11 +632,6 @@ div.faq_body {
 .layout3 #childbox {
     top: auto;
     bottom: 20px;
-}
-
-#childbox a.name1 {
-    display: block;
-    margin-left: 5px;
 }
 
 .person0, .person1, .person2, .person3, .person4, .person5 {
@@ -931,15 +869,16 @@ a > .wt-icon-arrow-up:hover {
 }
 
 /* Silhouettes on charts */
-.icon-silhouette-F {
+.icon-silhouette-f {
     content: url(minimal/images/silhouette_female_small.png);
 }
 
-.icon-silhouette-M {
+.icon-silhouette-m {
     content: url(minimal/images/silhouette_male_small.png);
 }
 
-.icon-silhouette-U {
+.icon-silhouette-u,
+.icon-silhouette-x {
     content: url(minimal/images/silhouette_unknown_small.png);
 }
 
@@ -972,72 +911,6 @@ a > .wt-icon-arrow-up:hover {
     overflow-y: hidden;
 }
 
-/* Fit thumbnail into parent on charts */
-.select2-selection.select2-selection--single {
-    min-height: 36px;
-    height: auto;
-    padding: 2px 0;
-}
-
-.select2-container .select2-selection--single .select2-selection__rendered {
-    padding-left: 2px;
-}
-
-.select2-selection--single .NAME {
-    padding-left: 4px;
-}
-
-/*
- *  These selectors control how the short horizontal lines are positioned in the Charts
- *  Optimized for Win10 and FF, Chrome and Edge browsers
- *  	Ancestors
- *  	Descendants
- *  	amily book
- *
- */
-
-/* Ascentors */
-.wt-chart-ancestors .linea1 {
-    margin-bottom: 4px;
-}
-
-.wt-chart-ancestors .linea2 {
-    margin-bottom: 7px;
-}
-
-.wt-chart-ancestors .linea3 {
-    margin-bottom: 4px;
-}
-
-.wt-chart-ancestors .linea4 {
-    margin-bottom: 7px;
-}
-
-.wt-chart-ancestors .linea5 {
-    vertical-align: top;
-}
-
-/* Descendants */
-.wt-chart-descendants .lined1 {
-    margin-bottom: 4px;
-}
-
-.wt-chart-descendants .lined2 {
-    margin-bottom: 7px;
-}
-
-.wt-chart-descendants .lined3 {
-    margin-bottom: 4px;
-}
-
-.wt-chart-descendants .lined4 {
-    margin-bottom: 7px;
-}
-
-.wt-chart-descendants .linea5 {
-    vertical-align: top;
-}
-
 .wt-calendar-month {
     border-collapse: collapse;
 }
@@ -1048,13 +921,17 @@ a > .wt-icon-arrow-up:hover {
     padding: 0.2rem;
 }
 
-/* Some menus (e.g. languages) can be longer than a page */
-.dropdown-menu {
-    max-height: 30rem;
-    overflow-x: hidden;
-}
-
 /* Forms */
 .col-form-label {
     font-weight: bold;
+}
+
+/* Accordions */
+.accordion .wt-icon-expand,
+.accordion .wt-icon-collapse {
+    display: none;
+}
+
+.accordion-button:after {
+    display: block;
 }

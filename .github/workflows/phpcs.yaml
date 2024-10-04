@@ -4,18 +4,30 @@ on: [push, pull_request]
 
 jobs:
   run:
-    runs-on: ubuntu-latest
+    if: ${{ !startsWith(github.event.head_commit.message, 'Translation:') }}
+    runs-on: ${{ matrix.operating-system }}
     name: PHP/PHTML/CSS
 
+    strategy:
+      matrix:
+        operating-system: ['ubuntu-latest']
+        php-version: ['8.2', '8.3', '8.4']
+      fail-fast: false
+
     steps:
-      - uses: actions/checkout@v2
+      - uses: shivammathur/setup-php@master
+        with:
+          php-version: ${{ matrix.php-version }}
+          ini-file: 'development'
+
+      - uses: actions/checkout@v4
 
       - run: composer validate
 
       - run: composer global require squizlabs/php_codesniffer
 
       - name: PHP
-        run: ~/.composer/vendor/bin/phpcs --colors --standard=PSR12 --exclude=Generic.Files.LineLength --extensions=php index.php app modules_v4 tests
+        run: ~/.composer/vendor/bin/phpcs --colors --standard=PSR12 --exclude=Generic.Files.LineLength --extensions=php index.php app tests
 
       - name: Style sheets
         run: ~/.composer/vendor/bin/phpcs --colors --extensions=css resources/css

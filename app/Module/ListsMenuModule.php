@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -32,14 +32,9 @@ class ListsMenuModule extends AbstractModule implements ModuleMenuInterface
 {
     use ModuleMenuTrait;
 
-    /**
-     * @var ModuleService
-     */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * ListsMenuModule constructor.
-     *
      * @param ModuleService $module_service
      */
     public function __construct(ModuleService $module_service)
@@ -86,16 +81,12 @@ class ListsMenuModule extends AbstractModule implements ModuleMenuInterface
      *
      * @return Menu|null
      */
-    public function getMenu(Tree $tree): ?Menu
+    public function getMenu(Tree $tree): Menu|null
     {
         $submenus = $this->module_service->findByComponent(ModuleListInterface::class, $tree, Auth::user())
-            ->map(static function (ModuleListInterface $module) use ($tree): ?Menu {
-                return $module->listMenu($tree);
-            })
+            ->map(static fn (ModuleListInterface $module): Menu|null => $module->listMenu($tree))
             ->filter()
-            ->sort(static function (Menu $x, Menu $y): int {
-                return $x->getLabel() <=> $y->getLabel();
-            });
+            ->sort(static fn (Menu $x, Menu $y): int => I18N::comparator()($x->getLabel(), $y->getLabel()));
 
         if ($submenus->isEmpty()) {
             return null;

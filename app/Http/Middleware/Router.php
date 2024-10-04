@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,6 +19,7 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\Middleware;
 
+use Aura\Router\Route;
 use Aura\Router\RouterContainer;
 use Aura\Router\Rule\Accepts;
 use Aura\Router\Rule\Allows;
@@ -27,15 +28,16 @@ use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
+use Fisharebest\Webtrees\Webtrees;
 use Middleland\Dispatcher;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function app;
-use function array_map;
-use function response;
+use function explode;
+use function implode;
 use function str_contains;
 
 /**
@@ -43,24 +45,22 @@ use function str_contains;
  */
 class Router implements MiddlewareInterface
 {
-    /** @var ModuleService */
-    private $module_service;
+    private ModuleService $module_service;
 
-    /** @var RouterContainer */
-    private $router_container;
+    private RouterContainer $router_container;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
-     * Router constructor.
-     *
      * @param ModuleService   $module_service
      * @param RouterContainer $router_container
      * @param TreeService     $tree_service
      */
-    public function __construct(ModuleService $module_service, RouterContainer $router_container, TreeService $tree_service)
-    {
+    public function __construct(
+        ModuleService $module_service,
+        RouterContainer $router_container,
+        TreeService $tree_service
+    ) {
         $this->module_service   = $module_service;
         $this->router_container = $router_container;
         $this->tree_service     = $tree_service;
@@ -74,14 +74,26 @@ class Router implements MiddlewareInterface
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        // Turn the ugly URL into a pretty one, so the router can parse it.
-        $pretty = $request;
+        // Ugly URLs store the path in a query parameter.
+        $url_route = Validator::queryParams($request)->string('route', '');
 
-        if ($request->getAttribute('rewrite_urls') !== '1') {
-            // Ugly URLs store the path in a query parameter.
-            $url_route = $request->getQueryParams()['route'] ?? '';
-            $uri       = $request->getUri()->withPath($url_route);
-            $pretty    = $request->withUri($uri);
+        if (Validator::attributes($request)->boolean('rewrite_urls', false)) {
+            // We are creating pretty URLs, but received an ugly one. Probably a search-engine. Redirect it.
+            if ($url_route !== '') {
+                $uri = $request->getUri()
+                    ->withPath($url_route)
+                    ->withQuery(explode('&', $request->getUri()->getQuery(), 2)[1] ?? '');
+
+                return Registry::responseFactory()
+                    ->redirectUrl($uri, StatusCodeInterface::STATUS_PERMANENT_REDIRECT)
+                    ->withHeader('Link', '<' . $uri . '>; rel="canonical"');
+            }
+
+            $pretty = $request;
+        } else {
+            // Turn the ugly URL into a pretty one, so the router can parse it.
+            $uri    = $request->getUri()->withPath($url_route);
+            $pretty = $request->withUri($uri);
         }
 
         // Match the request to a route.
@@ -92,20 +104,20 @@ class Router implements MiddlewareInterface
         if ($route === false) {
             $failed_route = $matcher->getFailedRoute();
 
-            switch ($failed_route->failedRule) {
-                case Allows::class:
-                    return response('', StatusCodeInterface::STATUS_METHOD_NOT_ALLOWED, [
+            if ($failed_route instanceof Route) {
+                if ($failed_route->failedRule === Allows::class) {
+                    return Registry::responseFactory()->response('', StatusCodeInterface::STATUS_METHOD_NOT_ALLOWED, [
                         'Allow' => implode(', ', $failed_route->allows),
                     ]);
+                }
 
-                case Accepts::class:
-                    // We don't use this, but modules might.
-                    return response('Negotiation failed', StatusCodeInterface::STATUS_NOT_ACCEPTABLE);
-
-                default:
-                    // Not found
-                    return $handler->handle($request);
+                if ($failed_route->failedRule === Accepts::class) {
+                    return Registry::responseFactory()->response('Negotiation failed', StatusCodeInterface::STATUS_NOT_ACCEPTABLE);
+                }
             }
+
+            // Not found
+            return $handler->handle($request);
         }
 
         // Add the route as attribute of the request
@@ -113,17 +125,15 @@ class Router implements MiddlewareInterface
 
         // This middleware cannot run until after the routing, as it needs to know the route.
         $post_routing_middleware = [CheckCsrf::class];
-        $post_routing_middleware = array_map('app', $post_routing_middleware);
 
         // Firstly, apply the route middleware
         $route_middleware = $route->extras['middleware'] ?? [];
-        $route_middleware = array_map('app', $route_middleware);
 
         // Secondly, apply any module middleware
         $module_middleware = $this->module_service->findByInterface(MiddlewareInterface::class)->all();
 
         // Finally, run the handler using middleware
-        $handler_middleware = [new WrapHandler($route->handler)];
+        $handler_middleware = [RequestHandler::class];
 
         $middleware = array_merge(
             $post_routing_middleware,
@@ -136,7 +146,10 @@ class Router implements MiddlewareInterface
         foreach ($route->attributes as $key => $value) {
             if ($key === 'tree') {
                 $value = $this->tree_service->all()->get($value);
-                app()->instance(Tree::class, $value);
+
+                if ($value instanceof Tree) {
+                    Registry::container()->set(Tree::class, $value);
+                }
 
                 // Missing mandatory parameter? Let the default handler take care of it.
                 if ($value === null && str_contains($route->path, '{tree}')) {
@@ -147,17 +160,10 @@ class Router implements MiddlewareInterface
             $request = $request->withAttribute((string) $key, $value);
         }
 
-        // Bind the request into the container
-        app()->instance(ServerRequestInterface::class, $request);
+        // Bind the updated request into the container
+        Registry::container()->set(ServerRequestInterface::class, $request);
 
-        $dispatcher = new Dispatcher($middleware, app());
-
-        // These are deprecated, and will be removed in webtrees 2.1.0
-        $request = $request
-            ->withAttribute('filesystem.data', Registry::filesystem()->data())
-            ->withAttribute('filesystem.data.name', Registry::filesystem()->dataName())
-            ->withAttribute('filesystem.root', Registry::filesystem()->root())
-            ->withAttribute('filesystem.root.name', Registry::filesystem()->rootName());
+        $dispatcher = new Dispatcher($middleware, Registry::container());
 
         return $dispatcher->dispatch($request);
     }

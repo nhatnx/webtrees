@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -47,7 +47,7 @@ class NamePieceGiven extends AbstractElement
     {
         return
             '<div class="input-group">' .
-            '<input class="form-control" type="text" id="' . e($id) . '" name="' . e($name) . '" value="' . e($value) . '" />' .
+            parent::edit($id, $name, $value, $tree) .
             view('edit/input-addon-keyboard', ['id' => $id]) .
             '</div>';
     }
@@ -62,6 +62,6 @@ class NamePieceGiven extends AbstractElement
      */
     public function value(string $value, Tree $tree): string
     {
-        return '<span dir="auto">' . preg_replace('/(\S*)\*/', '<span class="starredname">\\1</span>', e($value)) . '</span>';
+        return '<bdi>' . preg_replace('/(\S*)\*/', '<span class="starredname">\\1</span>', e($value)) . '</bdi>';
     }
 }

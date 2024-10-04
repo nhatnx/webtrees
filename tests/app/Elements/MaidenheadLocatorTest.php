@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,13 +19,11 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
-/**
- * Test harness for the class MaidenheadLocator
- *
- * @covers \Fisharebest\Webtrees\Elements\AbstractElement
- * @covers \Fisharebest\Webtrees\Elements\MaidenheadLocator
- */
-class MaidenheadLocatorTest extends AbstractElementTest
+use PHPUnit\Framework\Attributes\CoversClass;
+
+#[CoversClass(AbstractElement::class)]
+#[CoversClass(MaidenheadLocator::class)]
+class MaidenheadLocatorTest extends AbstractElementTestCase
 {
     /**
      * Standard tests for all elements.
@@ -37,19 +35,15 @@ class MaidenheadLocatorTest extends AbstractElementTest
         self::$element = new MaidenheadLocator('label');
     }
 
-
-    /**
-     * @return void
-     */
     public function testCanonical(): void
     {
-        self::assertSame('AB', self::$element->canonical("ab"));
-        self::assertSame('AB', self::$element->canonical("AB"));
-        self::assertSame('AB12', self::$element->canonical("ab12"));
-        self::assertSame('AB12', self::$element->canonical("AB12"));
-        self::assertSame('AB12cd', self::$element->canonical("ab12cd"));
-        self::assertSame('AB12cd', self::$element->canonical("AB12CD"));
-        self::assertSame('AB12cd34', self::$element->canonical("ab12cd34"));
-        self::assertSame('AB12cd34', self::$element->canonical("AB12CD34"));
+        self::assertSame('AB', self::$element->canonical('ab'));
+        self::assertSame('AB', self::$element->canonical('AB'));
+        self::assertSame('AB12', self::$element->canonical('ab12'));
+        self::assertSame('AB12', self::$element->canonical('AB12'));
+        self::assertSame('AB12cd', self::$element->canonical('ab12cd'));
+        self::assertSame('AB12cd', self::$element->canonical('AB12CD'));
+        self::assertSame('AB12cd34', self::$element->canonical('ab12cd34'));
+        self::assertSame('AB12cd34', self::$element->canonical('AB12CD34'));
     }
 }

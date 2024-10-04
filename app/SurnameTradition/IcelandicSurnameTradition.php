@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,6 +19,10 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\SurnameTradition;
 
+use Fisharebest\Webtrees\Elements\NameType;
+use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Individual;
+
 /**
  * Children take a patronym instead of a surname.
  *
@@ -28,72 +32,109 @@ namespace Fisharebest\Webtrees\SurnameTradition;
 class IcelandicSurnameTradition extends DefaultSurnameTradition
 {
     /**
-     * Does this surname tradition use surnames?
+     * The name of this surname tradition
      *
-     * @return bool
+     * @return string
      */
-    public function hasSurnames(): bool
+    public function name(): string
     {
-        return false;
+        return I18N::translateContext('Surname tradition', 'Icelandic');
     }
 
     /**
-     * What names are given to a new child
+     * A short description of this surname tradition
      *
-     * @param string $father_name A GEDCOM NAME
-     * @param string $mother_name A GEDCOM NAME
-     * @param string $child_sex   M, F or U
-     *
-     * @return array<string,string> Associative array of GEDCOM name parts (SURN, _MARNM, etc.)
+     * @return string
      */
-    public function newChildNames(string $father_name, string $mother_name, string $child_sex): array
+    public function description(): string
     {
-        if (preg_match(self::REGEX_GIVN, $father_name, $father_match)) {
-            switch ($child_sex) {
+        /* I18N: In the Icelandic surname tradition, ... */
+        return I18N::translate('Children take a patronym instead of a surname.');
+    }
+
+    /**
+     * A default/empty name
+     *
+     * @return string
+     */
+    public function defaultName(): string
+    {
+        return '';
+    }
+
+    /**
+     * What name is given to a new child
+     *
+     * @param Individual|null $father
+     * @param Individual|null $mother
+     * @param string          $sex
+     *
+     * @return array<int,string>
+     */
+    public function newChildNames(Individual|null $father, Individual|null $mother, string $sex): array
+    {
+        if (preg_match(self::REGEX_GIVN, $this->extractName($father), $match) === 1) {
+            switch ($sex) {
                 case 'M':
+                    $givn = $match['GIVN'] . 'sson';
+
                     return [
-                        'NAME' => $father_match['GIVN'] . 'sson',
+                        $this->buildName($givn, ['TYPE' => NameType::VALUE_BIRTH, 'GIVN' => $givn]),
                     ];
+
                 case 'F':
+                    $givn = $match['GIVN'] . 'sdottir';
+
                     return [
-                        'NAME' => $father_match['GIVN'] . 'sdottir',
+                        $this->buildName($givn, ['TYPE' => NameType::VALUE_BIRTH, 'GIVN' => $givn]),
                     ];
             }
         }
 
-        return [];
+        return [
+            $this->buildName('', ['TYPE' => NameType::VALUE_BIRTH]),
+        ];
     }
 
     /**
-     * What names are given to a new parent
+     * What name is given to a new parent
      *
-     * @param string $child_name A GEDCOM NAME
-     * @param string $parent_sex M, F or U
+     * @param Individual $child
+     * @param string     $sex
      *
-     * @return array<string,string> Associative array of GEDCOM name parts (SURN, _MARNM, etc.)
+     * @return array<int,string>
      */
-    public function newParentNames(string $child_name, string $parent_sex): array
+    public function newParentNames(Individual $child, string $sex): array
     {
-        if ($parent_sex === 'M' && preg_match('~(?<GIVN>[^ /]+)(:?sson|sdottir)$~', $child_name, $child_match)) {
+        if ($sex === 'M' && preg_match('~(?<GIVN>[^ /]+)(:?sson)$~', $this->extractName($child), $match) === 1) {
             return [
-                'NAME' => $child_match['GIVN'],
-                'GIVN' => $child_match['GIVN'],
+                $this->buildName($match['GIVN'], ['TYPE' => NameType::VALUE_BIRTH, 'GIVN' => $match['GIVN']]),
             ];
         }
 
-        return [];
+        if ($sex === 'F' && preg_match('~(?<GIVN>[^ /]+)(:?sdottir)$~', $this->extractName($child), $match) === 1) {
+            return [
+                $this->buildName($match['GIVN'], ['TYPE' => NameType::VALUE_BIRTH, 'GIVN' => $match['GIVN']]),
+            ];
+        }
+
+        return [
+            $this->buildName('', ['TYPE' => NameType::VALUE_BIRTH]),
+        ];
     }
 
     /**
      * What names are given to a new spouse
      *
-     * @param string $spouse_name A GEDCOM NAME
-     * @param string $spouse_sex  M, F or U
+     * @param Individual $spouse
+     * @param string     $sex
      *
-     * @return array<string,string> Associative array of GEDCOM name parts (SURN, _MARNM, etc.)
+     * @return array<int,string>
      */
-    public function newSpouseNames(string $spouse_name, string $spouse_sex): array
+    public function newSpouseNames(Individual $spouse, string $sex): array
     {
-        return [];
+        return [
+            $this->buildName('', ['TYPE' => NameType::VALUE_BIRTH]),
+        ];
     }
 }

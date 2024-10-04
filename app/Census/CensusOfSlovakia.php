@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2016 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -15,6 +15,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+declare(strict_types=1);
+
 namespace Fisharebest\Webtrees\Census;
 
 /**
@@ -25,12 +27,14 @@ class CensusOfSlovakia extends Census implements CensusPlaceInterface
     /**
      * All available censuses for this census place.
      *
-     * @return CensusInterface[]
+     * @return array<CensusInterface>
      */
     public function allCensusDates(): array
     {
         return [
             new CensusOfSlovakia1869(),
+            new CensusOfSlovakia1930(),
+            new CensusOfSlovakia1940(),
         ];
     }
 

@@ -1,16 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Media;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 
 /**
- * @var Collection<Media> $media_objects
- * @var Tree              $tree
+ * @var Collection<int,Media> $media_objects
+ * @var Tree                  $tree
  */
 
 ?>
@@ -27,8 +29,8 @@ $count_individuals = DB::table('individuals')
     ->where('l_type', '=', 'OBJE')
     ->where('l_file', '=', $tree->id())
     ->groupBy(['l_to'])
-    ->select(['l_to', new Expression('COUNT(*) AS total')])
-    ->pluck('total', 'l_to')
+    ->pluck(new Expression('COUNT(*) AS total'), 'l_to')
+    ->map(static fn ($n) => (int) $n)
     ->all();
 
 $count_families = DB::table('families')
@@ -39,8 +41,8 @@ $count_families = DB::table('families')
     ->where('l_type', '=', 'OBJE')
     ->where('l_file', '=', $tree->id())
     ->groupBy(['l_to'])
-    ->select(['l_to', new Expression('COUNT(*) AS total')])
-    ->pluck('total', 'l_to')
+    ->pluck(new Expression('COUNT(*) AS total'), 'l_to')
+    ->map(static fn ($n) => (int) $n)
     ->all();
 
 $count_sources = DB::table('sources')
@@ -51,8 +53,8 @@ $count_sources = DB::table('sources')
     ->where('l_type', '=', 'OBJE')
     ->where('l_file', '=', $tree->id())
     ->groupBy(['l_to'])
-    ->select(['l_to', new Expression('COUNT(*) AS total')])
-    ->pluck('total', 'l_to')
+    ->pluck(new Expression('COUNT(*) AS total'), 'l_to')
+    ->map(static fn ($n) => (int) $n)
     ->all();
 ?>
 
@@ -61,14 +63,14 @@ $count_sources = DB::table('sources')
     <?= view('lists/datatables-attributes') ?>
     data-columns="<?= e(json_encode([
         null,
-        null,
+        ['type' => 'html'],
         ['visible' => array_sum($count_individuals) > 0],
         ['visible' => array_sum($count_families) > 0],
         ['visible' => array_sum($count_sources) > 0],
         ['visible' => (bool) $tree->getPreference('SHOW_LAST_CHANGE'), 'searchable' => false],
-    ])) ?>"
+    ], JSON_THROW_ON_ERROR)) ?>"
 >
-    <caption class="sr-only">
+    <caption class="visually-hidden">
         <?= $caption ?? I18N::translate('Media objects') ?>
     </caption>
 
@@ -116,7 +118,7 @@ $count_sources = DB::table('sources')
                 </td>
 
                 <!-- Last change -->
-                <td data-sort="<?= $media_object->lastChangeTimestamp()->unix() ?>">
+                <td data-sort="<?= $media_object->lastChangeTimestamp()->timestamp() ?>">
                     <?= view('components/datetime', ['timestamp' => $media_object->lastChangeTimestamp()]) ?>
                 </td>
             </tr>

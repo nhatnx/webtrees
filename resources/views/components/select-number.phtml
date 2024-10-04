@@ -1,19 +1,21 @@
 <?php
 
-/**
- * @var string|null $class
- * @var string|null $id
- * @var string      $name
- * @var mixed       $selected
- * @var string[]    $options
- */
+declare(strict_types=1);
 
 use Fisharebest\Webtrees\I18N;
+
+/**
+ * @var string|null   $class
+ * @var string|null   $id
+ * @var string        $name
+ * @var mixed         $selected
+ * @var array<string> $options
+ */
 
 ?>
 
 <select
-    class="form-control <?= $class ?? '' ?>"
+    class="form-select <?= $class ?? '' ?>"
     name="<?= e($name) ?>"
     id="<?= e($id ?? $name) ?>"
 >

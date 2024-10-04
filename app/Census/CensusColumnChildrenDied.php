@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -44,14 +44,11 @@ class CensusColumnChildrenDied extends AbstractCensusColumn implements CensusCol
         }
 
         return (string) $family->children()
-            ->filter(function (Individual $child): bool {
-                return
-                    $child->getBirthDate()->isOK() &&
-                    Date::compare($child->getBirthDate(), $this->date()) < 0 &&
-                    $child->getBirthDate()->minimumJulianDay() !== $child->getDeathDate()->minimumJulianDay() &&
-                    $child->getDeathDate()->isOK() &&
-                    Date::compare($child->getDeathDate(), $this->date()) < 0;
-            })
+            ->filter(fn (Individual $child): bool => $child->getBirthDate()->isOK() &&
+                Date::compare($child->getBirthDate(), $this->date()) < 0 &&
+                $child->getBirthDate()->minimumJulianDay() !== $child->getDeathDate()->minimumJulianDay() &&
+                $child->getDeathDate()->isOK() &&
+                Date::compare($child->getDeathDate(), $this->date()) < 0)
             ->count();
     }
 }

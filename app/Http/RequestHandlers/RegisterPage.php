@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,14 +19,18 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
-use Fisharebest\Webtrees\Exceptions\HttpNotFoundException;
+use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Services\CaptchaService;
+use Fisharebest\Webtrees\Session;
 use Fisharebest\Webtrees\Site;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+
+use function is_string;
 
 /**
  * Show a registration page.
@@ -35,12 +39,9 @@ class RegisterPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var CaptchaService */
-    private $captcha_service;
+    private CaptchaService $captcha_service;
 
     /**
-     * RegisterPage constructor.
-     *
      * @param CaptchaService $captcha_service
      */
     public function __construct(CaptchaService $captcha_service)
@@ -57,11 +58,19 @@ class RegisterPage implements RequestHandlerInterface
     {
         $this->checkRegistrationAllowed();
 
-        $tree     = $request->getAttribute('tree');
-        $comments = $request->getQueryParams()['comments'] ?? '';
-        $email    = $request->getQueryParams()['email'] ?? '';
-        $realname = $request->getQueryParams()['realname'] ?? '';
-        $username = $request->getQueryParams()['username'] ?? '';
+        $tree = Validator::attributes($request)->treeOptional();
+
+        $comments = Session::get('register_comments');
+        $comments = is_string($comments) ? $comments : '';
+
+        $email    = Session::get('register_email');
+        $email    = is_string($email) ? $email : '';
+
+        $realname = Session::get('register_realname');
+        $realname = is_string($realname) ? $realname : '';
+
+        $username = Session::get('register_username');
+        $username = is_string($username) ? $username : '';
 
         $show_caution = Site::getPreference('SHOW_REGISTER_CAUTION') === '1';
 

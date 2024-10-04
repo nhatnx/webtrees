@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,13 +21,11 @@ namespace Fisharebest\Webtrees\Factories;
 
 use Closure;
 use Fisharebest\Webtrees\Contracts\SourceFactoryInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Source;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
-use stdClass;
 
-use function assert;
 use function preg_match;
 
 /**
@@ -37,20 +35,13 @@ class SourceFactory extends AbstractGedcomRecordFactory implements SourceFactory
 {
     private const TYPE_CHECK_REGEX = '/^0 @[^@]+@ ' . Source::RECORD_TYPE . '/';
 
-
     /**
      * Create a individual.
-     *
-     * @param string      $xref
-     * @param Tree        $tree
-     * @param string|null $gedcom
-     *
-     * @return Source|null
      */
-    public function make(string $xref, Tree $tree, string $gedcom = null): ?Source
+    public function make(string $xref, Tree $tree, string|null $gedcom = null): Source|null
     {
-        return Registry::cache()->array()->remember(__CLASS__ . $xref . '@' . $tree->id(), function () use ($xref, $tree, $gedcom) {
-            $gedcom  = $gedcom ?? $this->gedcom($xref, $tree);
+        return Registry::cache()->array()->remember(self::class . $xref . '@' . $tree->id(), function () use ($xref, $tree, $gedcom) {
+            $gedcom ??= $this->gedcom($xref, $tree);
             $pending = $this->pendingChanges($tree)->get($xref);
 
             if ($gedcom === null && ($pending === null || !preg_match(self::TYPE_CHECK_REGEX, $pending))) {
@@ -59,7 +50,7 @@ class SourceFactory extends AbstractGedcomRecordFactory implements SourceFactory
 
             $xref = $this->extractXref($gedcom ?? $pending, $xref);
 
-            return new Source($xref, $gedcom ?? '', $pending, $tree);
+            return $this->new($xref, $gedcom ?? '', $pending, $tree);
         });
     }
 
@@ -68,16 +59,11 @@ class SourceFactory extends AbstractGedcomRecordFactory implements SourceFactory
      *
      * @param Tree $tree
      *
-     * @return Closure
+     * @return Closure(object):Source
      */
     public function mapper(Tree $tree): Closure
     {
-        return function (stdClass $row) use ($tree): Source {
-            $source = $this->make($row->s_id, $tree, $row->s_gedcom);
-            assert($source instanceof Source);
-
-            return $source;
-        };
+        return fn (object $row): Source => $this->make($row->s_id, $tree, $row->s_gedcom);
     }
 
     /**
@@ -91,7 +77,7 @@ class SourceFactory extends AbstractGedcomRecordFactory implements SourceFactory
      *
      * @return Source
      */
-    public function new(string $xref, string $gedcom, ?string $pending, Tree $tree): Source
+    public function new(string $xref, string $gedcom, string|null $pending, Tree $tree): Source
     {
         return new Source($xref, $gedcom, $pending, $tree);
     }
@@ -104,7 +90,7 @@ class SourceFactory extends AbstractGedcomRecordFactory implements SourceFactory
      *
      * @return string|null
      */
-    protected function gedcom(string $xref, Tree $tree): ?string
+    protected function gedcom(string $xref, Tree $tree): string|null
     {
         return DB::table('sources')
             ->where('s_id', '=', $xref)

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -25,6 +25,8 @@ use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Log;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Site;
+use Fisharebest\Webtrees\User;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -36,12 +38,9 @@ use function route;
  */
 class UserAddAction implements RequestHandlerInterface
 {
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
     /**
-     * UserAddAction constructor.
-     *
      * @param UserService $user_service
      */
     public function __construct(UserService $user_service)
@@ -56,20 +55,19 @@ class UserAddAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $params = (array) $request->getParsedBody();
-
-        $username  = $params['username'] ?? '';
-        $real_name = $params['real_name'] ?? '';
-        $email     = $params['email'] ?? '';
-        $password  = $params['password'] ?? '';
+        $username  = Validator::parsedBody($request)->string('username');
+        $real_name = Validator::parsedBody($request)->string('real_name');
+        $email     = Validator::parsedBody($request)->string('email');
+        $password  = Validator::parsedBody($request)->string('password');
 
         $errors = false;
-        if ($this->user_service->findByUserName($username)) {
+
+        if ($this->user_service->findByUserName($username) instanceof User) {
             FlashMessages::addMessage(I18N::translate('Duplicate username. A user with that username already exists. Please choose another username.'));
             $errors = true;
         }
 
-        if ($this->user_service->findByEmail($email)) {
+        if ($this->user_service->findByEmail($email) instanceof User) {
             FlashMessages::addMessage(I18N::translate('Duplicate email address. A user with that email already exists.'));
             $errors = true;
         }
@@ -86,8 +84,9 @@ class UserAddAction implements RequestHandlerInterface
 
         $new_user = $this->user_service->create($username, $real_name, $email, $password);
         $new_user->setPreference(UserInterface::PREF_IS_EMAIL_VERIFIED, '1');
+        $new_user->setPreference(UserInterface::PREF_IS_ACCOUNT_APPROVED, '1');
         $new_user->setPreference(UserInterface::PREF_LANGUAGE, I18N::languageTag());
-        $new_user->setPreference(UserInterface::PREF_TIME_ZONE, Site::getPreference('TIMEZONE', 'UTC'));
+        $new_user->setPreference(UserInterface::PREF_TIME_ZONE, Site::getPreference('TIMEZONE'));
         $new_user->setPreference(UserInterface::PREF_TIMESTAMP_REGISTERED, date('U'));
         $new_user->setPreference(UserInterface::PREF_TIMESTAMP_ACTIVE, '0');
 

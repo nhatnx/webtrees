@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,54 +19,48 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Statistics\Google;
 
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Statistics\Service\CenturyService;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 use stdClass;
+
+use function round;
+use function view;
 
 /**
  * A chart showing the marriage ages by century.
  */
 class ChartMarriageAge
 {
-    /**
-     * @var Tree
-     */
-    private $tree;
+    private Tree $tree;
+
+    private CenturyService $century_service;
 
     /**
-     * @var CenturyService
+     * @param CenturyService $century_service
+     * @param Tree           $tree
      */
-    private $century_service;
-
-    /**
-     * Constructor.
-     *
-     * @param Tree $tree
-     */
-    public function __construct(Tree $tree)
+    public function __construct(CenturyService $century_service, Tree $tree)
     {
         $this->tree            = $tree;
-        $this->century_service = new CenturyService();
+        $this->century_service = $century_service;
     }
 
     /**
      * Returns the related database records.
      *
-     * @return Collection<stdClass>
+     * @return Collection<array-key,stdClass>
      */
     private function queryRecords(): Collection
     {
-        $prefix = DB::connection()->getTablePrefix();
-
         $male = DB::table('dates as married')
             ->select([
-                new Expression('AVG(' . $prefix . 'married.d_julianday2 - ' . $prefix . 'birth.d_julianday1 - 182.5) / 365.25 AS age'),
-                new Expression('ROUND((' . $prefix . 'married.d_year + 49) / 100) AS century'),
+                new Expression('AVG(' . DB::prefix('married.d_julianday2') . ' - ' . DB::prefix('birth.d_julianday1') . ' - 182.5) / 365.25 AS age'),
+                new Expression('ROUND((' . DB::prefix('married.d_year') . ' + 49) / 100, 0) AS century'),
                 new Expression("'M' as sex")
             ])
             ->join('families as fam', static function (JoinClause $join): void {
@@ -80,7 +74,7 @@ class ChartMarriageAge
             ->whereIn('married.d_type', ['@#DGREGORIAN@', '@#DJULIAN@'])
             ->where('married.d_file', '=', $this->tree->id())
             ->where('married.d_fact', '=', 'MARR')
-            ->where('married.d_julianday1', '>', 'birth.d_julianday1')
+            ->where('married.d_julianday1', '>', new Expression(DB::prefix('birth.d_julianday1')))
             ->whereIn('birth.d_type', ['@#DGREGORIAN@', '@#DJULIAN@'])
             ->where('birth.d_fact', '=', 'BIRT')
             ->where('birth.d_julianday1', '<>', 0)
@@ -88,8 +82,8 @@ class ChartMarriageAge
 
         $female = DB::table('dates as married')
             ->select([
-                new Expression('ROUND(AVG(' . $prefix . 'married.d_julianday2 - ' . $prefix . 'birth.d_julianday1 - 182.5) / 365.25, 1) AS age'),
-                new Expression('ROUND((' . $prefix . 'married.d_year + 49) / 100) AS century'),
+                new Expression('ROUND(AVG(' . DB::prefix('married.d_julianday2') . ' - ' . DB::prefix('birth.d_julianday1') . ' - 182.5) / 365.25, 1) AS age'),
+                new Expression('ROUND((' . DB::prefix('married.d_year') . ' + 49) / 100, 0) AS century'),
                 new Expression("'F' as sex")
             ])
             ->join('families as fam', static function (JoinClause $join): void {
@@ -103,7 +97,7 @@ class ChartMarriageAge
             ->whereIn('married.d_type', ['@#DGREGORIAN@', '@#DJULIAN@'])
             ->where('married.d_file', '=', $this->tree->id())
             ->where('married.d_fact', '=', 'MARR')
-            ->where('married.d_julianday1', '>', 'birth.d_julianday1')
+            ->where('married.d_julianday1', '>', new Expression(DB::prefix('birth.d_julianday1')))
             ->whereIn('birth.d_type', ['@#DGREGORIAN@', '@#DJULIAN@'])
             ->where('birth.d_fact', '=', 'BIRT')
             ->where('birth.d_julianday1', '<>', 0)
@@ -112,13 +106,11 @@ class ChartMarriageAge
         return $male->unionAll($female)
             ->orderBy('century')
             ->get()
-            ->map(static function (stdClass $row): stdClass {
-                return (object) [
-                    'age'     => (float) $row->age,
-                    'century' => (int) $row->century,
-                    'sex'     => $row->sex,
-                ];
-            });
+            ->map(static fn (object $row): object => (object) [
+                'age'     => (float) $row->age,
+                'century' => (int) $row->century,
+                'sex'     => $row->sex,
+            ]);
     }
 
     /**
@@ -164,7 +156,9 @@ class ChartMarriageAge
                 'title' => I18N::translate('Age'),
             ],
             'hAxis' => [
-                'title' => I18N::translate('Century'),
+                'showTextEvery' => 1,
+                'slantedText'   => false,
+                'title'         => I18N::translate('Century'),
             ],
             'colors' => [
                 '#84beff',

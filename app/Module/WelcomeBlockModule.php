@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -34,14 +34,9 @@ class WelcomeBlockModule extends AbstractModule implements ModuleBlockInterface
 {
     use ModuleBlockTrait;
 
-    /**
-     * @var ModuleService
-     */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * WelcomeBlockModule constructor.
-     *
      * @param ModuleService $module_service
      */
     public function __construct(ModuleService $module_service)
@@ -74,10 +69,10 @@ class WelcomeBlockModule extends AbstractModule implements ModuleBlockInterface
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
@@ -89,9 +84,7 @@ class WelcomeBlockModule extends AbstractModule implements ModuleBlockInterface
 
         $pedigree_chart = $this->module_service
             ->findByComponent(ModuleChartInterface::class, $tree, Auth::user())
-            ->first(static function (ModuleInterface $module): bool {
-                return $module instanceof PedigreeChartModule;
-            });
+            ->first(static fn (ModuleInterface $module): bool => $module instanceof PedigreeChartModule);
 
         if ($pedigree_chart instanceof PedigreeChartModule) {
             $links[] = [
@@ -123,7 +116,7 @@ class WelcomeBlockModule extends AbstractModule implements ModuleBlockInterface
                 'block'      => Str::kebab($this->name()),
                 'id'         => $block_id,
                 'config_url' => '',
-                'title'      => $individual->tree()->title(),
+                'title'      => e($individual->tree()->title()),
                 'content'    => $content,
             ]);
         }

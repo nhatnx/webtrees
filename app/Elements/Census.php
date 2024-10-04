@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,18 +19,71 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
+use Fisharebest\Webtrees\Census\Census as Censuses;
+use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Module\CensusAssistantModule;
+use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Services\ModuleService;
+use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
+use Psr\Http\Message\ServerRequestInterface;
+
 /**
  * Census
  */
-class Census extends AbstractElement
+class Census extends AbstractEventElement
 {
     protected const SUBTAGS = [
-        'DATE' => '0:1',
-        'AGE'  => '0:1',
-        'PLAC' => '0:1',
-        'NOTE' => '0:M',
-        'OBJE' => '0:M',
-        'SOUR' => '0:M',
-        'RESN' => '0:1',
+        'TYPE'  => '0:1:?',
+        'DATE'  => '0:1',
+        'AGE'   => '0:1',
+        'PLAC'  => '0:1',
+        'ADDR'  => '0:1',
+        'EMAIL' => '0:1:?',
+        'WWW'   => '0:1:?',
+        'PHON'  => '0:1:?',
+        'FAX'   => '0:1:?',
+        'CAUS'  => '0:1:?',
+        'AGNC'  => '0:1:?',
+        'RELI'  => '0:1:?',
+        'NOTE'  => '0:M',
+        'OBJE'  => '0:M',
+        'SOUR'  => '0:M',
+        'RESN'  => '0:1',
     ];
+
+    /**
+     * An edit control for this data.
+     *
+     * @param string $id
+     * @param string $name
+     * @param string $value
+     * @param Tree   $tree
+     *
+     * @return string
+     */
+    public function edit(string $id, string $name, string $value, Tree $tree): string
+    {
+        $html = $this->editHidden($id, $name, $value);
+
+        $html .= view('modules/GEDFact_assistant/select-census', [
+            'census_places' => Censuses::censusPlaces(I18N::languageTag()),
+        ]);
+
+        $request = Registry::container()->get(ServerRequestInterface::class);
+
+        $xref = Validator::attributes($request)->isXref()->string('xref', '');
+
+        $module_service = Registry::container()->get(ModuleService::class);
+
+        $census_assistant = $module_service->findByInterface(CensusAssistantModule::class)->first();
+        $record           = Registry::individualFactory()->make($xref, $tree);
+
+        if ($census_assistant instanceof CensusAssistantModule && $record instanceof Individual) {
+            $html .= $census_assistant->createCensusAssistant($record);
+        }
+
+        return $html;
+    }
 }

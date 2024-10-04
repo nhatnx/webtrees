@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,20 +20,11 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees;
 
 use Fisharebest\Webtrees\Contracts\UserInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test the GuestUser class
- */
+#[CoversClass(GuestUser::class)]
 class GuestUserTest extends TestCase
 {
-    /**
-     * @covers \Fisharebest\Webtrees\GuestUser::__construct
-     * @covers \Fisharebest\Webtrees\GuestUser::id
-     * @covers \Fisharebest\Webtrees\GuestUser::email
-     * @covers \Fisharebest\Webtrees\GuestUser::realName
-     * @covers \Fisharebest\Webtrees\GuestUser::userName
-     * @return void
-     */
     public function testAnonymous(): void
     {
         $user = new GuestUser();
@@ -45,14 +36,6 @@ class GuestUserTest extends TestCase
         self::assertSame('', $user->userName());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\GuestUser::__construct
-     * @covers \Fisharebest\Webtrees\GuestUser::id
-     * @covers \Fisharebest\Webtrees\GuestUser::email
-     * @covers \Fisharebest\Webtrees\GuestUser::realName
-     * @covers \Fisharebest\Webtrees\GuestUser::userName
-     * @return void
-     */
     public function testVisitor(): void
     {
         $user = new GuestUser('guest@example.com', 'guest user');
@@ -64,11 +47,6 @@ class GuestUserTest extends TestCase
         self::assertSame('', $user->userName());
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\GuestUser::getPreference
-     * @covers \Fisharebest\Webtrees\GuestUser::setPreference
-     * @return void
-     */
     public function testPreferences(): void
     {
         $user = new GuestUser();

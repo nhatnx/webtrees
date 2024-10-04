@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,16 +19,21 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
-use Fisharebest\Webtrees\Carbon;
+use DateTimeImmutable;
+use DateTimeZone;
+use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Services\UserService;
-use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+
+use function date;
 
 /**
  * Show pending changes.
@@ -37,59 +42,48 @@ class PendingChangesLogPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
-    /**
-     * @param TreeService $tree_service
-     * @param UserService $user_service
-     */
     public function __construct(TreeService $tree_service, UserService $user_service)
     {
         $this->tree_service = $tree_service;
         $this->user_service = $user_service;
     }
 
-    /**
-     * @param ServerRequestInterface $request
-     *
-     * @return ResponseInterface
-     */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $this->layout = 'layouts/administration';
 
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
+        $tree  = Validator::attributes($request)->tree();
         $trees = $this->tree_service->titles();
-
         $users = ['' => ''];
+
         foreach ($this->user_service->all() as $user) {
             $user_name         = $user->userName();
             $users[$user_name] = $user_name;
         }
 
-        // First and last change in the database.
-        $earliest = DB::table('change')->min('change_time');
-        $latest   = DB::table('change')->max('change_time');
+        // First and last change in the database
+        $earliest = DB::table('change')->min('change_time') ?? date('Y-m-d H:i:s');
+        $latest   = DB::table('change')->max('change_time') ?? date('Y-m-d H:i:s');
 
-        $earliest = Carbon::make($earliest) ?? Carbon::now();
-        $latest   = Carbon::make($latest) ?? Carbon::now();
+        $earliest = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $earliest, new DateTimeZone('UTC'))
+            ->setTimezone(new DateTimeZone(Auth::user()->getPreference(UserInterface::PREF_TIME_ZONE, 'UTC')))
+            ->format('Y-m-d');
 
-        $earliest = $earliest->toDateString();
-        $latest   = $latest->toDateString();
+        $latest = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $latest, new DateTimeZone('UTC'))
+            ->setTimezone(new DateTimeZone(Auth::user()->getPreference(UserInterface::PREF_TIME_ZONE, 'UTC')))
+            ->format('Y-m-d');
 
-        $from     = $request->getQueryParams()['from'] ?? $earliest;
-        $to       = $request->getQueryParams()['to'] ?? $latest;
-        $type     = $request->getQueryParams()['type'] ?? '';
-        $oldged   = $request->getQueryParams()['oldged'] ?? '';
-        $newged   = $request->getQueryParams()['newged'] ?? '';
-        $xref     = $request->getQueryParams()['xref'] ?? '';
-        $username = $request->getQueryParams()['username'] ?? '';
+        $from     = Validator::queryParams($request)->string('from', $earliest);
+        $to       = Validator::queryParams($request)->string('to', $latest);
+        $type     = Validator::queryParams($request)->string('type', '');
+        $oldged   = Validator::queryParams($request)->string('oldged', '');
+        $newged   = Validator::queryParams($request)->string('newged', '');
+        $xref     = Validator::queryParams($request)->string('xref', '');
+        $username = Validator::queryParams($request)->string('username', '');
 
         return $this->viewResponse('admin/changes-log', [
             'earliest' => $earliest,
@@ -112,7 +106,7 @@ class PendingChangesLogPage implements RequestHandlerInterface
     /**
      * Labels for the various statuses.
      *
-     * @return array
+     * @return array<string,string>
      */
     private function changeStatuses(): array
     {

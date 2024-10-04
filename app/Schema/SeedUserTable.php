@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,7 +19,7 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Schema;
 
-use Illuminate\Database\Capsule\Manager as DB;
+use Fisharebest\Webtrees\DB;
 
 /**
  * Populate the user table
@@ -34,6 +34,11 @@ class SeedUserTable implements SeedInterface
     public function run(): void
     {
         // Add a "default" user, to store default settings
+
+        if (DB::driverName() === DB::SQL_SERVER) {
+            DB::exec('SET IDENTITY_INSERT [' . DB::prefix() . 'user] ON');
+        }
+
         DB::table('user')->updateOrInsert([
             'user_id'   => -1,
         ], [
@@ -42,5 +47,9 @@ class SeedUserTable implements SeedInterface
             'email'     => 'DEFAULT_USER',
             'password'  => 'DEFAULT_USER',
         ]);
+
+        if (DB::driverName() === DB::SQL_SERVER) {
+            DB::exec('SET IDENTITY_INSERT [' . DB::prefix() . 'user] OFF');
+        }
     }
 }

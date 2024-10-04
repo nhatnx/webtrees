@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,13 +19,11 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Elements;
 
-/**
- * Test harness for the class MultimediaFormat
- *
- * @covers \Fisharebest\Webtrees\Elements\AbstractElement
- * @covers \Fisharebest\Webtrees\Elements\MultimediaFormat
- */
-class MultimediaFormatTest extends AbstractElementTest
+use PHPUnit\Framework\Attributes\CoversClass;
+
+#[CoversClass(AbstractElement::class)]
+#[CoversClass(MultimediaFormat::class)]
+class MultimediaFormatTest extends AbstractElementTestCase
 {
     /**
      * Standard tests for all elements.
@@ -35,5 +33,18 @@ class MultimediaFormatTest extends AbstractElementTest
         parent::setUpBeforeClass();
 
         self::$element = new MultimediaFormat('label');
+    }
+
+    public function testCanonical(): void
+    {
+        self::assertSame('JPG', self::$element->canonical('jpg'));
+        self::assertSame('JPG', self::$element->canonical('jpeg'));
+        self::assertSame('JPG', self::$element->canonical('JPG'));
+        self::assertSame('JPG', self::$element->canonical('JPEG'));
+        self::assertSame('TIF', self::$element->canonical('tif'));
+        self::assertSame('TIF', self::$element->canonical('tiff'));
+        self::assertSame('TIF', self::$element->canonical('TIF'));
+        self::assertSame('TIF', self::$element->canonical('TIFF'));
+        self::assertSame('PDF', self::$element->canonical('pdf'));
     }
 }

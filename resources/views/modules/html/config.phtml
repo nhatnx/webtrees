@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\View;
 
@@ -13,7 +15,7 @@ use Fisharebest\Webtrees\View;
 
 ?>
 
-<div class="row form-group">
+<div class="row mb-3">
     <label class="col-sm-3 col-form-label" for="title">
         <?= I18N::translate('Title') ?>
     </label>
@@ -22,19 +24,19 @@ use Fisharebest\Webtrees\View;
     </div>
 </div>
 
-<div class="row form-group">
+<div class="row mb-3">
     <label class="col-sm-3 col-form-label" for="template">
         <?= I18N::translate('Templates') ?>
     </label>
     <div class="col-sm-9">
         <?= view('components/select', ['name' => '', 'id' => 'template', 'selected' => '', 'options' => $templates]) ?>
-        <p class="small text-muted">
+        <div class="form-text">
             <?= I18N::translate('To assist you in getting started with this block, we have created several standard templates. When you select one of these templates, the text area will contain a copy that you can then alter to suit your site’s requirements.') ?>
-        </p>
+        </div>
     </div>
 </div>
 
-<div class="row form-group">
+<div class="row mb-3">
     <label class="col-sm-3 col-form-label" for="html">
         <?= I18N::translate('Content') ?>
     </label>
@@ -46,25 +48,21 @@ use Fisharebest\Webtrees\View;
     </div>
 </div>
 
-<fieldset class="form-group">
-    <div class="row">
-        <legend class="col-form-label col-sm-3">
-            <?= I18N::translate('Show the date and time of update') ?>
-        </legend>
-        <div class="col-sm-9">
-            <?= view('components/radios-inline', ['name' => 'show_timestamp', 'options' => [I18N::translate('no'), I18N::translate('yes')], 'selected' => (int) $show_timestamp]) ?>
-        </div>
+<fieldset class="row mb-3">
+    <legend class="col-form-label col-sm-3">
+        <?= I18N::translate('Show the date and time of update') ?>
+    </legend>
+    <div class="col-sm-9">
+        <?= view('components/radios-inline', ['name' => 'show_timestamp', 'options' => [I18N::translate('no'), I18N::translate('yes')], 'selected' => (int) $show_timestamp]) ?>
     </div>
 </fieldset>
 
-<fieldset class="form-group">
-    <div class="row">
-        <legend class="col-form-label col-sm-3">
-            <?= I18N::translate('Show this block for which languages') ?>
-        </legend>
-        <div class="col-sm-9">
-            <?= view('edit/language-checkboxes', ['languages' => $languages]) ?>
-        </div>
+<fieldset class="row mb-3">
+    <legend class="col-form-label col-sm-3">
+        <?= I18N::translate('Show this block for which languages') ?>
+    </legend>
+    <div class="col-sm-9">
+        <?= view('edit/language-checkboxes', ['languages' => $languages]) ?>
     </div>
 </fieldset>
 

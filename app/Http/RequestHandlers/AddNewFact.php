@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,16 +20,18 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\GedcomTag;
+use Fisharebest\Webtrees\Fact;
+use Fisharebest\Webtrees\Http\Exceptions\HttpAccessDeniedException;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Services\GedcomEditService;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
-use function is_string;
+use function route;
+use function trim;
 
 /**
  * Add a new fact.
@@ -38,6 +40,16 @@ class AddNewFact implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
+    private GedcomEditService $gedcom_edit_service;
+
+    /**
+     * @param GedcomEditService $gedcom_edit_service
+     */
+    public function __construct(GedcomEditService $gedcom_edit_service)
+    {
+        $this->gedcom_edit_service = $gedcom_edit_service;
+    }
+
     /**
      * @param ServerRequestInterface $request
      *
@@ -45,24 +57,44 @@ class AddNewFact implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree   = Validator::attributes($request)->tree();
+        $xref   = Validator::attributes($request)->isXref()->string('xref');
+        $subtag = Validator::attributes($request)->isTag()->string('fact');
 
-        $xref = $request->getAttribute('xref');
-        assert(is_string($xref));
+        if ($subtag === 'OBJE' && !Auth::canUploadMedia($tree, Auth::user())) {
+            throw new HttpAccessDeniedException();
+        }
 
-        $fact = $request->getAttribute('fact');
+        $include_hidden = Validator::queryParams($request)->boolean('include_hidden', false);
 
-        $record = Registry::gedcomRecordFactory()->make($xref, $tree);
-        $record = Auth::checkRecordAccess($record, true);
+        $record  = Registry::gedcomRecordFactory()->make($xref, $tree);
+        $record  = Auth::checkRecordAccess($record, true);
+        $element = Registry::elementFactory()->make($record->tag() . ':' . $subtag);
+        $title   = $record->fullName() . ' - ' . $element->label();
+        $fact    = new Fact(trim('1 ' . $subtag . ' ' . $element->default($tree)), $record, 'new');
+        $gedcom  = $this->gedcom_edit_service->insertMissingFactSubtags($fact, $include_hidden);
+        $hidden  = $this->gedcom_edit_service->insertMissingFactSubtags($fact, true);
+        $url     = $record->url();
 
-        $title = $record->fullName() . ' - ' . GedcomTag::getLabel($record->tag() . ':' . $fact);
+        if ($gedcom === $hidden) {
+            $hidden_url = '';
+        } else {
+            $hidden_url = route(self::class, [
+                'fact'           => $subtag,
+                'include_hidden' => true,
+                'tree'           => $tree->name(),
+                'xref'           => $xref,
+            ]);
+        }
 
-        return $this->viewResponse('edit/add-fact', [
-            'fact'   => $fact,
-            'record' => $record,
-            'title'  => $title,
-            'tree'   => $tree,
+        return $this->viewResponse('edit/edit-fact', [
+            'can_edit_raw' => false,
+            'fact'         => $fact,
+            'gedcom'       => $gedcom,
+            'hidden_url'   => $hidden_url,
+            'title'        => $title,
+            'tree'         => $tree,
+            'url'          => $url,
         ]);
     }
 }

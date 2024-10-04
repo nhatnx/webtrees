@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,29 +21,29 @@ namespace Fisharebest\Webtrees\Services;
 
 use Closure;
 use Fisharebest\Webtrees\Date;
-use Fisharebest\Webtrees\Exceptions\HttpServiceUnavailableException;
-use Fisharebest\Webtrees\Location;
-use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Family;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\GedcomRecord;
+use Fisharebest\Webtrees\Http\Exceptions\HttpServiceUnavailableException;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Location;
 use Fisharebest\Webtrees\Media;
 use Fisharebest\Webtrees\Note;
 use Fisharebest\Webtrees\Place;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Repository;
+use Fisharebest\Webtrees\SharedNote;
 use Fisharebest\Webtrees\Soundex;
 use Fisharebest\Webtrees\Source;
 use Fisharebest\Webtrees\Submission;
 use Fisharebest\Webtrees\Submitter;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
-use stdClass;
 
 use function addcslashes;
 use function array_filter;
@@ -55,6 +55,8 @@ use function mb_stripos;
 use function preg_match;
 use function preg_quote;
 use function preg_replace;
+use function str_ends_with;
+use function str_starts_with;
 
 use const PHP_INT_MAX;
 
@@ -66,12 +68,9 @@ class SearchService
     // Do not attempt to show search results larger than this/
     protected const MAX_SEARCH_RESULTS = 5000;
 
-    /** @var TreeService */
-    private $tree_service;
+    private TreeService $tree_service;
 
     /**
-     * SearchService constructor.
-     *
      * @param TreeService $tree_service
      */
     public function __construct(
@@ -81,10 +80,10 @@ class SearchService
     }
 
     /**
-     * @param Tree[]   $trees
-     * @param string[] $search
+     * @param array<Tree>   $trees
+     * @param array<string> $search
      *
-     * @return Collection<Family>
+     * @return Collection<int,Family>
      */
     public function searchFamilies(array $trees, array $search): Collection
     {
@@ -104,12 +103,12 @@ class SearchService
     /**
      * Search for families by name.
      *
-     * @param Tree[]   $trees
-     * @param string[] $search
-     * @param int      $offset
-     * @param int      $limit
+     * @param array<Tree>   $trees
+     * @param array<string> $search
+     * @param int           $offset
+     * @param int           $limit
      *
-     * @return Collection<Family>
+     * @return Collection<int,Family>
      */
     public function searchFamilyNames(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
@@ -127,7 +126,7 @@ class SearchService
                     ->where('wife_name.n_type', '<>', '_MARNM');
             });
 
-        $prefix = DB::connection()->getTablePrefix();
+        $prefix = DB::prefix();
         $field  = new Expression('COALESCE(' . $prefix . "husb_name.n_full, '') || COALESCE(" . $prefix . "wife_name.n_full, '')");
 
         $this->whereTrees($query, 'f_file', $trees);
@@ -144,7 +143,7 @@ class SearchService
     /**
      * @param Place $place
      *
-     * @return Collection<Family>
+     * @return Collection<int,Family>
      */
     public function searchFamiliesInPlace(Place $place): Collection
     {
@@ -164,10 +163,10 @@ class SearchService
     }
 
     /**
-     * @param Tree[]   $trees
-     * @param string[] $search
+     * @param array<Tree>   $trees
+     * @param array<string> $search
      *
-     * @return Collection<Individual>
+     * @return Collection<int,Individual>
      */
     public function searchIndividuals(array $trees, array $search): Collection
     {
@@ -187,12 +186,12 @@ class SearchService
     /**
      * Search for individuals by name.
      *
-     * @param Tree[]   $trees
-     * @param string[] $search
-     * @param int      $offset
-     * @param int      $limit
+     * @param array<Tree>   $trees
+     * @param array<string> $search
+     * @param int           $offset
+     * @param int           $limit
      *
-     * @return Collection<Individual>
+     * @return Collection<int,Individual>
      */
     public function searchIndividualNames(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
@@ -214,7 +213,7 @@ class SearchService
     /**
      * @param Place $place
      *
-     * @return Collection<Individual>
+     * @return Collection<int,Individual>
      */
     public function searchIndividualsInPlace(Place $place): Collection
     {
@@ -236,17 +235,17 @@ class SearchService
     /**
      * Search for submissions.
      *
-     * @param Tree[]   $trees
-     * @param string[] $search
-     * @param int      $offset
-     * @param int      $limit
+     * @param array<Tree>   $trees
+     * @param array<string> $search
+     * @param int           $offset
+     * @param int           $limit
      *
-     * @return Collection<Location>
+     * @return Collection<int,Location>
      */
     public function searchLocations(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
         $query = DB::table('other')
-            ->where('o_type', '=', '_LOC');
+            ->where('o_type', '=', Location::RECORD_TYPE);
 
         $this->whereTrees($query, 'o_file', $trees);
         $this->whereSearch($query, 'o_gedcom', $search);
@@ -257,12 +256,12 @@ class SearchService
     /**
      * Search for media objects.
      *
-     * @param Tree[]   $trees
-     * @param string[] $search
-     * @param int      $offset
-     * @param int      $limit
+     * @param array<Tree>   $trees
+     * @param array<string> $search
+     * @param int           $offset
+     * @param int           $limit
      *
-     * @return Collection<Media>
+     * @return Collection<int,Media>
      */
     public function searchMedia(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
@@ -277,17 +276,17 @@ class SearchService
     /**
      * Search for notes.
      *
-     * @param Tree[]   $trees
-     * @param string[] $search
-     * @param int      $offset
-     * @param int      $limit
+     * @param array<Tree>   $trees
+     * @param array<string> $search
+     * @param int           $offset
+     * @param int           $limit
      *
-     * @return Collection<Note>
+     * @return Collection<int,Note>
      */
     public function searchNotes(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
         $query = DB::table('other')
-            ->where('o_type', '=', 'NOTE');
+            ->where('o_type', '=', Note::RECORD_TYPE);
 
         $this->whereTrees($query, 'o_file', $trees);
         $this->whereSearch($query, 'o_gedcom', $search);
@@ -296,19 +295,40 @@ class SearchService
     }
 
     /**
+     * Search for notes.
+     *
+     * @param array<Tree>   $trees
+     * @param array<string> $search
+     * @param int           $offset
+     * @param int           $limit
+     *
+     * @return Collection<int,SharedNote>
+     */
+    public function searchSharedNotes(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
+    {
+        $query = DB::table('other')
+            ->where('o_type', '=', SharedNote::RECORD_TYPE);
+
+        $this->whereTrees($query, 'o_file', $trees);
+        $this->whereSearch($query, 'o_gedcom', $search);
+
+        return $this->paginateQuery($query, $this->sharedNoteRowMapper(), GedcomRecord::accessFilter(), $offset, $limit);
+    }
+
+    /**
      * Search for repositories.
      *
-     * @param Tree[]   $trees
-     * @param string[] $search
-     * @param int      $offset
-     * @param int      $limit
+     * @param array<Tree>   $trees
+     * @param array<string> $search
+     * @param int           $offset
+     * @param int           $limit
      *
-     * @return Collection<Repository>
+     * @return Collection<int,Repository>
      */
     public function searchRepositories(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
         $query = DB::table('other')
-            ->where('o_type', '=', 'REPO');
+            ->where('o_type', '=', Repository::RECORD_TYPE);
 
         $this->whereTrees($query, 'o_file', $trees);
         $this->whereSearch($query, 'o_gedcom', $search);
@@ -319,12 +339,12 @@ class SearchService
     /**
      * Search for sources.
      *
-     * @param Tree[]   $trees
-     * @param string[] $search
+     * @param array<Tree>   $trees
+     * @param array<string> $search
      * @param int      $offset
      * @param int      $limit
      *
-     * @return Collection<Source>
+     * @return Collection<int,Source>
      */
     public function searchSources(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
@@ -339,12 +359,12 @@ class SearchService
     /**
      * Search for sources by name.
      *
-     * @param Tree[]   $trees
-     * @param string[] $search
-     * @param int      $offset
-     * @param int      $limit
+     * @param array<Tree>   $trees
+     * @param array<string> $search
+     * @param int           $offset
+     * @param int           $limit
      *
-     * @return Collection<Source>
+     * @return Collection<int,Source>
      */
     public function searchSourcesByName(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
@@ -360,12 +380,12 @@ class SearchService
     /**
      * Search for sources.
      *
-     * @param Tree[]   $trees
-     * @param string[] $search
-     * @param int      $offset
-     * @param int      $limit
+     * @param array<Tree>   $trees
+     * @param array<string> $search
+     * @param int           $offset
+     * @param int           $limit
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public function searchSurnames(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
@@ -385,17 +405,17 @@ class SearchService
     /**
      * Search for submissions.
      *
-     * @param Tree[]   $trees
-     * @param string[] $search
-     * @param int      $offset
-     * @param int      $limit
+     * @param array<Tree>   $trees
+     * @param array<string> $search
+     * @param int           $offset
+     * @param int           $limit
      *
-     * @return Collection<Submission>
+     * @return Collection<int,Submission>
      */
     public function searchSubmissions(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
         $query = DB::table('other')
-            ->where('o_type', '=', 'SUBN');
+            ->where('o_type', '=', Submission::RECORD_TYPE);
 
         $this->whereTrees($query, 'o_file', $trees);
         $this->whereSearch($query, 'o_gedcom', $search);
@@ -406,17 +426,17 @@ class SearchService
     /**
      * Search for submitters.
      *
-     * @param Tree[]   $trees
-     * @param string[] $search
-     * @param int      $offset
-     * @param int      $limit
+     * @param array<Tree>   $trees
+     * @param array<string> $search
+     * @param int           $offset
+     * @param int           $limit
      *
-     * @return Collection<Submitter>
+     * @return Collection<int,Submitter>
      */
     public function searchSubmitters(array $trees, array $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
         $query = DB::table('other')
-            ->where('o_type', '=', 'SUBM');
+            ->where('o_type', '=', Submitter::RECORD_TYPE);
 
         $this->whereTrees($query, 'o_file', $trees);
         $this->whereSearch($query, 'o_gedcom', $search);
@@ -432,7 +452,7 @@ class SearchService
      * @param int    $offset
      * @param int    $limit
      *
-     * @return Collection<Place>
+     * @return Collection<int,Place>
      */
     public function searchPlaces(Tree $tree, string $search, int $offset = 0, int $limit = PHP_INT_MAX): Collection
     {
@@ -469,38 +489,35 @@ class SearchService
 
         // Filter each level of the hierarchy.
         foreach (explode(',', $search, 9) as $level => $string) {
-            $query->where('p' . $level . '.p_place', 'LIKE', '%' . addcslashes($string, '\\%_') . '%');
+            $query->where('p' . $level . '.p_place', DB::iLike(), '%' . addcslashes($string, '\\%_') . '%');
         }
 
-        $row_mapper = static function (stdClass $row) use ($tree): Place {
+        $row_mapper = static function (object $row) use ($tree): Place {
             $place = implode(', ', array_filter((array) $row));
 
             return new Place($place, $tree);
         };
 
-        $filter = static function (): bool {
-            return true;
-        };
+        $filter = static fn (): bool => true;
 
         return $this->paginateQuery($query, $row_mapper, $filter, $offset, $limit);
     }
 
     /**
-     * @param Tree[]   $trees
-     * @param string[] $fields
-     * @param string[] $modifiers
+     * @param Tree                 $tree
+     * @param array<string,string> $fields
+     * @param array<string,string> $modifiers
      *
-     * @return Collection<Individual>
+     * @return Collection<int,Individual>
      */
-    public function searchIndividualsAdvanced(array $trees, array $fields, array $modifiers): Collection
+    public function searchIndividualsAdvanced(Tree $tree, array $fields, array $modifiers): Collection
     {
-        $fields = array_filter($fields);
+        $fields = array_filter($fields, static fn (string $x): bool => $x !== '');
 
         $query = DB::table('individuals')
+            ->where('i_file', '=', $tree->id())
             ->select(['individuals.*'])
             ->distinct();
-
-        $this->whereTrees($query, 'i_file', $trees);
 
         // Join the following tables
         $father_name   = false;
@@ -513,36 +530,26 @@ class SearchService
         $fam_plac      = false;
 
         foreach ($fields as $field_name => $field_value) {
-            if ($field_value !== '') {
-                // Fields can have up to 4 parts, but we only need the first 3 to identify
-                // which tables to select
-                $field_parts = explode(':', $field_name . '::');
-
-                if ($field_parts[0] === 'FAMC') {
-                    // Parent name - FAMC:[HUSB|WIFE]:NAME:[GIVN|SURN]
-                    if ($field_parts[1] === 'HUSB') {
-                        $father_name = true;
-                    } else {
-                        $mother_name = true;
-                    }
-                } elseif ($field_parts[0] === 'NAME') {
-                    // Individual name - NAME:[GIVN|SURN]
-                    $indi_name = true;
-                } elseif ($field_parts[0] === 'FAMS') {
-                    // Family facts - FAMS:NOTE or FAMS:[FACT]:[DATE|PLAC]
-                    $spouse_family = true;
-                    if ($field_parts[2] === 'DATE') {
-                        $fam_dates[] = $field_parts[1];
-                    } elseif ($field_parts[2] === 'PLAC') {
-                        $fam_plac = true;
-                    }
-                } else {
-                    // Individual facts - [FACT] or [FACT]:[DATE|PLAC]
-                    if ($field_parts[1] === 'DATE') {
-                        $indi_dates[] = $field_parts[0];
-                    } elseif ($field_parts[1] === 'PLAC') {
-                        $indi_plac = true;
-                    }
+            if (str_starts_with($field_name, 'FATHER:NAME')) {
+                $father_name = true;
+            } elseif (str_starts_with($field_name, 'MOTHER:NAME')) {
+                $mother_name = true;
+            } elseif (str_starts_with($field_name, 'INDI:NAME:GIVN')) {
+                $indi_name = true;
+            } elseif (str_starts_with($field_name, 'INDI:NAME:SURN')) {
+                $indi_name = true;
+            } elseif (str_starts_with($field_name, 'FAM:')) {
+                $spouse_family = true;
+                if (str_ends_with($field_name, ':DATE')) {
+                    $fam_dates[] = explode(':', $field_name)[1];
+                } elseif (str_ends_with($field_name, ':PLAC')) {
+                    $fam_plac = true;
+                }
+            } elseif (str_starts_with($field_name, 'INDI:')) {
+                if (str_ends_with($field_name, ':DATE')) {
+                    $indi_dates[] = explode(':', $field_name)[1];
+                } elseif (str_ends_with($field_name, ':PLAC')) {
+                    $indi_plac = true;
                 }
             }
         }
@@ -636,33 +643,32 @@ class SearchService
         }
 
         if ($fam_plac) {
-            $query->join('placelinks AS familyl_placelinks', static function (JoinClause $join): void {
+            $query->join('placelinks AS family_placelinks', static function (JoinClause $join): void {
                 $join
-                    ->on('familyl_placelinks.pl_file', '=', 'individuals.i_file')
-                    ->on('familyl_placelinks.pl_gid', '=', 'individuals.i_id');
+                    ->on('family_placelinks.pl_file', '=', 'spouse_families.f_file')
+                    ->on('family_placelinks.pl_gid', '=', 'spouse_families.f_id');
             });
             $query->join('places AS family_places', static function (JoinClause $join): void {
                 $join
-                    ->on('family_places.p_file', '=', 'familyl_placelinks.pl_file')
-                    ->on('family_places.p_id', '=', 'familyl_placelinks.pl_p_id');
+                    ->on('family_places.p_file', '=', 'family_placelinks.pl_file')
+                    ->on('family_places.p_id', '=', 'family_placelinks.pl_p_id');
             });
         }
 
         foreach ($fields as $field_name => $field_value) {
             $parts = explode(':', $field_name . ':::');
-            if ($parts[0] === 'NAME') {
-                // NAME:*
-                switch ($parts[1]) {
-                    case 'GIVN':
+            if (str_starts_with($field_name, 'INDI:NAME:')) {
+                switch ($field_name) {
+                    case 'INDI:NAME:GIVN':
                         switch ($modifiers[$field_name]) {
                             case 'EXACT':
                                 $query->where('individual_name.n_givn', '=', $field_value);
                                 break;
                             case 'BEGINS':
-                                $query->where('individual_name.n_givn', 'LIKE', $field_value . '%');
+                                $query->where('individual_name.n_givn', DB::iLike(), $field_value . '%');
                                 break;
                             case 'CONTAINS':
-                                $query->where('individual_name.n_givn', 'LIKE', '%' . $field_value . '%');
+                                $query->where('individual_name.n_givn', DB::iLike(), '%' . $field_value . '%');
                                 break;
                             case 'SDX_STD':
                                 $sdx = Soundex::russell($field_value);
@@ -670,7 +676,7 @@ class SearchService
                                     $this->wherePhonetic($query, 'individual_name.n_soundex_givn_std', $sdx);
                                 } else {
                                     // No phonetic content? Use a substring match
-                                    $query->where('individual_name.n_givn', 'LIKE', '%' . $field_value . '%');
+                                    $query->where('individual_name.n_givn', DB::iLike(), '%' . $field_value . '%');
                                 }
                                 break;
                             case 'SDX': // SDX uses DM by default.
@@ -680,13 +686,13 @@ class SearchService
                                     $this->wherePhonetic($query, 'individual_name.n_soundex_givn_dm', $sdx);
                                 } else {
                                     // No phonetic content? Use a substring match
-                                    $query->where('individual_name.n_givn', 'LIKE', '%' . $field_value . '%');
+                                    $query->where('individual_name.n_givn', DB::iLike(), '%' . $field_value . '%');
                                 }
                                 break;
                         }
                         unset($fields[$field_name]);
                         break;
-                    case 'SURN':
+                    case 'INDI:NAME:SURN':
                         switch ($modifiers[$field_name]) {
                             case 'EXACT':
                                 $query->where(function (Builder $query) use ($field_value): void {
@@ -698,15 +704,15 @@ class SearchService
                             case 'BEGINS':
                                 $query->where(function (Builder $query) use ($field_value): void {
                                     $query
-                                        ->where('individual_name.n_surn', 'LIKE', $field_value . '%')
-                                        ->orWhere('individual_name.n_surname', 'LIKE', $field_value . '%');
+                                        ->where('individual_name.n_surn', DB::iLike(), $field_value . '%')
+                                        ->orWhere('individual_name.n_surname', DB::iLike(), $field_value . '%');
                                 });
                                 break;
                             case 'CONTAINS':
                                 $query->where(function (Builder $query) use ($field_value): void {
                                     $query
-                                        ->where('individual_name.n_surn', 'LIKE', '%' . $field_value . '%')
-                                        ->orWhere('individual_name.n_surname', 'LIKE', '%' . $field_value . '%');
+                                        ->where('individual_name.n_surn', DB::iLike(), '%' . $field_value . '%')
+                                        ->orWhere('individual_name.n_surname', DB::iLike(), '%' . $field_value . '%');
                                 });
                                 break;
                             case 'SDX_STD':
@@ -717,8 +723,8 @@ class SearchService
                                     // No phonetic content? Use a substring match
                                     $query->where(function (Builder $query) use ($field_value): void {
                                         $query
-                                            ->where('individual_name.n_surn', 'LIKE', '%' . $field_value . '%')
-                                            ->orWhere('individual_name.n_surname', 'LIKE', '%' . $field_value . '%');
+                                            ->where('individual_name.n_surn', DB::iLike(), '%' . $field_value . '%')
+                                            ->orWhere('individual_name.n_surname', DB::iLike(), '%' . $field_value . '%');
                                     });
                                 }
                                 break;
@@ -731,66 +737,61 @@ class SearchService
                                     // No phonetic content? Use a substring match
                                     $query->where(function (Builder $query) use ($field_value): void {
                                         $query
-                                            ->where('individual_name.n_surn', 'LIKE', '%' . $field_value . '%')
-                                            ->orWhere('individual_name.n_surname', 'LIKE', '%' . $field_value . '%');
+                                            ->where('individual_name.n_surn', DB::iLike(), '%' . $field_value . '%')
+                                            ->orWhere('individual_name.n_surname', DB::iLike(), '%' . $field_value . '%');
                                     });
                                 }
                                 break;
                         }
                         unset($fields[$field_name]);
                         break;
-                    case 'NICK':
-                    case '_MARNM':
-                    case '_HEB':
-                    case '_AKA':
-                        $like = "%\n1 " . $parts[0] . "%\n2 " . $parts[1] . ' %' . preg_quote($field_value, '/') . '%';
-                        $query->where('individuals.i_gedcom', 'LIKE', $like);
+                    case 'INDI:NAME:NICK':
+                    case 'INDI:NAME:_MARNM':
+                    case 'INDI:NAME:_HEB':
+                    case 'INDI:NAME:_AKA':
+                        $like = "%\n1 NAME%\n2 " . $parts[2] . ' %' . preg_quote($field_value, '/') . '%';
+                        $query->where('individuals.i_gedcom', DB::iLike(), $like);
                         break;
                 }
-            } elseif ($parts[1] === 'DATE') {
-                // *:DATE
+            } elseif (str_starts_with($field_name, 'INDI:') && str_ends_with($field_name, ':DATE')) {
                 $date = new Date($field_value);
                 if ($date->isOK()) {
-                    $delta = 365 * ($modifiers[$field_name] ?? 0);
-                    $query
-                        ->where('date_' . $parts[0] . '.d_fact', '=', $parts[0])
-                        ->where('date_' . $parts[0] . '.d_julianday1', '>=', $date->minimumJulianDay() - $delta)
-                        ->where('date_' . $parts[0] . '.d_julianday2', '<=', $date->maximumJulianDay() + $delta);
-                }
-                unset($fields[$field_name]);
-            } elseif ($parts[0] === 'FAMS' && $parts[2] === 'DATE') {
-                // FAMS:*:DATE
-                $date = new Date($field_value);
-                if ($date->isOK()) {
-                    $delta = 365 * $modifiers[$field_name];
+                    $delta = 365 * (int) ($modifiers[$field_name] ?? 0);
                     $query
                         ->where('date_' . $parts[1] . '.d_fact', '=', $parts[1])
                         ->where('date_' . $parts[1] . '.d_julianday1', '>=', $date->minimumJulianDay() - $delta)
                         ->where('date_' . $parts[1] . '.d_julianday2', '<=', $date->maximumJulianDay() + $delta);
                 }
                 unset($fields[$field_name]);
-            } elseif ($parts[1] === 'PLAC') {
-                // *:PLAC
+            } elseif (str_starts_with($field_name, 'FAM:') && str_ends_with($field_name, ':DATE')) {
+                $date = new Date($field_value);
+                if ($date->isOK()) {
+                    $delta = 365 * (int) ($modifiers[$field_name] ?? 0);
+                    $query
+                        ->where('date_' . $parts[1] . '.d_fact', '=', $parts[1])
+                        ->where('date_' . $parts[1] . '.d_julianday1', '>=', $date->minimumJulianDay() - $delta)
+                        ->where('date_' . $parts[1] . '.d_julianday2', '<=', $date->maximumJulianDay() + $delta);
+                }
+                unset($fields[$field_name]);
+            } elseif (str_starts_with($field_name, 'INDI:') && str_ends_with($field_name, ':PLAC')) {
                 // SQL can only link a place to a person/family, not to an event.
-                $query->where('individual_places.p_place', 'LIKE', '%' . $field_value . '%');
-            } elseif ($parts[0] === 'FAMS' && $parts[2] === 'PLAC') {
-                // FAMS:*:PLAC
+                $query->where('individual_places.p_id', '=', $field_value);
+            } elseif (str_starts_with($field_name, 'FAM:') && str_ends_with($field_name, ':PLAC')) {
                 // SQL can only link a place to a person/family, not to an event.
-                $query->where('family_places.p_place', 'LIKE', '%' . $field_value . '%');
-            } elseif ($parts[0] === 'FAMC' && $parts[2] === 'NAME') {
-                $table = $parts[1] === 'HUSB' ? 'father_name' : 'mother_name';
-                // NAME:*
-                switch ($parts[3]) {
+                $query->where('family_places.p_id', '=', $field_value);
+            } elseif (str_starts_with($field_name, 'MOTHER:NAME:') || str_starts_with($field_name, 'FATHER:NAME:')) {
+                $table = str_starts_with($field_name, 'FATHER:NAME:') ? 'father_name' : 'mother_name';
+                switch ($parts[2]) {
                     case 'GIVN':
                         switch ($modifiers[$field_name]) {
                             case 'EXACT':
                                 $query->where($table . '.n_givn', '=', $field_value);
                                 break;
                             case 'BEGINS':
-                                $query->where($table . '.n_givn', 'LIKE', $field_value . '%');
+                                $query->where($table . '.n_givn', DB::iLike(), $field_value . '%');
                                 break;
                             case 'CONTAINS':
-                                $query->where($table . '.n_givn', 'LIKE', '%' . $field_value . '%');
+                                $query->where($table . '.n_givn', DB::iLike(), '%' . $field_value . '%');
                                 break;
                             case 'SDX_STD':
                                 $sdx = Soundex::russell($field_value);
@@ -798,7 +799,7 @@ class SearchService
                                     $this->wherePhonetic($query, $table . '.n_soundex_givn_std', $sdx);
                                 } else {
                                     // No phonetic content? Use a substring match
-                                    $query->where($table . '.n_givn', 'LIKE', '%' . $field_value . '%');
+                                    $query->where($table . '.n_givn', DB::iLike(), '%' . $field_value . '%');
                                 }
                                 break;
                             case 'SDX': // SDX uses DM by default.
@@ -808,7 +809,7 @@ class SearchService
                                     $this->wherePhonetic($query, $table . '.n_soundex_givn_dm', $sdx);
                                 } else {
                                     // No phonetic content? Use a substring match
-                                    $query->where($table . '.n_givn', 'LIKE', '%' . $field_value . '%');
+                                    $query->where($table . '.n_givn', DB::iLike(), '%' . $field_value . '%');
                                 }
                                 break;
                         }
@@ -819,10 +820,10 @@ class SearchService
                                 $query->where($table . '.n_surn', '=', $field_value);
                                 break;
                             case 'BEGINS':
-                                $query->where($table . '.n_surn', 'LIKE', $field_value . '%');
+                                $query->where($table . '.n_surn', DB::iLike(), $field_value . '%');
                                 break;
                             case 'CONTAINS':
-                                $query->where($table . '.n_surn', 'LIKE', '%' . $field_value . '%');
+                                $query->where($table . '.n_surn', DB::iLike(), '%' . $field_value . '%');
                                 break;
                             case 'SDX_STD':
                                 $sdx = Soundex::russell($field_value);
@@ -830,7 +831,7 @@ class SearchService
                                     $this->wherePhonetic($query, $table . '.n_soundex_surn_std', $sdx);
                                 } else {
                                     // No phonetic content? Use a substring match
-                                    $query->where($table . '.n_surn', 'LIKE', '%' . $field_value . '%');
+                                    $query->where($table . '.n_surn', DB::iLike(), '%' . $field_value . '%');
                                 }
                                 break;
                             case 'SDX': // SDX uses DM by default.
@@ -840,25 +841,24 @@ class SearchService
                                     $this->wherePhonetic($query, $table . '.n_soundex_surn_dm', $sdx);
                                 } else {
                                     // No phonetic content? Use a substring match
-                                    $query->where($table . '.n_surn', 'LIKE', '%' . $field_value . '%');
+                                    $query->where($table . '.n_surn', DB::iLike(), '%' . $field_value . '%');
                                 }
                                 break;
                         }
                         break;
                 }
                 unset($fields[$field_name]);
-            } elseif ($parts[0] === 'FAMS') {
+            } elseif (str_starts_with($field_name, 'FAM:')) {
                 // e.g. searches for occupation, religion, note, etc.
                 // Initial matching only.  Need PHP to apply filter.
-                $query->where('spouse_families.f_gedcom', 'LIKE', "%\n1 " . $parts[1] . ' %' . $field_value . '%');
-            } elseif ($parts[1] === 'TYPE') {
-                // e.g. FACT:TYPE or EVEN:TYPE
+                $query->where('spouse_families.f_gedcom', DB::iLike(), "%\n1 " . $parts[1] . ' %' . $field_value . '%');
+            } elseif (str_starts_with($field_name, 'INDI:') && str_ends_with($field_name, ':TYPE')) {
                 // Initial matching only.  Need PHP to apply filter.
-                $query->where('individuals.i_gedcom', 'LIKE', "%\n1 " . $parts[0] . "%\n2 TYPE %" . $field_value . '%');
-            } else {
+                $query->where('individuals.i_gedcom', DB::iLike(), "%\n1 " . $parts[1] . "%\n2 TYPE %" . $field_value . '%');
+            } elseif (str_starts_with($field_name, 'INDI:')) {
                 // e.g. searches for occupation, religion, note, etc.
                 // Initial matching only.  Need PHP to apply filter.
-                $query->where('individuals.i_gedcom', 'LIKE', "%\n1 " . $parts[0] . '%' . $parts[1] . '%' . $field_value . '%');
+                $query->where('individuals.i_gedcom', DB::iLike(), "%\n1 " . $parts[1] . '%' . $parts[2] . '%' . $field_value . '%');
             }
         }
 
@@ -867,66 +867,75 @@ class SearchService
             ->each($this->rowLimiter())
             ->map($this->individualRowMapper())
             ->filter(GedcomRecord::accessFilter())
-            ->filter(static function (Individual $individual) use ($fields): bool {
+            ->filter(static function (Individual $individual) use ($fields, $tree): bool {
                 // Check for searches which were only partially matched by SQL
                 foreach ($fields as $field_name => $field_value) {
                     $parts = explode(':', $field_name . '::::');
 
-                    // NAME:*
-                    if ($parts[0] === 'NAME') {
-                        $regex = '/\n1 NAME.*(?:\n2.*)*\n2 ' . $parts[1] . ' .*' . preg_quote($field_value, '/') . '/i';
+                    if (str_starts_with($field_name, 'INDI:NAME:') && $field_name !== 'INDI:NAME:GIVN' && $field_name !== 'INDI:NAME:SURN') {
+                        $regex = '/\n1 NAME.*(?:\n2.*)*\n2 ' . $parts[2] . ' .*' . preg_quote($field_value, '/') . '/i';
 
-                        if (preg_match($regex, $individual->gedcom())) {
+                        if (preg_match($regex, $individual->gedcom()) === 1) {
                             continue;
                         }
 
                         return false;
                     }
 
+                    if (str_starts_with($field_name, 'INDI:') && str_ends_with($field_name, ':PLAC')) {
+                        $place = Place::find((int) $field_value, $tree);
+
+                        foreach ($individual->facts([$parts[1]]) as $fact) {
+                            if ($fact->place()->gedcomName() === $place->gedcomName() || str_ends_with($fact->place()->gedcomName(), ', ' . $place->gedcomName())) {
+                                continue 2;
+                            }
+                        }
+                        return false;
+                    }
+
+                    if (str_starts_with($field_name, 'FAM:') && str_ends_with($field_name, ':PLAC')) {
+                        $place = Place::find((int) $field_value, $tree);
+
+                        foreach ($individual->spouseFamilies() as $family) {
+                            foreach ($family->facts([$parts[1]]) as $fact) {
+                                if ($fact->place()->gedcomName() === $place->gedcomName() || str_ends_with($fact->place()->gedcomName(), ', ' . $place->gedcomName())) {
+                                    continue 3;
+                                }
+                            }
+                        }
+                        return false;
+                    }
+
                     $regex = '/' . preg_quote($field_value, '/') . '/i';
 
-                    // *:PLAC
-                    if ($parts[1] === 'PLAC') {
-                        foreach ($individual->facts([$parts[0]]) as $fact) {
-                            if (preg_match($regex, $fact->place()->gedcomName())) {
-                                continue 2;
-                            }
-                        }
-                        return false;
-                    }
-
-                    // FAMS:*:PLAC
-                    if ($parts[0] === 'FAMS' && $parts[2] === 'PLAC') {
-                        foreach ($individual->spouseFamilies() as $family) {
-                            foreach ($family->facts([$parts[1]]) as $fact) {
-                                if (preg_match($regex, $fact->place()->gedcomName())) {
-                                    continue 3;
-                                }
-                            }
-                        }
-                        return false;
-                    }
-
-                    // e.g. searches for occupation, religion, note, etc.
-                    if ($parts[0] === 'FAMS') {
-                        foreach ($individual->spouseFamilies() as $family) {
-                            foreach ($family->facts([$parts[1]]) as $fact) {
-                                if (preg_match($regex, $fact->value())) {
-                                    continue 3;
-                                }
-                            }
-                        }
-                        return false;
-                    }
-
-                    // e.g. FACT:TYPE or EVEN:TYPE
-                    if ($parts[1] === 'TYPE' || $parts[1] === '_WT_USER') {
-                        foreach ($individual->facts([$parts[0]]) as $fact) {
-                            if (preg_match($regex, $fact->attribute($parts[1]))) {
+                    if ($field_name === 'INDI:FACT:TYPE' || $field_name === 'INDI:EVEN:TYPE' || $field_name === 'INDI:CHAN:_WT_USER') {
+                        foreach ($individual->facts([$parts[1]]) as $fact) {
+                            if (preg_match($regex, $fact->attribute($parts[2])) === 1) {
                                 continue 2;
                             }
                         }
 
+                        return false;
+                    }
+
+                    if (str_starts_with($field_name, 'INDI:')) {
+                        foreach ($individual->facts([$parts[1]]) as $fact) {
+                            if (preg_match($regex, $fact->value()) === 1) {
+                                continue 2;
+                            }
+                        }
+
+                        return false;
+                    }
+
+                    if (str_starts_with($field_name, 'FAM:')) {
+                        foreach ($individual->spouseFamilies() as $family) {
+                            foreach ($family->facts([$parts[1]]) as $fact) {
+                                if (preg_match($regex, $fact->value()) === 1) {
+                                    continue 3;
+                                }
+                            }
+                        }
                         return false;
                     }
                 }
@@ -936,13 +945,13 @@ class SearchService
     }
 
     /**
-     * @param string $soundex
-     * @param string $lastname
-     * @param string $firstname
-     * @param string $place
-     * @param Tree[] $search_trees
+     * @param string      $soundex
+     * @param string      $lastname
+     * @param string      $firstname
+     * @param string      $place
+     * @param array<Tree> $search_trees
      *
-     * @return Collection<Individual>
+     * @return Collection<int,Individual>
      */
     public function searchIndividualsPhonetic(string $soundex, string $lastname, string $firstname, string $place, array $search_trees): Collection
     {
@@ -1019,7 +1028,7 @@ class SearchService
      * @param int     $offset     Skip this many rows.
      * @param int     $limit      Take this many rows.
      *
-     * @return Collection<mixed>
+     * @return Collection<int,mixed>
      */
     private function paginateQuery(Builder $query, Closure $row_mapper, Closure $row_filter, int $offset, int $limit): Collection
     {
@@ -1050,7 +1059,6 @@ class SearchService
             }
         }
 
-
         return $collection;
     }
 
@@ -1058,17 +1066,13 @@ class SearchService
      * Apply search filters to a SQL query column.  Apply collation rules to MySQL.
      *
      * @param Builder           $query
-     * @param Expression|string $field
-     * @param string[]          $search_terms
+     * @param Expression|string $column
+     * @param array<string>     $search_terms
      */
-    private function whereSearch(Builder $query, $field, array $search_terms): void
+    private function whereSearch(Builder $query, Expression|string $column, array $search_terms): void
     {
-        if ($field instanceof Expression) {
-            $field = $field->getValue();
-        }
-
         foreach ($search_terms as $search_term) {
-            $query->where(new Expression($field), 'LIKE', '%' . addcslashes($search_term, '\\%_') . '%');
+            $query->where($column, DB::iLike(), '%' . addcslashes($search_term, '\\%_') . '%');
         }
     }
 
@@ -1082,24 +1086,22 @@ class SearchService
     private function wherePhonetic(Builder $query, $field, string $soundex): void
     {
         if ($soundex !== '') {
-            $query->where(static function (Builder $query) use ($soundex, $field): void {
+            $query->where(function (Builder $query) use ($soundex, $field): void {
                 foreach (explode(':', $soundex) as $sdx) {
-                    $query->orWhere($field, 'LIKE', '%' . $sdx . '%');
+                    $query->orWhere($field, DB::iLike(), '%' . $sdx . '%');
                 }
             });
         }
     }
 
     /**
-     * @param Builder $query
-     * @param string  $tree_id_field
-     * @param Tree[]  $trees
+     * @param Builder     $query
+     * @param string      $tree_id_field
+     * @param array<Tree> $trees
      */
     private function whereTrees(Builder $query, string $tree_id_field, array $trees): void
     {
-        $tree_ids = array_map(static function (Tree $tree): int {
-            return $tree->id();
-        }, $trees);
+        $tree_ids = array_map(static fn (Tree $tree): int => $tree->id(), $trees);
 
         $query->whereIn($tree_id_field, $tree_ids);
     }
@@ -1109,7 +1111,7 @@ class SearchService
      *
      * @param string $file
      *
-     * @return Media[]
+     * @return array<Media>
      */
     public function findMediaObjectsForMediaFile(string $file): array
     {
@@ -1133,7 +1135,7 @@ class SearchService
      *
      * @param array<string> $search_terms
      *
-     * @return Closure
+     * @return Closure(GedcomRecord):bool
      */
     private function rawGedcomFilter(array $search_terms): Closure
     {
@@ -1160,7 +1162,7 @@ class SearchService
      *
      * @param int $limit
      *
-     * @return Closure
+     * @return Closure():void
      */
     private function rowLimiter(int $limit = self::MAX_SEARCH_RESULTS): Closure
     {
@@ -1178,11 +1180,11 @@ class SearchService
     /**
      * Convert a row from any tree in the families table into a family object.
      *
-     * @return Closure
+     * @return Closure(object):Family
      */
     private function familyRowMapper(): Closure
     {
-        return function (stdClass $row): Family {
+        return function (object $row): Family {
             $tree = $this->tree_service->find((int) $row->f_file);
 
             return Registry::familyFactory()->mapper($tree)($row);
@@ -1192,11 +1194,11 @@ class SearchService
     /**
      * Convert a row from any tree in the individuals table into an individual object.
      *
-     * @return Closure
+     * @return Closure(object):Individual
      */
     private function individualRowMapper(): Closure
     {
-        return function (stdClass $row): Individual {
+        return function (object $row): Individual {
             $tree = $this->tree_service->find((int) $row->i_file);
 
             return Registry::individualFactory()->mapper($tree)($row);
@@ -1206,12 +1208,12 @@ class SearchService
     /**
      * Convert a row from any tree in the media table into a location object.
      *
-     * @return Closure
+     * @return Closure(object):Location
      */
     private function locationRowMapper(): Closure
     {
-        return function (stdClass $row): Media {
-            $tree = $this->tree_service->find((int) $row->m_file);
+        return function (object $row): Location {
+            $tree = $this->tree_service->find((int) $row->o_file);
 
             return Registry::locationFactory()->mapper($tree)($row);
         };
@@ -1220,11 +1222,11 @@ class SearchService
     /**
      * Convert a row from any tree in the media table into an media object.
      *
-     * @return Closure
+     * @return Closure(object):Media
      */
     private function mediaRowMapper(): Closure
     {
-        return function (stdClass $row): Media {
+        return function (object $row): Media {
             $tree = $this->tree_service->find((int) $row->m_file);
 
             return Registry::mediaFactory()->mapper($tree)($row);
@@ -1234,11 +1236,11 @@ class SearchService
     /**
      * Convert a row from any tree in the other table into a note object.
      *
-     * @return Closure
+     * @return Closure(object):Note
      */
     private function noteRowMapper(): Closure
     {
-        return function (stdClass $row): Note {
+        return function (object $row): Note {
             $tree = $this->tree_service->find((int) $row->o_file);
 
             return Registry::noteFactory()->mapper($tree)($row);
@@ -1248,11 +1250,11 @@ class SearchService
     /**
      * Convert a row from any tree in the other table into a repository object.
      *
-     * @return Closure
+     * @return Closure(object):Repository
      */
     private function repositoryRowMapper(): Closure
     {
-        return function (stdClass $row): Repository {
+        return function (object $row): Repository {
             $tree = $this->tree_service->find((int) $row->o_file);
 
             return Registry::repositoryFactory()->mapper($tree)($row);
@@ -1260,13 +1262,27 @@ class SearchService
     }
 
     /**
+     * Convert a row from any tree in the other table into a note object.
+     *
+     * @return Closure(object):SharedNote
+     */
+    private function sharedNoteRowMapper(): Closure
+    {
+        return function (object $row): Note {
+            $tree = $this->tree_service->find((int) $row->o_file);
+
+            return Registry::sharedNoteFactory()->mapper($tree)($row);
+        };
+    }
+
+    /**
      * Convert a row from any tree in the sources table into a source object.
      *
-     * @return Closure
+     * @return Closure(object):Source
      */
     private function sourceRowMapper(): Closure
     {
-        return function (stdClass $row): Source {
+        return function (object $row): Source {
             $tree = $this->tree_service->find((int) $row->s_file);
 
             return Registry::sourceFactory()->mapper($tree)($row);
@@ -1276,11 +1292,11 @@ class SearchService
     /**
      * Convert a row from any tree in the other table into a submission object.
      *
-     * @return Closure
+     * @return Closure(object):Submission
      */
     private function submissionRowMapper(): Closure
     {
-        return function (stdClass $row): Submission {
+        return function (object $row): Submission {
             $tree = $this->tree_service->find((int) $row->o_file);
 
             return Registry::submissionFactory()->mapper($tree)($row);
@@ -1290,11 +1306,11 @@ class SearchService
     /**
      * Convert a row from any tree in the other table into a submitter object.
      *
-     * @return Closure
+     * @return Closure(object):Submitter
      */
     private function submitterRowMapper(): Closure
     {
-        return function (stdClass $row): Submitter {
+        return function (object $row): Submitter {
             $tree = $this->tree_service->find((int) $row->o_file);
 
             return Registry::submitterFactory()->mapper($tree)($row);

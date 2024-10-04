@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,16 +20,14 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\Module\ModuleReportInterface;
 use Fisharebest\Webtrees\Services\ModuleService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function redirect;
 use function route;
 
@@ -40,14 +38,9 @@ class ReportSetupAction implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /**
-     * @var ModuleService
-     */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * ReportEngineController constructor.
-     *
      * @param ModuleService $module_service
      */
     public function __construct(ModuleService $module_service)
@@ -62,13 +55,9 @@ class ReportSetupAction implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $user = $request->getAttribute('user');
-        assert($user instanceof UserInterface);
-
-        $report = $request->getAttribute('report');
+        $tree   = Validator::attributes($request)->tree();
+        $user   = Validator::attributes($request)->user();
+        $report = Validator::attributes($request)->string('report');
         $module = $this->module_service->findByName($report);
 
         if (!$module instanceof ModuleReportInterface) {
@@ -77,11 +66,13 @@ class ReportSetupAction implements RequestHandlerInterface
 
         Auth::checkComponentAccess($module, ModuleReportInterface::class, $tree, $user);
 
-        $params = (array) $request->getParsedBody();
-
-        $params['tree']   = $tree->name();
-        $params['report'] = $report;
-
-        return redirect(route(ReportGenerate::class, $params));
+        return redirect(route(ReportGenerate::class, [
+            'tree'        => $tree->name(),
+            'report'      => $report,
+            'destination' => Validator::parsedBody($request)->string('destination'),
+            'format'      => Validator::parsedBody($request)->string('format'),
+            'varnames'    => Validator::parsedBody($request)->array('varnames'),
+            'vars'        => Validator::parsedBody($request)->array('vars'),
+        ]));
     }
 }

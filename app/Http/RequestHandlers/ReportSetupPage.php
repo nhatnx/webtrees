@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,21 +20,18 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fisharebest\Webtrees\Auth;
-use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Html;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Module\ModuleReportInterface;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Report\ReportParserSetup;
-use Fisharebest\Webtrees\Services\LocalizationService;
 use Fisharebest\Webtrees\Services\ModuleService;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
 use function redirect;
 use function route;
 
@@ -45,21 +42,13 @@ class ReportSetupPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    /** @var LocalizationService */
-    private $localization_service;
-
-    /** @var ModuleService */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * ReportEngineController constructor.
-     *
-     * @param LocalizationService $localization_service
-     * @param ModuleService       $module_service
+     * @param ModuleService $module_service
      */
-    public function __construct(LocalizationService $localization_service, ModuleService $module_service)
+    public function __construct(ModuleService $module_service)
     {
-        $this->localization_service = $localization_service;
         $this->module_service = $module_service;
     }
 
@@ -70,13 +59,10 @@ class ReportSetupPage implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
 
-        $user = $request->getAttribute('user');
-        assert($user instanceof UserInterface);
-
-        $report = $request->getAttribute('report');
+        $report = Validator::attributes($request)->string('report');
         $module = $this->module_service->findByName($report);
 
         if (!$module instanceof ModuleReportInterface) {
@@ -85,7 +71,7 @@ class ReportSetupPage implements RequestHandlerInterface
 
         Auth::checkComponentAccess($module, ModuleReportInterface::class, $tree, $user);
 
-        $xref = $request->getQueryParams()['xref'] ?? '';
+        $xref = Validator::queryParams($request)->isXref()->string('xref', '');
 
         $xml_filename = $module->resourcesFolder() . $module->xmlFilename();
 
@@ -142,7 +128,7 @@ class ReportSetupPage implements RequestHandlerInterface
 
                 case 'DATE':
                     // Need to know if the user prefers DMY/MDY/YMD so we can validate dates properly.
-                    $dmy = $this->localization_service->dateFormatToOrder(I18N::dateFormat());
+                    $dmy = I18N::language()->dateOrder();
 
                     $attributes += [
                         'type'     => 'text',

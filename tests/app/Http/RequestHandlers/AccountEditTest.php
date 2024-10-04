@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -17,35 +17,33 @@
 
 declare(strict_types=1);
 
-namespace Fisharebest\Webtrees\Http\Controllers\Admin;
+namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\StatusCodeInterface;
-use Fisharebest\Webtrees\Http\RequestHandlers\AccountEdit;
-use Fisharebest\Webtrees\Services\EmailService;
 use Fisharebest\Webtrees\Services\MessageService;
 use Fisharebest\Webtrees\Services\ModuleService;
-use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\TestCase;
 use Fisharebest\Webtrees\User;
+use Illuminate\Support\Collection;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test the AccountEdit request handler.
- *
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\AccountEdit
- */
+#[CoversClass(AccountEdit::class)]
 class AccountEditTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @return void
-     */
     public function testHandler(): void
     {
-        $user     = self::createMock(User::class);
-        $handler  = new AccountEdit(new MessageService(new EmailService(), new UserService()), new ModuleService());
-        $request  = self::createRequest()
+        $user            = $this->createMock(User::class);
+        $message_service = $this->createMock(MessageService::class);
+        $module_service  = $this->createMock(ModuleService::class);
+
+        $module_service->method('findByInterface')->willReturn(new Collection([]));
+
+        $request = self::createRequest()
             ->withAttribute('user', $user);
+
+        $handler  = new AccountEdit($message_service, $module_service);
         $response = $handler->handle($request);
 
         self::assertSame(StatusCodeInterface::STATUS_OK, $response->getStatusCode());

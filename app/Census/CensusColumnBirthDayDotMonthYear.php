@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -36,12 +36,6 @@ class CensusColumnBirthDayDotMonthYear extends AbstractCensusColumn implements C
      */
     public function generate(Individual $individual, Individual $head): string
     {
-        $birth_date = $individual->getBirthDate();
-
-        if ($birth_date->minimumJulianDay() === $birth_date->maximumJulianDay()) {
-            return $birth_date->minimumDate()->format('%j. %F %Y');
-        }
-
-        return '';
+        return $individual->getEstimatedBirthDate()->minimumDate()->format('%j. %F %Y');
     }
 }

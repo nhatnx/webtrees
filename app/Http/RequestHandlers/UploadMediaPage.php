@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -39,12 +39,9 @@ class UploadMediaPage implements RequestHandlerInterface
     // How many files to upload on one form.
     private const MAX_UPLOAD_FILES = 10;
 
-    /** @var MediaFileService */
-    private $media_file_service;
+    private MediaFileService $media_file_service;
 
     /**
-     * MediaController constructor.
-     *
      * @param MediaFileService $media_file_service
      */
     public function __construct(MediaFileService $media_file_service)

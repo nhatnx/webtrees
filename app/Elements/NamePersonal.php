@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,10 +20,11 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Elements;
 
 use Fisharebest\Webtrees\I18N;
-use Fisharebest\Webtrees\SurnameTradition;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
 
 use function e;
+use function in_array;
 use function view;
 
 /**
@@ -46,7 +47,7 @@ use function view;
  * /Parry/ (surname only)
  * William Lee /Parry/
  * William Lee /Mac Parry/ (both parts (Mac and Parry) are surname parts
- * William /Lee/ Parry (surname imbedded in the name string)
+ * William /Lee/ Parry (surname embedded in the name string)
  * William Lee /Pa.../
  */
 class NamePersonal extends AbstractElement
@@ -61,7 +62,58 @@ class NamePersonal extends AbstractElement
         'SURN' => '0:1',
         'NSFX' => '0:1',
         'NICK' => '0:1',
+        'NOTE' => '0:M',
+        'SOUR' => '0:M',
+        'FONE' => '0:M',
+        'ROMN' => '0:M',
     ];
+
+    // For some languages, we want to show the surname field first.
+    protected const SURNAME_FIRST_LANGUAGES = ['hu', 'jp', 'ko', 'zh-Hans', 'zh-Hant'];
+
+    protected const SUBTAGS_SURNAME_FIRST = [
+        'TYPE' => '0:1',
+        'NPFX' => '0:1',
+        'SPFX' => '0:1',
+        'SURN' => '0:1',
+        'GIVN' => '0:1',
+        'NSFX' => '0:1',
+        'NICK' => '0:1',
+        'NOTE' => '0:M',
+        'SOUR' => '0:M',
+        'FONE' => '0:M',
+        'ROMN' => '0:M',
+    ];
+
+    /**
+     * @param string             $label
+     * @param array<string>|null $subtags
+     */
+    public function __construct(string $label, array|null $subtags = null)
+    {
+        if ($subtags === null && in_array(I18N::languageTag(), static::SURNAME_FIRST_LANGUAGES, true)) {
+            $subtags = static::SUBTAGS_SURNAME_FIRST;
+        }
+        parent::__construct($label, $subtags);
+    }
+
+    /**
+     * Convert a value to a canonical form.
+     *
+     * @param string $value
+     *
+     * @return string
+     */
+    public function canonical(string $value): string
+    {
+        $value = parent::canonical($value);
+
+        if ($value === '//') {
+            return '';
+        }
+
+        return $value;
+    }
 
     /**
      * Create a default value for this element.
@@ -72,13 +124,9 @@ class NamePersonal extends AbstractElement
      */
     public function default(Tree $tree): string
     {
-        $surname_tradition = SurnameTradition::create($tree->getPreference('SURNAME_TRADITION'));
-
-        if ($surname_tradition->hasSurnames()) {
-            return '//';
-        }
-
-        return '';
+        return Registry::surnameTraditionFactory()
+            ->make($tree->getPreference('SURNAME_TRADITION'))
+            ->defaultName();
     }
 
     /**
@@ -96,48 +144,10 @@ class NamePersonal extends AbstractElement
         return
             '<div class="input-group">' .
             view('edit/input-addon-edit-name', ['id' => $id]) .
-            '<input class="form-control" type="text" id="' . e($id) . '" name="' . e($name) . '" value="' . e($value) . '" readonly="readonly" />' .
+            '<input class="form-control" type="text" id="' . e($id) . '-disabled" name="' . e($name) . '" value="' . e($value) . '" readonly="readonly" disabled="disabled" />' .
+            '<input class="form-control d-none" type="text" id="' . e($id) . '" name="' . e($name) . '" value="' . e($value) . '" />' .
             view('edit/input-addon-keyboard', ['id' => $id]) .
-            view('edit/input-addon-help', ['fact' => 'NAME']) .
+            view('edit/input-addon-help', ['topic' => 'NAME']) .
             '</div>';
-    }
-
-    /**
-     * @return array<string,string>
-     */
-    public function subtags(): array
-    {
-        $language = I18N::languageTag();
-
-        switch ($language) {
-            case 'hu':
-            case 'jp':
-            case 'ko':
-            case 'zh-Hans':
-            case 'zh-Hant':
-                $subtags = [
-                    'TYPE' => '0:1',
-                    'NPFX' => '0:1',
-                    'SPFX' => '0:1',
-                    'SURN' => '0:1',
-                    'GIVN' => '0:1',
-                    'NSFX' => '0:1',
-                    'NICK' => '0:1',
-                ];
-                break;
-            default:
-                $subtags = [
-                    'TYPE' => '0:1',
-                    'NPFX' => '0:1',
-                    'GIVN' => '0:1',
-                    'SPFX' => '0:1',
-                    'SURN' => '0:1',
-                    'NSFX' => '0:1',
-                    'NICK' => '0:1',
-                ];
-                break;
-        }
-
-        return $subtags;
     }
 }

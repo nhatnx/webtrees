@@ -1,6 +1,7 @@
 <?php
 
-use Fisharebest\Webtrees\DebugBar;
+declare(strict_types=1);
+
 use Fisharebest\Webtrees\FlashMessages;
 use Fisharebest\Webtrees\Http\RequestHandlers\Logout;
 use Fisharebest\Webtrees\Http\RequestHandlers\HomePage;
@@ -9,11 +10,14 @@ use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Module\CustomCssJsModule;
 use Fisharebest\Webtrees\Module\ModuleCustomInterface;
 use Fisharebest\Webtrees\Module\ModuleGlobalInterface;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\View;
 
-/** @var string $title */
-/** @var string $content */
+/**
+ * @var string $title
+ * @var string $content
+ */
 
 ?>
 
@@ -33,16 +37,14 @@ use Fisharebest\Webtrees\View;
 
         <?= View::stack('styles') ?>
 
-        <?= app(ModuleService::class)->findByInterface(ModuleGlobalInterface::class)->map(static function (ModuleGlobalInterface $module): string {
+        <?= Registry::container()->get(ModuleService::class)->findByInterface(ModuleGlobalInterface::class)->map(static function (ModuleGlobalInterface $module): string {
     return $module instanceof ModuleCustomInterface || $module instanceof CustomCssJsModule ? '' : $module->headContent();
         })->implode('') ?>
-
-        <?= DebugBar::renderHead() ?>
     </head>
     <body class="container-lg wt-global wt-control-panel">
         <header>
             <div class="wt-accessibility-links position-fixed">
-                <a class="sr-only sr-only-focusable btn btn-info btn-sm" href="#content">
+                <a class="visually-hidden visually-hidden-focusable btn btn-info btn-sm" href="#content">
                     <?= /* I18N: Skip over the headers and menus, to the main content of the page */
                     I18N::translate('Skip to content') ?>
                 </a>
@@ -53,43 +55,41 @@ use Fisharebest\Webtrees\View;
                     <a class="nav-link active" href="<?= e(route(HomePage::class)) ?>"><?= I18N::translate('My page') ?></a>
                 </li>
                 <li class="nav-item dropdown menu-language">
-                    <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">
+                    <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">
                         <?= I18N::translate('Language') ?>
                     </a>
                     <div class="dropdown-menu">
                         <?php foreach (I18N::activeLocales() as $locale) : ?>
-                            <a class="dropdown-item menu-language-<?= $locale->languageTag() ?> <?= I18N::languageTag() === $locale->languageTag() ? ' active' : '' ?>" href="#" data-post-url="<?= e(route(SelectLanguage::class, ['language' => $locale->languageTag()])) ?>"><?= $locale->endonym() ?></a>
+                            <a class="dropdown-item menu-language-<?= $locale->languageTag() ?> <?= I18N::languageTag() === $locale->languageTag() ? ' active' : '' ?>" href="#" data-wt-post-url="<?= e(route(SelectLanguage::class, ['language' => $locale->languageTag()])) ?>"><?= $locale->endonym() ?></a>
                         <?php endforeach ?>
                     </div>
                 </li>
                 <li class="nav-item menu-logout">
-                    <a class="nav-link" href="#" data-post-url="<?= e(route(Logout::class)) ?>" data-reload-url="<?= e(route(HomePage::class)) ?>"><?= I18N::translate('Sign out') ?></a>
+                    <a class="nav-link" href="#" data-wt-post-url="<?= e(route(Logout::class)) ?>" data-wt-reload-url="<?= e(route(HomePage::class)) ?>"><?= I18N::translate('Sign out') ?></a>
                 </li>
             </ul>
         </header>
 
-        <div id="content"></div>
+        <main id="content">
+            <?php foreach (FlashMessages::getMessages() as $message) : ?>
+                <div class="alert alert-<?= $message->status ?> alert-dismissible" role="alert">
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= I18N::translate('close') ?>">
+                    </button>
+                    <?= $message->text ?>
+                </div>
+            <?php endforeach ?>
 
-        <?php foreach (FlashMessages::getMessages() as $message) : ?>
-            <div class="alert alert-<?= $message->status ?> alert-dismissible" role="alert">
-                <button type="button" class="close" data-dismiss="alert" aria-label="<?= I18N::translate('close') ?>">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-                <?= $message->text ?>
-            </div>
-        <?php endforeach ?>
+            <?= $content ?>
+        </main>
 
-        <?= $content ?>
 
         <script src="<?= e(asset('js/vendor.min.js')) ?>"></script>
         <script src="<?= e(asset('js/webtrees.min.js')) ?>"></script>
 
         <?= View::stack('javascript') ?>
 
-        <?= app(ModuleService::class)->findByInterface(ModuleGlobalInterface::class)->map(static function (ModuleGlobalInterface $module): string {
+        <?= Registry::container()->get(ModuleService::class)->findByInterface(ModuleGlobalInterface::class)->map(static function (ModuleGlobalInterface $module): string {
     return $module instanceof ModuleCustomInterface || $module instanceof CustomCssJsModule ? '' : $module->bodyContent();
         })->implode('') ?>
-
-        <?= DebugBar::render() ?>
     </body>
 </html>

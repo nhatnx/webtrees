@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,13 +19,15 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
-use Fisharebest\Webtrees\Carbon;
+use DateTimeImmutable;
+use DateTimeZone;
+use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Services\DatatablesService;
 use Fisharebest\Webtrees\Services\SiteLogsService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use stdClass;
 
 use function e;
 
@@ -34,16 +36,10 @@ use function e;
  */
 class SiteLogsData implements RequestHandlerInterface
 {
-    /** @var DatatablesService */
-    private $datatables_service;
+    private DatatablesService $datatables_service;
 
-    /** @var SiteLogsService */
-    private $site_logs_service;
+    private SiteLogsService $site_logs_service;
 
-    /**
-     * @param DatatablesService $datatables_service
-     * @param SiteLogsService   $site_logs_service
-     */
     public function __construct(
         DatatablesService $datatables_service,
         SiteLogsService $site_logs_service
@@ -52,24 +48,23 @@ class SiteLogsData implements RequestHandlerInterface
         $this->site_logs_service  = $site_logs_service;
     }
 
-    /**
-     * @param ServerRequestInterface $request
-     *
-     * @return ResponseInterface
-     */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $query = $this->site_logs_service->logsQuery($request->getQueryParams());
+        $query = $this->site_logs_service->logsQuery($request);
 
-        return $this->datatables_service->handleQuery($request, $query, [], [], static function (stdClass $row): array {
+        return $this->datatables_service->handleQuery($request, $query, [], [], static function (object $row): array {
+            $log_time = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $row->log_time, new DateTimeZone('UTC'))
+                ->setTimezone(new DateTimeZone(Auth::user()->getPreference(UserInterface::PREF_TIME_ZONE, 'UTC')))
+                ->format('Y-m-d H:i:s T');
+
             return [
                 $row->log_id,
-                Carbon::make($row->log_time)->local()->format('Y-m-d H:i:s'),
+                $log_time,
                 $row->log_type,
-                '<span dir="auto">' . e($row->log_message) . '</span>',
-                '<span dir="auto">' . e($row->ip_address) . '</span>',
-                '<span dir="auto">' . e($row->user_name) . '</span>',
-                '<span dir="auto">' . e($row->gedcom_name) . '</span>',
+                '<span class="ut">' . e($row->log_message) . '</span>',
+                e($row->ip_address),
+                '<span class="ut">' . e($row->user_name) . '</span>',
+                '<span class="ut">' . e($row->gedcom_name) . '</span>',
             ];
         });
     }

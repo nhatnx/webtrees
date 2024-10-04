@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,37 +20,28 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Services\DataFixService;
+use Fisharebest\Webtrees\Services\GedcomImportService;
+use Fisharebest\Webtrees\Services\TreeService;
+use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Session;
 use Fisharebest\Webtrees\TestCase;
 use Fisharebest\Webtrees\Tree;
-use Fisharebest\Webtrees\Services\DataFixService;
-use Fisharebest\Webtrees\Services\TreeService;
 use Illuminate\Support\Collection;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 
-/**
- * Class FixDuplicateLinksTest.
- *
- * @covers \Fisharebest\Webtrees\Module\FixDuplicateLinks
- * @covers \Fisharebest\Webtrees\Module\ModuleDataFixTrait
- */
+#[CoversClass(FixDuplicateLinks::class)]
+#[CoversTrait(ModuleDataFixTrait::class)]
 class FixDuplicateLinksTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @var FixDuplicateLinks $fixDuplicateLinks
-     */
-    protected $fixDuplicateLinks;
+    protected FixDuplicateLinks $fixDuplicateLinks;
 
-    /**
-     * @var Tree $tree
-     */
-    protected $tree;
+    protected Tree $tree;
 
-    /**
-     * @var bool $restore_session_user
-     */
-    protected $restore_session_user = false;
+    protected bool $restore_session_user = false;
 
     /**
      * {@inheritdoc}
@@ -59,15 +50,14 @@ class FixDuplicateLinksTest extends TestCase
     {
         parent::setUp();
 
-        $tree_service = new TreeService();
+        $tree_service = new TreeService(new GedcomImportService());
         $this->tree = $tree_service->create('name', 'title');
 
         $this->fixDuplicateLinks = new FixDuplicateLinks(new DataFixService());
 
-        if (Auth::id() === null) {
-            Session::put('wt_user', 0);
-            $this->restore_session_user = true;
-        }
+        $user_service = new UserService();
+        $user         = $user_service->create('user', 'real', 'email', 'pass');
+        Auth::login($user);
     }
 
     /**
@@ -81,8 +71,7 @@ class FixDuplicateLinksTest extends TestCase
             Session::forget('wt_user');
         }
 
-        unset($this->fixDuplicateLinks);
-        unset($this->tree);
+        unset($this->fixDuplicateLinks, $this->tree);
     }
 
     /**
@@ -118,7 +107,7 @@ class FixDuplicateLinksTest extends TestCase
         $family = $this->tree->createFamily("0 @@ FAM\n1 HUSB @X1@\n1 CHIL @X2@");
         self::assertFalse($this->fixDuplicateLinks->doesRecordNeedUpdate($family, []));
 
-        $family->createFact("1 CHIL @X2@", true);
+        $family->createFact('1 CHIL @X2@', true);
         self::assertTrue($this->fixDuplicateLinks->doesRecordNeedUpdate($family, []));
     }
 

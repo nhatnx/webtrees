@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -25,6 +25,8 @@ use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Services\ClipboardService;
 use Illuminate\Support\Collection;
 
+use function preg_match;
+
 /**
  * Class NotesTabModule
  */
@@ -32,15 +34,12 @@ class NotesTabModule extends AbstractModule implements ModuleTabInterface
 {
     use ModuleTabTrait;
 
-    /** @var Collection A list facts for this note. */
-    private $facts;
+    /** @var Collection<array-key,Fact>|null  */
+    private Collection|null $facts = null;
 
-    /** @var ClipboardService */
-    private $clipboard_service;
+    private ClipboardService $clipboard_service;
 
     /**
-     * NotesTabModule constructor.
-     *
      * @param ClipboardService $clipboard_service
      */
     public function __construct(ClipboardService $clipboard_service)
@@ -127,7 +126,7 @@ class NotesTabModule extends AbstractModule implements ModuleTabInterface
      *
      * @param Individual $individual
      *
-     * @return Collection<Fact>
+     * @return Collection<int,Fact>
      */
     private function getFactsWithNotes(Individual $individual): Collection
     {
@@ -142,13 +141,10 @@ class NotesTabModule extends AbstractModule implements ModuleTabInterface
                 }
             }
 
-            $this->facts = new Collection();
+            $callback = static fn (Fact $fact): bool => preg_match('/(?:^1|\n\d) NOTE/', $fact->gedcom()) === 1;
 
-            foreach ($facts as $fact) {
-                if (preg_match('/(?:^1|\n\d) NOTE/', $fact->gedcom())) {
-                    $this->facts->push($fact);
-                }
-            }
+            $this->facts = $facts->filter($callback);
+
             $this->facts = Fact::sortFacts($this->facts);
         }
 
@@ -168,10 +164,10 @@ class NotesTabModule extends AbstractModule implements ModuleTabInterface
     /**
      * This module handles the following facts - so don't show them on the "Facts and events" tab.
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public function supportedFacts(): Collection
     {
-        return new Collection(['NOTE']);
+        return new Collection(['INDI:NOTE', 'FAM:NOTE']);
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,10 +21,10 @@ namespace Fisharebest\Webtrees\Module;
 
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Http\RequestHandlers\AccountEdit;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Tree;
 use Illuminate\Support\Str;
@@ -36,14 +36,9 @@ class UserWelcomeModule extends AbstractModule implements ModuleBlockInterface
 {
     use ModuleBlockTrait;
 
-    /**
-     * @var ModuleService
-     */
-    private $module_service;
+    private ModuleService $module_service;
 
     /**
-     * UserWelcomeModule constructor.
-     *
      * @param ModuleService $module_service
      */
     public function __construct(ModuleService $module_service)
@@ -76,10 +71,10 @@ class UserWelcomeModule extends AbstractModule implements ModuleBlockInterface
     /**
      * Generate the HTML content of this block.
      *
-     * @param Tree     $tree
-     * @param int      $block_id
-     * @param string   $context
-     * @param string[] $config
+     * @param Tree                 $tree
+     * @param int                  $block_id
+     * @param string               $context
+     * @param array<string,string> $config
      *
      * @return string
      */
@@ -90,9 +85,7 @@ class UserWelcomeModule extends AbstractModule implements ModuleBlockInterface
         $links      = [];
 
         $pedigree_chart = $this->module_service->findByComponent(ModuleChartInterface::class, $tree, Auth::user())
-            ->first(static function (ModuleInterface $module): bool {
-                return $module instanceof PedigreeChartModule;
-            });
+            ->first(static fn (ModuleInterface $module): bool => $module instanceof PedigreeChartModule);
 
         if ($individual instanceof Individual) {
             if ($pedigree_chart instanceof PedigreeChartModule) {
@@ -117,7 +110,7 @@ class UserWelcomeModule extends AbstractModule implements ModuleBlockInterface
         ];
         $content = view('modules/user_welcome/welcome', ['links' => $links]);
 
-        $real_name = '<span dir="auto">' . e(Auth::user()->realName()) . '</span>';
+        $real_name = "\u{2068}" . e(Auth::user()->realName()) . "\u{2069}";
 
         /* I18N: A %s is the user’s name */
         $title = I18N::translate('Welcome %s', $real_name);

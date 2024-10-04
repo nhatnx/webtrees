@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,12 +23,13 @@ use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\Services\GedcomEditService;
+use Fisharebest\Webtrees\Validator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-use function assert;
+use function route;
 
 /**
  * Add a new spouse to an individual, creating a new family.
@@ -37,6 +38,24 @@ class AddSpouseToIndividualPage implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
+    // Create mixed-sex couples by default
+    private const OPPOSITE_SEX = [
+        'F' => 'M',
+        'M' => 'F',
+        'U' => 'U',
+        'X' => 'U',
+    ];
+
+    private GedcomEditService $gedcom_edit_service;
+
+    /**
+     * @param GedcomEditService $gedcom_edit_service
+     */
+    public function __construct(GedcomEditService $gedcom_edit_service)
+    {
+        $this->gedcom_edit_service = $gedcom_edit_service;
+    }
+
     /**
      * @param ServerRequestInterface $request
      *
@@ -44,33 +63,39 @@ class AddSpouseToIndividualPage implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $tree = $request->getAttribute('tree');
-        assert($tree instanceof Tree);
-
-        $xref = $request->getQueryParams()['xref'];
-
+        $tree       = Validator::attributes($request)->tree();
+        $xref       = Validator::attributes($request)->isXref()->string('xref');
         $individual = Registry::individualFactory()->make($xref, $tree);
         $individual = Auth::checkIndividualAccess($individual, true);
 
-        if ($individual->sex() === 'F') {
-            $title  = $individual->fullName() . ' - ' . I18N::translate('Add a husband');
-            $famtag = 'HUSB';
-            $gender = 'M';
-        } else {
-            $title  = $individual->fullName() . ' - ' . I18N::translate('Add a wife');
-            $famtag = 'WIFE';
-            $gender = 'F';
-        }
+        $sex = self::OPPOSITE_SEX[$individual->sex()];
+
+        // Name facts.
+        $surname_tradition = Registry::surnameTraditionFactory()
+            ->make($tree->getPreference('SURNAME_TRADITION'));
+
+        $names = $surname_tradition->newSpouseNames($individual, $sex);
+
+        $facts = [
+            'i' => $this->gedcom_edit_service->newIndividualFacts($tree, $sex, $names),
+            'f' => $this->gedcom_edit_service->newFamilyFacts($tree),
+        ];
+
+        $titles = [
+            'F' => I18N::translate('Add a wife'),
+            'M' => I18N::translate('Add a husband'),
+            'U' => I18N::translate('Add a spouse'),
+        ];
+
+        $title = $titles[$sex];
 
         return $this->viewResponse('edit/new-individual', [
-            'next_action' => AddSpouseToIndividualAction::class,
-            'tree'        => $tree,
-            'title'       => $title,
-            'individual'  => $individual,
-            'family'      => null,
-            'name_fact'   => null,
-            'famtag'      => $famtag,
-            'gender'      => $gender,
+            'facts'               => $facts,
+            'gedcom_edit_service' => $this->gedcom_edit_service,
+            'post_url'            => route(AddSpouseToIndividualAction::class, ['tree' => $tree->name(), 'xref' => $xref]),
+            'title'               => $individual->fullName() . ' - ' . $title,
+            'tree'                => $tree,
+            'url'                 => Validator::queryParams($request)->isLocalUrl()->string('url', $individual->url()),
         ]);
     }
 }

@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,33 +21,29 @@ namespace Fisharebest\Webtrees\Http\RequestHandlers;
 
 use Fig\Http\Message\RequestMethodInterface;
 use Fig\Http\Message\StatusCodeInterface;
+use Fisharebest\Webtrees\Services\GedcomImportService;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * Test FixLevel0MediaActionTest class.
- *
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\FixLevel0MediaActionTest
- */
+#[CoversClass(FixLevel0MediaActionTest::class)]
 class FixLevel0MediaActionTest extends TestCase
 {
-    protected static $uses_database = true;
+    protected static bool $uses_database = true;
 
-    /**
-     * @return void
-     */
     public function testFixLevel0MediaAction(): void
     {
-        $tree_service = new TreeService();
-        $tree         = $tree_service->create('name', 'title');
-        $handler      = new FixLevel0MediaAction($tree_service);
-        $request      = self::createRequest(RequestMethodInterface::METHOD_POST, [], [
+        $gedcom_import_service = new GedcomImportService();
+        $tree_service          = new TreeService($gedcom_import_service);
+        $tree                  = $tree_service->create('name', 'title');
+        $handler               = new FixLevel0MediaAction($tree_service);
+        $request               = self::createRequest(RequestMethodInterface::METHOD_POST, [], [
             'tree_id'   => $tree->id(),
             'fact_id'   => '',
-            'indi_xref' => '',
-            'obje_xref' => '',
+            'indi_xref' => 'X1',
+            'obje_xref' => 'X2',
         ]);
-        $response     = $handler->handle($request);
+        $response              = $handler->handle($request);
 
         self::assertSame(StatusCodeInterface::STATUS_NO_CONTENT, $response->getStatusCode());
     }

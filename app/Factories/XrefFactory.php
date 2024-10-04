@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -20,8 +20,8 @@ declare(strict_types=1);
 namespace Fisharebest\Webtrees\Factories;
 
 use Fisharebest\Webtrees\Contracts\XrefFactoryInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Site;
-use Illuminate\Database\Capsule\Manager as DB;
 
 /**
  * Make an XREF.
@@ -49,14 +49,15 @@ class XrefFactory implements XrefFactoryInterface
     protected function generate(string $prefix, string $suffix): string
     {
         // Lock the row, so that only one new XREF may be generated at a time.
-        DB::table('site_setting')
+        $num = (int) DB::table('site_setting')
             ->where('setting_name', '=', 'next_xref')
             ->lockForUpdate()
-            ->get();
+            ->value('setting_value');
 
         $increment = 1.0;
+
         do {
-            $num = (int) Site::getPreference('next_xref') + (int) $increment;
+            $num += (int) $increment;
 
             // This exponential increment allows us to scan over large blocks of
             // existing data in a reasonable time.

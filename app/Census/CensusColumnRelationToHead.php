@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,16 +19,16 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Census;
 
-use Fisharebest\Webtrees\Functions\Functions;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Services\RelationshipService;
 
 /**
  * Relationship to head of household.
  */
 class CensusColumnRelationToHead extends AbstractCensusColumn implements CensusColumnInterface
 {
-    /** @var string */
-    protected $head_of_household = '-';
+    protected const HEAD_OF_HOUSEHOLD = '-';
 
     /**
      * Generate the likely value of this census column, based on available information.
@@ -41,9 +41,11 @@ class CensusColumnRelationToHead extends AbstractCensusColumn implements CensusC
     public function generate(Individual $individual, Individual $head): string
     {
         if ($individual === $head) {
-            return $this->head_of_household;
+            return static::HEAD_OF_HOUSEHOLD;
         }
 
-        return Functions::getCloseRelationshipName($head, $individual);
+        $relationship_service = Registry::container()->get(RelationshipService::class);
+
+        return $relationship_service->getCloseRelationshipName($head, $individual);
     }
 }

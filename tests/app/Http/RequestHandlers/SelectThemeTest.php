@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,19 +23,15 @@ use Fig\Http\Message\StatusCodeInterface;
 use Fisharebest\Webtrees\GuestUser;
 use Fisharebest\Webtrees\TestCase;
 use Fisharebest\Webtrees\User;
+use PHPUnit\Framework\Attributes\CoversClass;
 
-/**
- * @covers \Fisharebest\Webtrees\Http\RequestHandlers\SelectTheme
- */
+#[CoversClass(SelectTheme::class)]
 class SelectThemeTest extends TestCase
 {
-    /**
-     * @return void
-     */
     public function testSelectThemeForGuest(): void
     {
-        $user = self::createMock(GuestUser::class);
-        $user->expects(self::once())->method('setPreference')->with('theme', 'FOO');
+        $user = $this->createMock(GuestUser::class);
+        $user->expects($this->once())->method('setPreference')->with('theme', 'FOO');
 
         $request = self::createRequest()
             ->withAttribute('theme', 'FOO')
@@ -47,13 +43,10 @@ class SelectThemeTest extends TestCase
         self::assertSame(StatusCodeInterface::STATUS_NO_CONTENT, $response->getStatusCode());
     }
 
-    /**
-     * @return void
-     */
     public function testSelectThemeForUser(): void
     {
-        $user = self::createMock(User::class);
-        $user->expects(self::once())->method('setPreference')->with('theme', 'FOO');
+        $user = $this->createMock(User::class);
+        $user->expects($this->once())->method('setPreference')->with('theme', 'FOO');
 
         $request = self::createRequest()
             ->withAttribute('user', $user)

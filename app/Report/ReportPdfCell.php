@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -18,8 +18,6 @@
 declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Report;
-
-use Fisharebest\Webtrees\Functions\FunctionsRtl;
 
 use function hexdec;
 use function is_array;
@@ -38,7 +36,7 @@ class ReportPdfCell extends ReportBaseCell
      *
      * @return void
      */
-    public function render($renderer)
+    public function render($renderer): void
     {
         $temptext = str_replace('#PAGENUM#', (string) $renderer->tcpdf->PageNo(), $this->text);
         // underline «title» part of Source item
@@ -58,18 +56,18 @@ class ReportPdfCell extends ReportBaseCell
         // Background color
         $match = [];
         // Indicates if the cell background must be painted (1) or transparent (0)
-        if ($this->fill === 1) {
+        if ($this->fill) {
             if (!empty($this->bgcolor)) {
                 // HTML color to RGB
                 if (preg_match('/#?(..)(..)(..)/', $this->bgcolor, $match)) {
                     $r = hexdec($match[1]);
                     $g = hexdec($match[2]);
                     $b = hexdec($match[3]);
-                    $renderer->tcpdf->SetFillColor($r, $g, $b);
+                    $renderer->tcpdf->setFillColor($r, $g, $b);
                 }
             } else {
                 // If no color set then don't fill
-                $this->fill = 0;
+                $this->fill = false;
             }
         }
 
@@ -79,7 +77,7 @@ class ReportPdfCell extends ReportBaseCell
             $r = hexdec($match[1]);
             $g = hexdec($match[2]);
             $b = hexdec($match[3]);
-            $renderer->tcpdf->SetDrawColor($r, $g, $b);
+            $renderer->tcpdf->setDrawColor($r, $g, $b);
         }
 
         // Paint the text color or they might use inherited colors by the previous function
@@ -87,9 +85,9 @@ class ReportPdfCell extends ReportBaseCell
             $r = hexdec($match[1]);
             $g = hexdec($match[2]);
             $b = hexdec($match[3]);
-            $renderer->tcpdf->SetTextColor($r, $g, $b);
+            $renderer->tcpdf->setTextColor($r, $g, $b);
         } else {
-            $renderer->tcpdf->SetTextColor(0, 0, 0);
+            $renderer->tcpdf->setTextColor(0, 0, 0);
         }
 
         // If current position (left)
@@ -101,14 +99,14 @@ class ReportPdfCell extends ReportBaseCell
         }
 
         // Check the width if set to page wide OR set by xml to larger then page wide
-        if ($this->width == 0 || $this->width > $renderer->getRemainingWidthPDF()) {
+        if ($this->width === 0.0 || $this->width > $renderer->getRemainingWidthPDF()) {
             $this->width = $renderer->getRemainingWidthPDF();
         }
         // For current position
         if ($this->top === ReportBaseElement::CURRENT_POSITION) {
             $this->top = $renderer->tcpdf->GetY();
         } else {
-            $renderer->tcpdf->SetY($this->top);
+            $renderer->tcpdf->setY($this->top);
         }
 
         // Check the last cell height and adjust the current cell height if needed
@@ -122,15 +120,15 @@ class ReportPdfCell extends ReportBaseCell
             $cM  = $renderer->tcpdf->getMargins();
             // Add padding
             if (is_array($cM['cell'])) {
-                $cHT += ($cM['padding_bottom'] + $cM['padding_top']);
+                $cHT += $cM['padding_bottom'] + $cM['padding_top'];
             } else {
-                $cHT += ($cM['cell'] * 2);
+                $cHT += $cM['cell'] * 2;
             }
             // Add a new page if needed
             if ($renderer->checkPageBreakPDF($cHT)) {
                 $this->top = $renderer->tcpdf->GetY();
             }
-            $temptext = FunctionsRtl::spanLtrRtl($temptext);
+            $temptext = RightToLeftSupport::spanLtrRtl($temptext);
         }
         // HTML ready - last value is true
         $renderer->tcpdf->MultiCell(
@@ -155,12 +153,12 @@ class ReportPdfCell extends ReportBaseCell
             $renderer->lastCellHeight = $renderer->tcpdf->getLastH();
         }
 
-        // Set up the url link if exists ontop of the cell
+        // Set up the url link if exists on top of the cell
         if (!empty($this->url)) {
             $renderer->tcpdf->Link($cX, $this->top, $this->width, $this->height, $this->url);
         }
         // Reset the border and the text color to black or they will be inherited
-        $renderer->tcpdf->SetDrawColor(0, 0, 0);
-        $renderer->tcpdf->SetTextColor(0, 0, 0);
+        $renderer->tcpdf->setDrawColor(0, 0, 0);
+        $renderer->tcpdf->setTextColor(0, 0, 0);
     }
 }

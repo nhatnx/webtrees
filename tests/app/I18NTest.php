@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,53 +19,35 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees;
 
-/**
- * Test harness for the class I18N
- */
+use PHPUnit\Framework\Attributes\CoversClass;
+
+#[CoversClass(I18N::class)]
 class I18NTest extends TestCase
 {
-    /**
-     * @covers \Fisharebest\Webtrees\I18N::strtoupper
-     *
-     * @return void
-     */
     public function testStrtoupper(): void
     {
         self::assertSame(I18N::strtoupper(''), '');
         self::assertSame(I18N::strtoupper('Abc'), 'ABC');
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\I18N::strtolower
-     *
-     * @return void
-     */
     public function testStrtolower(): void
     {
         self::assertSame(I18N::strtolower(''), '');
         self::assertSame(I18N::strtolower('Abc'), 'abc');
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\I18N::strcasecmp()
-     *
-     * @return void
-     */
-    public function testStrcasecmp(): void
+    public function testComparator(): void
     {
-        self::assertSame(I18N::strcasecmp('', ''), 0);
-        self::assertSame(I18N::strcasecmp('Abc', 'abc'), 0);
-        self::assertTrue(I18N::strcasecmp('Abc', 'bcd') < 0);
-        self::assertTrue(I18N::strcasecmp('bcd', 'ABC') > 0);
-        self::assertTrue(I18N::strcasecmp('Abc', 'abcd') < 0);
-        self::assertTrue(I18N::strcasecmp('Abcd', 'abc') > 0);
+        $comparator = I18N::comparator();
+
+        self::assertSame($comparator('', ''), 0);
+        self::assertSame($comparator('Abc', 'abc'), 0);
+        self::assertTrue($comparator('Abc', 'bcd') < 0);
+        self::assertTrue($comparator('bcd', 'ABC') > 0);
+        self::assertTrue($comparator('Abc', 'abcd') < 0);
+        self::assertTrue($comparator('Abcd', 'abc') > 0);
     }
 
-    /**
-     * @covers \Fisharebest\Webtrees\I18N::reverseText
-     *
-     * @return void
-     */
     public function testReverseText(): void
     {
         // Create these strings carefully, as text editors can display them in confusing ways.

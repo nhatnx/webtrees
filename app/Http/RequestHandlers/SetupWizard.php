@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -25,6 +25,7 @@ use Fisharebest\Localization\Locale\LocaleEnUs;
 use Fisharebest\Localization\Locale\LocaleInterface;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Factories\CacheFactory;
 use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
@@ -35,14 +36,14 @@ use Fisharebest\Webtrees\Services\ModuleService;
 use Fisharebest\Webtrees\Services\ServerCheckService;
 use Fisharebest\Webtrees\Services\UserService;
 use Fisharebest\Webtrees\Session;
+use Fisharebest\Webtrees\Validator;
 use Fisharebest\Webtrees\Webtrees;
-use Illuminate\Database\Capsule\Manager as DB;
+use Illuminate\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Throwable;
 
-use function app;
 use function e;
 use function file_get_contents;
 use function file_put_contents;
@@ -62,46 +63,44 @@ class SetupWizard implements RequestHandlerInterface
 {
     use ViewResponseTrait;
 
-    private const DEFAULT_DBTYPE = 'mysql';
+    private const DEFAULT_DBTYPE = DB::MYSQL;
     private const DEFAULT_PREFIX = 'wt_';
     private const DEFAULT_DATA   = [
-        'baseurl' => '',
-        'lang'    => '',
-        'dbtype'  => self::DEFAULT_DBTYPE,
-        'dbhost'  => '',
-        'dbport'  => '',
-        'dbuser'  => '',
-        'dbpass'  => '',
-        'dbname'  => '',
-        'tblpfx'  => self::DEFAULT_PREFIX,
-        'wtname'  => '',
-        'wtuser'  => '',
-        'wtpass'  => '',
-        'wtemail' => '',
+        'baseurl'  => '',
+        'lang'     => '',
+        'dbtype'   => self::DEFAULT_DBTYPE,
+        'dbhost'   => '',
+        'dbport'   => '',
+        'dbuser'   => '',
+        'dbpass'   => '',
+        'dbname'   => '',
+        'tblpfx'   => self::DEFAULT_PREFIX,
+        'dbkey'    => '',
+        'dbcert'   => '',
+        'dbca'     => '',
+        'dbverify' => '',
+        'wtname'   => '',
+        'wtuser'   => '',
+        'wtpass'   => '',
+        'wtemail'  => '',
     ];
 
     private const DEFAULT_PORTS = [
-        'mysql'  => '3306',
-        'pgsql'  => '5432',
-        'sqlite' => '',
-        'sqlsvr' => '1433',
+        DB::MYSQL      => '3306',
+        DB::POSTGRES   => '5432',
+        DB::SQLITE     => '',
+        DB::SQL_SERVER => '', // Do not use default, as it is valid to have no port number.
     ];
 
-    /** @var MigrationService */
-    private $migration_service;
+    private MigrationService $migration_service;
 
-    /** @var ModuleService */
-    private $module_service;
+    private ModuleService $module_service;
 
-    /** @var ServerCheckService */
-    private $server_check_service;
+    private ServerCheckService $server_check_service;
 
-    /** @var UserService */
-    private $user_service;
+    private UserService $user_service;
 
     /**
-     * SetupWizard constructor.
-     *
      * @param MigrationService   $migration_service
      * @param ModuleService      $module_service
      * @param ServerCheckService $server_check_service
@@ -134,21 +133,18 @@ class SetupWizard implements RequestHandlerInterface
         Registry::cache(new CacheFactory());
 
         // We will need an IP address for the logs.
-        $ip_address  = $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
-        $request     = $request->withAttribute('client-ip', $ip_address);
+        $ip_address = Validator::serverParams($request)->string('REMOTE_ADDR', '127.0.0.1');
+        $request    = $request->withAttribute('client-ip', $ip_address);
 
-        app()->instance(ServerRequestInterface::class, $request);
+        Registry::container()->set(ServerRequestInterface::class, $request);
 
         $data = $this->userData($request);
 
-        $params = (array) $request->getParsedBody();
-        $step   = (int) ($params['step'] ?? '1');
+        $step = Validator::parsedBody($request)->integer('step', 1);
 
         $locales = $this->module_service
             ->setupLanguages()
-            ->map(static function (ModuleLanguageInterface $module): LocaleInterface {
-                return $module->locale();
-            });
+            ->map(static fn (ModuleLanguageInterface $module): LocaleInterface => $module->locale());
 
         if ($data['lang'] === '') {
             $default = new LocaleEnUs();
@@ -205,12 +201,10 @@ class SetupWizard implements RequestHandlerInterface
      */
     private function userData(ServerRequestInterface $request): array
     {
-        $params = (array) $request->getParsedBody();
-
         $data = [];
 
         foreach (self::DEFAULT_DATA as $key => $default) {
-            $data[$key] = $params[$key] ?? $default;
+            $data[$key] = Validator::parsedBody($request)->string($key, $default);
         }
 
         return $data;
@@ -267,7 +261,7 @@ class SetupWizard implements RequestHandlerInterface
             file_put_contents($data_dir . 'test.txt', $text1);
             $text2 = file_get_contents(Webtrees::DATA_DIR . 'test.txt');
             unlink(Webtrees::DATA_DIR . 'test.txt');
-        } catch (Exception $ex) {
+        } catch (Exception) {
             return false;
         }
 
@@ -428,7 +422,7 @@ class SetupWizard implements RequestHandlerInterface
         file_put_contents(Webtrees::CONFIG_FILE, $config_ini_php);
 
         // Login as the new user
-        $request = app(ServerRequestInterface::class)
+        $request = Registry::container()->get(ServerRequestInterface::class)
             ->withAttribute('base_url', $data['baseurl']);
 
         Session::start($request);
@@ -443,54 +437,42 @@ class SetupWizard implements RequestHandlerInterface
      */
     private function connectToDatabase(array $data): void
     {
-        $capsule = new DB();
-
         // Try to create the database, if it does not already exist.
         switch ($data['dbtype']) {
-            case 'sqlite':
-                $data['dbname'] = Webtrees::ROOT_DIR . 'data/' . $data['dbname'] . '.sqlite';
-                touch($data['dbname']);
+            case DB::SQLITE:
+                touch(Webtrees::ROOT_DIR . 'data/' . $data['dbname'] . '.sqlite');
                 break;
 
-            case 'mysql':
-                $capsule->addConnection([
-                    'driver'                  => $data['dbtype'],
-                    'host'                    => $data['dbhost'],
-                    'port'                    => $data['dbport'],
-                    'database'                => '',
-                    'username'                => $data['dbuser'],
-                    'password'                => $data['dbpass'],
-                ], 'temp');
-                $capsule->getConnection('temp')->statement('CREATE DATABASE IF NOT EXISTS `' . $data['dbname'] . '` COLLATE utf8_unicode_ci');
+            case DB::MYSQL:
+                DB::connect(
+                    driver: $data['dbtype'],
+                    host: $data['dbhost'],
+                    port: $data['dbport'],
+                    database: '',
+                    username: $data['dbuser'],
+                    password: $data['dbpass'],
+                    prefix: $data['tblpfx'],
+                    key: $data['dbkey'],
+                    certificate: $data['dbcert'],
+                    ca: $data['dbca'],
+                    verify_certificate: (bool) $data['dbverify'],
+                );
+                DB::exec('CREATE DATABASE IF NOT EXISTS `' . $data['dbname'] . '` COLLATE utf8mb4_unicode_ci');
                 break;
         }
 
-        // Connect to the database.
-        $capsule->addConnection([
-            'driver'                  => $data['dbtype'],
-            'host'                    => $data['dbhost'],
-            'port'                    => $data['dbport'],
-            'database'                => $data['dbname'],
-            'username'                => $data['dbuser'],
-            'password'                => $data['dbpass'],
-            'prefix'                  => $data['tblpfx'],
-            'prefix_indexes'          => true,
-            // For MySQL
-            'charset'                 => 'utf8',
-            'collation'               => 'utf8_unicode_ci',
-            'timezone'                => '+00:00',
-            'engine'                  => 'InnoDB',
-            'modes'                   => [
-                'ANSI',
-                'STRICT_TRANS_TABLES',
-                'NO_ZERO_IN_DATE',
-                'NO_ZERO_DATE',
-                'ERROR_FOR_DIVISION_BY_ZERO',
-            ],
-            // For SQLite
-            'foreign_key_constraints' => true,
-        ]);
-
-        $capsule->setAsGlobal();
+        DB::connect(
+            driver: $data['dbtype'],
+            host: $data['dbhost'],
+            port: $data['dbport'],
+            database: $data['dbname'],
+            username: $data['dbuser'],
+            password: $data['dbpass'],
+            prefix: $data['tblpfx'],
+            key: $data['dbkey'],
+            certificate: $data['dbcert'],
+            ca: $data['dbca'],
+            verify_certificate: (bool) $data['dbverify'],
+        );
     }
 }

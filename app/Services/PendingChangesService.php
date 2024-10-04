@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,11 +19,14 @@ declare(strict_types=1);
 
 namespace Fisharebest\Webtrees\Services;
 
-use Fisharebest\Webtrees\Carbon;
+use DateInterval;
+use DateTimeImmutable;
+use DateTimeZone;
+use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Exceptions\GedcomErrorException;
-use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Family;
-use Fisharebest\Webtrees\Functions\FunctionsImport;
 use Fisharebest\Webtrees\Gedcom;
 use Fisharebest\Webtrees\GedcomRecord;
 use Fisharebest\Webtrees\Header;
@@ -31,16 +34,15 @@ use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Location;
 use Fisharebest\Webtrees\Media;
 use Fisharebest\Webtrees\Note;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Repository;
 use Fisharebest\Webtrees\Source;
 use Fisharebest\Webtrees\Submission;
 use Fisharebest\Webtrees\Submitter;
 use Fisharebest\Webtrees\Tree;
-use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Collection;
-use stdClass;
 
 use function addcslashes;
 use function preg_match;
@@ -50,12 +52,22 @@ use function preg_match;
  */
 class PendingChangesService
 {
+    private GedcomImportService $gedcom_import_service;
+
+    /**
+     * @param GedcomImportService $gedcom_import_service
+     */
+    public function __construct(GedcomImportService $gedcom_import_service)
+    {
+        $this->gedcom_import_service = $gedcom_import_service;
+    }
+
     /**
      * Which records have pending changes
      *
      * @param Tree $tree
      *
-     * @return Collection<string>
+     * @return Collection<int,string>
      */
     public function pendingXrefs(Tree $tree): Collection
     {
@@ -71,7 +83,7 @@ class PendingChangesService
      * @param Tree $tree
      * @param int  $n
      *
-     * @return array<array<stdClass>>
+     * @return array<array<object>>
      */
     public function pendingChanges(Tree $tree, int $n): array
     {
@@ -102,7 +114,7 @@ class PendingChangesService
         ];
 
         foreach ($rows as $row) {
-            $row->change_time = Carbon::make($row->change_time);
+            $row->change_time = Registry::timestampFactory()->fromString($row->change_time);
 
             preg_match('/^0 (?:@' . Gedcom::REGEX_XREF . '@ )?(' . Gedcom::REGEX_TAG . ')/', $row->old_gedcom . $row->new_gedcom, $match);
 
@@ -141,10 +153,10 @@ class PendingChangesService
         foreach ($changes as $change) {
             if ($change->new_gedcom === '') {
                 // delete
-                FunctionsImport::updateRecord($change->old_gedcom, $tree, true);
+                $this->gedcom_import_service->updateRecord($change->old_gedcom, $tree, true);
             } else {
                 // add/update
-                FunctionsImport::updateRecord($change->new_gedcom, $tree, false);
+                $this->gedcom_import_service->updateRecord($change->new_gedcom, $tree, false);
             }
 
             DB::table('change')
@@ -171,10 +183,10 @@ class PendingChangesService
         foreach ($changes as $change) {
             if ($change->new_gedcom === '') {
                 // delete
-                FunctionsImport::updateRecord($change->old_gedcom, $record->tree(), true);
+                $this->gedcom_import_service->updateRecord($change->old_gedcom, $record->tree(), true);
             } else {
                 // add/update
-                FunctionsImport::updateRecord($change->new_gedcom, $record->tree(), false);
+                $this->gedcom_import_service->updateRecord($change->new_gedcom, $record->tree(), false);
             }
 
             DB::table('change')
@@ -202,10 +214,10 @@ class PendingChangesService
         foreach ($changes as $change) {
             if ($change->new_gedcom === '') {
                 // delete
-                FunctionsImport::updateRecord($change->old_gedcom, $record->tree(), true);
+                $this->gedcom_import_service->updateRecord($change->old_gedcom, $record->tree(), true);
             } else {
                 // add/update
-                FunctionsImport::updateRecord($change->new_gedcom, $record->tree(), false);
+                $this->gedcom_import_service->updateRecord($change->new_gedcom, $record->tree(), false);
             }
 
             DB::table('change')
@@ -260,7 +272,7 @@ class PendingChangesService
     /**
      * Generate a query for filtering the changes log.
      *
-     * @param string[] $params
+     * @param array<string> $params
      *
      * @return Builder
      */
@@ -281,13 +293,25 @@ class PendingChangesService
             ->select(['change.*', new Expression("COALESCE(user_name, '<none>') AS user_name"), 'gedcom_name'])
             ->where('gedcom_name', '=', $tree);
 
+        $tz  = new DateTimeZone(Auth::user()->getPreference(UserInterface::PREF_TIME_ZONE, 'UTC'));
+        $utc = new DateTimeZone('UTC');
+
         if ($from !== '') {
-            $query->where('change_time', '>=', $from);
+            $from_time = DateTimeImmutable::createFromFormat('!Y-m-d', $from, $tz)
+                ->setTimezone($utc)
+                ->format('Y-m-d H:i:s');
+
+            $query->where('change_time', '>=', $from_time);
         }
 
         if ($to !== '') {
             // before end of the day
-            $query->where('change_time', '<', Carbon::make($to)->addDay());
+            $to_time = DateTimeImmutable::createFromFormat('!Y-m-d', $to, $tz)
+                ->add(new DateInterval('P1D'))
+                ->setTimezone($utc)
+                ->format('Y-m-d H:i:s');
+
+            $query->where('change_time', '<', $to_time);
         }
 
         if ($type !== '') {

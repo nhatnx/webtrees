@@ -2,7 +2,7 @@
 
 /**
  * webtrees: online genealogy
- * Copyright (C) 2021 webtrees development team
+ * Copyright (C) 2023 webtrees development team
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -23,6 +23,7 @@ use Fisharebest\Webtrees\Http\ViewResponseTrait;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Services\UpgradeService;
+use Fisharebest\Webtrees\Validator;
 use Fisharebest\Webtrees\Webtrees;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -49,15 +50,11 @@ class UpgradeWizardPage implements RequestHandlerInterface
     private const STEP_UNZIP    = 'Unzip';
     private const STEP_COPY     = 'Copy';
 
-    /** @var UpgradeService */
-    private $upgrade_service;
+    private TreeService $tree_service;
 
-    /** @var TreeService */
-    private $tree_service;
+    private UpgradeService $upgrade_service;
 
     /**
-     * UpgradeController constructor.
-     *
      * @param TreeService    $tree_service
      * @param UpgradeService $upgrade_service
      */
@@ -76,7 +73,7 @@ class UpgradeWizardPage implements RequestHandlerInterface
     {
         $this->layout = 'layouts/administration';
 
-        $continue = $request->getQueryParams()['continue'] ?? '';
+        $continue = Validator::queryParams($request)->string('continue', '');
 
         $title = I18N::translate('Upgrade wizard');
 
@@ -97,7 +94,6 @@ class UpgradeWizardPage implements RequestHandlerInterface
             'title'           => $title,
         ]);
     }
-
 
     /**
      * @return array<string>
